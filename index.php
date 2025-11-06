@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use SortingPhotosByDate\Command\ScanFilesCommand;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Infrastructure\Helper\ByteFormatter;
+use SortingPhotosByDate\Infrastructure\Helper\DirectorySizeCalculator;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\ScannerPort;
@@ -27,51 +29,6 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 ini_set('memory_limit', '550M');
 ini_set('display_startup_errors', '1');
-
-/**
- * Recursively calculates the size of a directory.
- */
-function getDirectorySize(string $directory, FilesystemPort $filesystem): int
-{
-    if (!is_dir($directory)) {
-        return 0;
-    }
-
-    $size = 0;
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS)
-    );
-
-    foreach ($iterator as $file) {
-        if ($file->isFile()) {
-            try {
-                $filePath = new FilePath($file->getRealPath() ?: $file->getPathname());
-                $size += $filesystem->getSize($filePath);
-            } catch (Exception) {
-                // Skip files that cannot be read
-                continue;
-            }
-        }
-    }
-
-    return $size;
-}
-
-/**
- * Formats the size in bytes in a readable form (KB, MB, GB, etc.).
- */
-function formatBytes(int $size): string
-{
-    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    $i = 0;
-
-    while ($size >= 1024 && $i < 4) {
-        $size /= 1024;
-        ++$i;
-    }
-
-    return round($size, 2).' '.$units[$i];
-}
 
 try {
     // Load DI container
@@ -150,6 +107,10 @@ try {
     $filesystem = $container->get(FilesystemPort::class);
     $scanner = $container->get(ScannerPort::class);
 
+    // Create helper instances
+    $byteFormatter = new ByteFormatter();
+    $directorySizeCalculator = new DirectorySizeCalculator($filesystem);
+
     // Validate directories
     if (!is_dir($sourceDirectory)) {
         // Try to create source directory if it doesn't exist (for testing)
@@ -169,13 +130,13 @@ try {
 
     // Calculate directory sizes before processing
     $logger->info('Calculating directory sizes...');
-    $sourceDirectorySize = getDirectorySize($sourceDirectory, $filesystem);
-    $destinationDirectorySizeBefore = getDirectorySize($destinationDirectory, $filesystem);
+    $sourceDirectorySize = $directorySizeCalculator->calculate($sourceDirectory);
+    $destinationDirectorySizeBefore = $directorySizeCalculator->calculate($destinationDirectory);
     $expectedFinalSize = $sourceDirectorySize + $destinationDirectorySizeBefore;
 
-    $logger->info('Source Directory Size: '.formatBytes($sourceDirectorySize));
-    $logger->info('Destination Directory Size Before: '.formatBytes($destinationDirectorySizeBefore));
-    $logger->info('Expected Final Size: '.formatBytes($expectedFinalSize));
+    $logger->info('Source Directory Size: '.$byteFormatter->format($sourceDirectorySize));
+    $logger->info('Destination Directory Size Before: '.$byteFormatter->format($destinationDirectorySizeBefore));
+    $logger->info('Expected Final Size: '.$byteFormatter->format($expectedFinalSize));
 
     // Create and execute ScanFilesCommand
     $scanCommand = new ScanFilesCommand($scanner, $messageBus, $filesystem, $logger);
@@ -210,18 +171,18 @@ try {
 
     // Calculate directory sizes after processing
     $logger->info('Calculating directory sizes after processing...');
-    $destinationDirectorySizeAfter = getDirectorySize($destinationDirectory, $filesystem);
-    $sourceDirectorySizeAfter = getDirectorySize($sourceDirectory, $filesystem);
+    $destinationDirectorySizeAfter = $directorySizeCalculator->calculate($destinationDirectory);
+    $sourceDirectorySizeAfter = $directorySizeCalculator->calculate($sourceDirectory);
 
-    $logger->info('Destination Directory Size After: '.formatBytes($destinationDirectorySizeAfter));
-    $logger->info('Source Directory Size After: '.formatBytes($sourceDirectorySizeAfter));
+    $logger->info('Destination Directory Size After: '.$byteFormatter->format($destinationDirectorySizeAfter));
+    $logger->info('Source Directory Size After: '.$byteFormatter->format($sourceDirectorySizeAfter));
 
     // Verify integrity
     $movedSize = $destinationDirectorySizeAfter - $destinationDirectorySizeBefore;
     $remainingSize = $sourceDirectorySizeAfter;
 
-    $logger->info('Size moved to destination: '.formatBytes($movedSize));
-    $logger->info('Size remaining in source: '.formatBytes($remainingSize));
+    $logger->info('Size moved to destination: '.$byteFormatter->format($movedSize));
+    $logger->info('Size remaining in source: '.$byteFormatter->format($remainingSize));
 
     // Safety checks
     $warnings = [];
@@ -235,9 +196,9 @@ try {
         $difference = abs($totalSizeAfter - $totalSizeBefore);
         $errors[] = \sprintf(
             'ALERT!!! Total size mismatch: Expected %s, Got %s (Difference: %s)',
-            formatBytes($totalSizeBefore),
-            formatBytes($totalSizeAfter),
-            formatBytes($difference)
+            $byteFormatter->format($totalSizeBefore),
+            $byteFormatter->format($totalSizeAfter),
+            $byteFormatter->format($difference)
         );
     }
 
@@ -246,9 +207,9 @@ try {
         $difference = abs($destinationDirectorySizeAfter - $expectedFinalSize);
         $warnings[] = \sprintf(
             'Destination size does not match expected: Expected %s, Got %s (Difference: %s)',
-            formatBytes($expectedFinalSize),
-            formatBytes($destinationDirectorySizeAfter),
-            formatBytes($difference)
+            $byteFormatter->format($expectedFinalSize),
+            $byteFormatter->format($destinationDirectorySizeAfter),
+            $byteFormatter->format($difference)
         );
     }
 
