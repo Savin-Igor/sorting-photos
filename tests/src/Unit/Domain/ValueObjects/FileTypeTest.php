@@ -98,4 +98,86 @@ final class FileTypeTest extends TestCase
         $type = FileType::fromMimeType('application/unknown');
         $this->assertEquals(FileType::OTHER, $type);
     }
+
+    public function testFromExtensionImage(): void
+    {
+        $this->assertEquals(FileType::IMAGE, FileType::fromExtension('test.jpg'));
+        $this->assertEquals(FileType::IMAGE, FileType::fromExtension('test.jpeg'));
+        $this->assertEquals(FileType::IMAGE, FileType::fromExtension('test.png'));
+        $this->assertEquals(FileType::IMAGE, FileType::fromExtension('test.gif'));
+        $this->assertEquals(FileType::IMAGE, FileType::fromExtension('test.webp'));
+        $this->assertEquals(FileType::IMAGE, FileType::fromExtension('test.heic'));
+    }
+
+    public function testFromExtensionVideo(): void
+    {
+        $this->assertEquals(FileType::VIDEO, FileType::fromExtension('test.mp4'));
+        $this->assertEquals(FileType::VIDEO, FileType::fromExtension('test.avi'));
+        $this->assertEquals(FileType::VIDEO, FileType::fromExtension('test.mov'));
+        $this->assertEquals(FileType::VIDEO, FileType::fromExtension('test.mkv'));
+    }
+
+    public function testFromExtensionAudio(): void
+    {
+        $this->assertEquals(FileType::AUDIO, FileType::fromExtension('test.mp3'));
+        $this->assertEquals(FileType::AUDIO, FileType::fromExtension('test.wav'));
+        $this->assertEquals(FileType::AUDIO, FileType::fromExtension('test.flac'));
+        $this->assertEquals(FileType::AUDIO, FileType::fromExtension('test.aac'));
+    }
+
+    public function testFromExtensionDocument(): void
+    {
+        $this->assertEquals(FileType::DOCUMENT, FileType::fromExtension('test.pdf'));
+        $this->assertEquals(FileType::DOCUMENT, FileType::fromExtension('test.doc'));
+        $this->assertEquals(FileType::DOCUMENT, FileType::fromExtension('test.docx'));
+        $this->assertEquals(FileType::DOCUMENT, FileType::fromExtension('test.xls'));
+        $this->assertEquals(FileType::DOCUMENT, FileType::fromExtension('test.xlsx'));
+    }
+
+    public function testFromExtensionUnknown(): void
+    {
+        $this->assertEquals(FileType::OTHER, FileType::fromExtension('test.unknown'));
+        $this->assertEquals(FileType::OTHER, FileType::fromExtension('test'));
+    }
+
+    public function testDetectSmartWithValidMimeType(): void
+    {
+        $type = FileType::detectSmart('test.jpg', 'image/jpeg');
+        $this->assertEquals(FileType::IMAGE, $type);
+    }
+
+    public function testDetectSmartWithGenericMimeType(): void
+    {
+        // Should fallback to extension
+        $type = FileType::detectSmart('test.jpg', 'application/octet-stream');
+        $this->assertEquals(FileType::IMAGE, $type);
+    }
+
+    public function testDetectSmartWithExifData(): void
+    {
+        // Even with generic MIME type, EXIF data indicates image
+        $type = FileType::detectSmart('test.unknown', 'application/octet-stream', true);
+        $this->assertEquals(FileType::IMAGE, $type);
+    }
+
+    public function testDetectSmartWithMetadataDuration(): void
+    {
+        // Duration indicates video
+        $type = FileType::detectSmart('test.unknown', 'application/octet-stream', null, ['duration' => 120]);
+        $this->assertEquals(FileType::VIDEO, $type);
+    }
+
+    public function testDetectSmartWithMetadataWidthHeight(): void
+    {
+        // Width/height without duration suggests image
+        $type = FileType::detectSmart('test.unknown', 'application/octet-stream', null, ['width' => 1920, 'height' => 1080]);
+        $this->assertEquals(FileType::IMAGE, $type);
+    }
+
+    public function testDetectSmartWithVideoMimeAndDimensions(): void
+    {
+        // Video MIME type with dimensions should be video
+        $type = FileType::detectSmart('test.unknown', 'video/mp4', null, ['width' => 1920, 'height' => 1080]);
+        $this->assertEquals(FileType::VIDEO, $type);
+    }
 }

@@ -70,8 +70,19 @@ final readonly class IngestFileHandler
             return null;
         }
 
-        // Determine file type from MIME type
-        $fileType = FileType::fromMimeType($mimeType);
+        // Smart file type detection using MIME type, extension, and metadata
+        $hasExif = function_exists('exif_imagetype') && false !== @exif_imagetype($filePath->getPath());
+        $metadataHints = [
+            'width' => $mediaMeta->getWidth(),
+            'height' => $mediaMeta->getHeight(),
+            'duration' => $mediaMeta->getDuration(),
+        ];
+        $fileType = FileType::detectSmart(
+            $filePath->getPath(),
+            $mimeType,
+            $hasExif,
+            $metadataHints
+        );
 
         // Create MediaAsset
         $asset = new MediaAsset(
