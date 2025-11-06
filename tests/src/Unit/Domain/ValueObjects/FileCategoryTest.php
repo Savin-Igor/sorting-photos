@@ -33,4 +33,3 @@ final class FileCategoryTest extends TestCase
         $this->assertEquals('other', $category->value);
     }
 }
-

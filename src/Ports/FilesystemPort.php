@@ -14,8 +14,9 @@ interface FilesystemPort
     /**
      * Copy file preserving all metadata (permissions, timestamps, extended attributes).
      *
-     * @param FilePath $source Source file path
+     * @param FilePath $source      Source file path
      * @param FilePath $destination Destination file path
+     *
      * @return bool True on success
      */
     public function copyWithMetadata(FilePath $source, FilePath $destination): bool;
@@ -24,6 +25,7 @@ interface FilesystemPort
      * Create directory if it doesn't exist.
      *
      * @param FilePath $directory Directory path
+     *
      * @return bool True on success
      */
     public function ensureDirectory(FilePath $directory): bool;
@@ -32,6 +34,7 @@ interface FilesystemPort
      * Delete file.
      *
      * @param FilePath $filePath File path to delete
+     *
      * @return bool True on success
      */
     public function delete(FilePath $filePath): bool;
@@ -40,6 +43,7 @@ interface FilesystemPort
      * Check if file exists.
      *
      * @param FilePath $filePath File path to check
+     *
      * @return bool True if exists
      */
     public function exists(FilePath $filePath): bool;
@@ -48,6 +52,7 @@ interface FilesystemPort
      * Get file size in bytes.
      *
      * @param FilePath $filePath File path
+     *
      * @return int File size in bytes
      */
     public function getSize(FilePath $filePath): int;
@@ -56,6 +61,7 @@ interface FilesystemPort
      * Get file permissions.
      *
      * @param FilePath $filePath File path
+     *
      * @return int File permissions (octal)
      */
     public function getPermissions(FilePath $filePath): int;
@@ -63,8 +69,9 @@ interface FilesystemPort
     /**
      * Set file permissions.
      *
-     * @param FilePath $filePath File path
-     * @param int $permissions Permissions (octal)
+     * @param FilePath $filePath    File path
+     * @param int      $permissions Permissions (octal)
+     *
      * @return bool True on success
      */
     public function setPermissions(FilePath $filePath, int $permissions): bool;
@@ -73,6 +80,7 @@ interface FilesystemPort
      * Get file modification time.
      *
      * @param FilePath $filePath File path
+     *
      * @return int Unix timestamp
      */
     public function getModificationTime(FilePath $filePath): int;
@@ -80,10 +88,10 @@ interface FilesystemPort
     /**
      * Set file modification time.
      *
-     * @param FilePath $filePath File path
-     * @param int $timestamp Unix timestamp
+     * @param FilePath $filePath  File path
+     * @param int      $timestamp Unix timestamp
+     *
      * @return bool True on success
      */
     public function setModificationTime(FilePath $filePath, int $timestamp): bool;
 }
-

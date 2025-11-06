@@ -18,7 +18,7 @@ final class MediaAsset
         private readonly FileType $fileType,
         private readonly MediaMeta $metadata,
         private readonly MediaDate $date,
-        private readonly FileHash $hash
+        private readonly FileHash $hash,
     ) {
     }
 

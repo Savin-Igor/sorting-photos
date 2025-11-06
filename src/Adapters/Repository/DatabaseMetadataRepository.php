@@ -15,7 +15,7 @@ final class DatabaseMetadataRepository implements MetadataRepositoryPort
     private const TABLE_NAME = 'file_metadata';
 
     public function __construct(
-        private readonly Connection $connection
+        private readonly Connection $connection,
     ) {
     }
 
@@ -75,7 +75,7 @@ SQL;
                 $asset->getHash()
             );
 
-            if ($existing !== null) {
+            if (null !== $existing) {
                 // Update existing record
                 $this->connection->update(
                     self::TABLE_NAME,
@@ -100,11 +100,11 @@ SQL;
     public function findByPathSizeAndHash(FilePath $filePath, int $fileSize, FileHash $hash): ?MediaAsset
     {
         $result = $this->connection->fetchAssociative(
-            'SELECT * FROM ' . self::TABLE_NAME . ' WHERE file_path = ? AND file_size = ? AND file_hash = ? LIMIT 1',
+            'SELECT * FROM '.self::TABLE_NAME.' WHERE file_path = ? AND file_size = ? AND file_hash = ? LIMIT 1',
             [$filePath->getPath(), $fileSize, $hash->getHash()]
         );
 
-        if ($result === false) {
+        if (false === $result) {
             return null;
         }
 
@@ -114,11 +114,11 @@ SQL;
     public function findByHash(FileHash $hash): ?MediaAsset
     {
         $result = $this->connection->fetchAssociative(
-            'SELECT * FROM ' . self::TABLE_NAME . ' WHERE file_hash = ? LIMIT 1',
+            'SELECT * FROM '.self::TABLE_NAME.' WHERE file_hash = ? LIMIT 1',
             [$hash->getHash()]
         );
 
-        if ($result === false) {
+        if (false === $result) {
             return null;
         }
 
@@ -127,7 +127,7 @@ SQL;
 
     public function isProcessed(FilePath $filePath, int $fileSize, FileHash $hash): bool
     {
-        return $this->findByPathSizeAndHash($filePath, $fileSize, $hash) !== null;
+        return null !== $this->findByPathSizeAndHash($filePath, $fileSize, $hash);
     }
 
     public function delete(FilePath $filePath): bool
@@ -154,18 +154,17 @@ SQL;
             $row['file_name'],
             $row['mime_type'],
             (int) $row['file_size'],
-            $row['width'] !== null ? (int) $row['width'] : null,
-            $row['height'] !== null ? (int) $row['height'] : null,
-            $row['duration'] !== null ? (int) $row['duration'] : null,
+            null !== $row['width'] ? (int) $row['width'] : null,
+            null !== $row['height'] ? (int) $row['height'] : null,
+            null !== $row['duration'] ? (int) $row['duration'] : null,
             null,
             null,
             null,
-            $row['metadata_json'] !== null ? json_decode($row['metadata_json'], true, 512, JSON_THROW_ON_ERROR) : []
+            null !== $row['metadata_json'] ? json_decode($row['metadata_json'], true, 512, JSON_THROW_ON_ERROR) : []
         );
 
         $date = \SortingPhotosByDate\Domain\ValueObjects\MediaDate::fromString($row['date_taken']);
 
-        return new \SortingPhotosByDate\Domain\MediaAsset($sourcePath, $fileType, $metadata, $date, $hash);
+        return new MediaAsset($sourcePath, $fileType, $metadata, $date, $hash);
     }
 }
-

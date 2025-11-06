@@ -121,4 +121,3 @@ final class MediaDateTest extends TestCase
         $this->assertInstanceOf(Carbon::class, $mediaDate->getDateTime());
     }
 }
-

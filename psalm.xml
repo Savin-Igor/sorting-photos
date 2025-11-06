@@ -16,6 +16,8 @@
             <directory name="bin" />
             <directory name="config" />
             <directory name="var" />
+            <directory name="src/Entities" />
+            <directory name="src/Services" />
         </ignoreFiles>
     </projectFiles>
     <issueHandlers>
@@ -24,5 +26,10 @@
                 <directory name="src/Domain/ValueObjects" />
             </errorLevel>
         </MissingConstructor>
+        <UndefinedClass>
+            <errorLevel type="suppress">
+                <file name="src/Adapters/Metadata/GetId3Adapter.php" />
+            </errorLevel>
+        </UndefinedClass>
     </issueHandlers>
 </psalm>

@@ -9,6 +9,7 @@ use SortingPhotosByDate\Ports\FilesystemPort;
 
 final class LocalFilesystemAdapter implements FilesystemPort
 {
+    #[\Override]
     public function copyWithMetadata(FilePath $source, FilePath $destination): bool
     {
         if (!file_exists($source->getPath())) {
@@ -22,7 +23,10 @@ final class LocalFilesystemAdapter implements FilesystemPort
         // Get source metadata before copying
         $permissions = $this->getPermissions($source);
         $mtime = $this->getModificationTime($source);
-        $atime = fileatime($source->getPath()) ?: $mtime;
+        $atime = fileatime($source->getPath());
+        if (false === $atime) {
+            $atime = $mtime;
+        }
 
         // Copy file
         if (!copy($source->getPath(), $destination->getPath())) {
@@ -40,6 +44,7 @@ final class LocalFilesystemAdapter implements FilesystemPort
         return true;
     }
 
+    #[\Override]
     public function ensureDirectory(FilePath $directory): bool
     {
         $path = $directory->getPath();
@@ -50,6 +55,7 @@ final class LocalFilesystemAdapter implements FilesystemPort
         return mkdir($path, 0755, true);
     }
 
+    #[\Override]
     public function delete(FilePath $filePath): bool
     {
         if (!file_exists($filePath->getPath())) {
@@ -59,46 +65,52 @@ final class LocalFilesystemAdapter implements FilesystemPort
         return unlink($filePath->getPath());
     }
 
+    #[\Override]
     public function exists(FilePath $filePath): bool
     {
         return file_exists($filePath->getPath());
     }
 
+    #[\Override]
     public function getSize(FilePath $filePath): int
     {
         $size = filesize($filePath->getPath());
-        if ($size === false) {
+        if (false === $size) {
             throw new \RuntimeException("Failed to get file size: {$filePath->getPath()}");
         }
 
         return $size;
     }
 
+    #[\Override]
     public function getPermissions(FilePath $filePath): int
     {
         $perms = fileperms($filePath->getPath());
-        if ($perms === false) {
+        if (false === $perms) {
             throw new \RuntimeException("Failed to get file permissions: {$filePath->getPath()}");
         }
 
         return $perms & 0777;
     }
 
+    #[\Override]
     public function setPermissions(FilePath $filePath, int $permissions): bool
     {
         return chmod($filePath->getPath(), $permissions);
     }
 
+    #[\Override]
     public function getModificationTime(FilePath $filePath): int
     {
         $mtime = filemtime($filePath->getPath());
-        if ($mtime === false) {
+        if (false === $mtime) {
             throw new \RuntimeException("Failed to get file modification time: {$filePath->getPath()}");
         }
 
         return $mtime;
     }
 
+    #[\Override]
     public function setModificationTime(FilePath $filePath, int $timestamp): bool
     {
         return touch($filePath->getPath(), $timestamp);
@@ -115,13 +127,14 @@ final class LocalFilesystemAdapter implements FilesystemPort
 
         try {
             $attributes = xattr_list($source);
-            if ($attributes === false) {
+            if (false === $attributes) {
                 return;
             }
 
+            /** @var array<string> $attributes */
             foreach ($attributes as $attr) {
                 $value = xattr_get($source, $attr);
-                if ($value !== false) {
+                if (is_string($value)) {
                     xattr_set($destination, $attr, $value);
                 }
             }
@@ -130,4 +143,3 @@ final class LocalFilesystemAdapter implements FilesystemPort
         }
     }
 }
-

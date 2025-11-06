@@ -103,4 +103,3 @@ final class MediaMetaTest extends TestCase
         new MediaMeta('test.jpg', 'image/jpeg', -1);
     }
 }
-

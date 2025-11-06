@@ -15,8 +15,8 @@ interface ScannerPort
      * Scan directory and return file paths.
      *
      * @param string $directory Directory to scan
+     *
      * @return iterable<FilePath> List of file paths
      */
     public function scan(string $directory): iterable;
 }
-

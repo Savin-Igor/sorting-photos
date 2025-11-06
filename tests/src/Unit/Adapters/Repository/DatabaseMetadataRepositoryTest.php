@@ -10,7 +10,6 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\TestCase;
 use SortingPhotosByDate\Adapters\Repository\DatabaseMetadataRepository;
 use SortingPhotosByDate\Domain\MediaAsset;
-use SortingPhotosByDate\Domain\ValueObjects\FileCategory;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 use SortingPhotosByDate\Domain\ValueObjects\FileType;
@@ -219,4 +218,3 @@ final class DatabaseMetadataRepositoryTest extends TestCase
         return new MediaAsset($sourcePath, $fileType, $metadata, $date, $fileHash);
     }
 }
-

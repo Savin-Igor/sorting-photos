@@ -10,13 +10,14 @@ use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 final class DateTypePolicy implements OrganizerPolicy
 {
     public function __construct(
-        private readonly string $baseDirectory
+        private readonly string $baseDirectory,
     ) {
         if (empty($this->baseDirectory)) {
             throw new \InvalidArgumentException('Base directory cannot be empty');
         }
     }
 
+    #[\Override]
     public function organize(MediaAsset $asset): FilePath
     {
         $year = $asset->getDate()->getYear();
@@ -36,4 +37,3 @@ final class DateTypePolicy implements OrganizerPolicy
         return new FilePath($targetPath);
     }
 }
-

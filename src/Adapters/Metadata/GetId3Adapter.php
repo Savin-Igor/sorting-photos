@@ -5,34 +5,38 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Adapters\Metadata;
 
 use Carbon\Carbon;
-use getID3;
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
 final class GetId3Adapter implements MetadataExtractorPort
 {
-    private getID3 $getId3;
+    /** @var \getID3 */
+    private $getId3;
 
-    public function __construct(?getID3 $getId3 = null)
+    public function __construct(?\getID3 $getId3 = null)
     {
-        $this->getId3 = $getId3 ?? new getID3();
+        $this->getId3 = $getId3 ?? new \getID3();
     }
 
+    #[\Override]
     public function supports(string $mimeType): bool
     {
         return str_starts_with($mimeType, 'audio/') || str_starts_with($mimeType, 'video/');
     }
 
+    #[\Override]
     public function extract(string $filePath): MediaMeta
     {
         if (!file_exists($filePath)) {
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
+        /** @var array<string, mixed> $fileInfo */
         $fileInfo = $this->getId3->analyze($filePath);
         $fileInfoObj = new \SplFileInfo($filePath);
-        $mimeType = mime_content_type($filePath) ?: 'application/octet-stream';
+        $mimeTypeResult = mime_content_type($filePath);
+        $mimeType = (false !== $mimeTypeResult) ? $mimeTypeResult : 'application/octet-stream';
 
         $width = null;
         $height = null;
@@ -42,15 +46,16 @@ final class GetId3Adapter implements MetadataExtractorPort
         }
 
         $duration = null;
-        if (isset($fileInfo['playtime_seconds'])) {
-            $duration = (int) round($fileInfo['playtime_seconds']);
+        if (isset($fileInfo['playtime_seconds']) && is_numeric($fileInfo['playtime_seconds'])) {
+            $duration = (int) round((float) $fileInfo['playtime_seconds']);
         }
 
         $artist = null;
         $title = null;
         $album = null;
 
-        if (isset($fileInfo['tags'])) {
+        if (isset($fileInfo['tags']) && is_array($fileInfo['tags'])) {
+            /** @var array<string, mixed> $tags */
             $tags = $fileInfo['tags'];
             if (isset($tags['id3v2']['artist'][0])) {
                 $artist = (string) $tags['id3v2']['artist'][0];
@@ -90,19 +95,21 @@ final class GetId3Adapter implements MetadataExtractorPort
         );
     }
 
+    #[\Override]
     public function extractDate(string $filePath): MediaDate
     {
         if (!file_exists($filePath)) {
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
+        /** @var array<string, mixed> $fileInfo */
         $fileInfo = $this->getId3->analyze($filePath);
 
         // Priority: ID3 TDRC > ID3 TYER > mtime
         if (isset($fileInfo['tags']['id3v2']['TDRC'][0])) {
             $dateString = (string) $fileInfo['tags']['id3v2']['TDRC'][0];
             $date = $this->parseId3Date($dateString);
-            if ($date !== null) {
+            if (null !== $date) {
                 return new MediaDate($date);
             }
         }
@@ -116,7 +123,7 @@ final class GetId3Adapter implements MetadataExtractorPort
 
         // Fallback to file modification time
         $mtime = filemtime($filePath);
-        if ($mtime === false) {
+        if (false === $mtime) {
             throw new \RuntimeException("Failed to get file modification time: {$filePath}");
         }
 
@@ -130,7 +137,7 @@ final class GetId3Adapter implements MetadataExtractorPort
             $formats = ['Y-m-d', 'Y-m-d H:i:s', 'Y'];
             foreach ($formats as $format) {
                 $date = Carbon::createFromFormat($format, $dateString);
-                if ($date !== false) {
+                if (false !== $date) {
                     return $date;
                 }
             }
@@ -142,4 +149,3 @@ final class GetId3Adapter implements MetadataExtractorPort
         }
     }
 }
-

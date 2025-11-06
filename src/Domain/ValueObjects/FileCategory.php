@@ -11,4 +11,3 @@ enum FileCategory: string
     case VIDEO = 'video';
     case OTHER = 'other';
 }
-

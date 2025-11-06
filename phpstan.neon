@@ -1,5 +1,5 @@
 parameters:
-    level: 1
+    level: max
     paths:
         - src
     excludePaths:
@@ -7,8 +7,8 @@ parameters:
         - tests
         - bin
         - config
-    checkMissingIterableValueType: false
-    checkGenericClassInNonGenericObjectType: false
+        - src/Entities
+        - src/Services
     ignoreErrors:
         - '#Access to undefined constant.*FileType::#'
         - '#Access to undefined constant.*FileCategory::#'

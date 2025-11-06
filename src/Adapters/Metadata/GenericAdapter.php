@@ -10,12 +10,14 @@ use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
 final class GenericAdapter implements MetadataExtractorPort
 {
+    #[\Override]
     public function supports(string $mimeType): bool
     {
         // Generic adapter supports all MIME types as fallback
         return true;
     }
 
+    #[\Override]
     public function extract(string $filePath): MediaMeta
     {
         if (!file_exists($filePath)) {
@@ -23,7 +25,8 @@ final class GenericAdapter implements MetadataExtractorPort
         }
 
         $fileInfo = new \SplFileInfo($filePath);
-        $mimeType = mime_content_type($filePath) ?: 'application/octet-stream';
+        $mimeTypeResult = mime_content_type($filePath);
+        $mimeType = (false !== $mimeTypeResult) ? $mimeTypeResult : 'application/octet-stream';
 
         return new MediaMeta(
             $fileInfo->getFilename(),
@@ -32,6 +35,7 @@ final class GenericAdapter implements MetadataExtractorPort
         );
     }
 
+    #[\Override]
     public function extractDate(string $filePath): MediaDate
     {
         if (!file_exists($filePath)) {
@@ -40,12 +44,12 @@ final class GenericAdapter implements MetadataExtractorPort
 
         // Priority: mtime > ctime
         $mtime = filemtime($filePath);
-        if ($mtime !== false) {
+        if (false !== $mtime) {
             return MediaDate::fromTimestamp($mtime);
         }
 
         $ctime = filectime($filePath);
-        if ($ctime !== false) {
+        if (false !== $ctime) {
             return MediaDate::fromTimestamp($ctime);
         }
 

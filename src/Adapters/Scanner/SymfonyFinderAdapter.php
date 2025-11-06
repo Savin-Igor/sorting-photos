@@ -11,7 +11,7 @@ use Symfony\Component\Finder\Finder;
 final class SymfonyFinderAdapter implements ScannerPort
 {
     public function __construct(
-        private readonly Finder $finder
+        private readonly Finder $finder,
     ) {
     }
 
@@ -32,4 +32,3 @@ final class SymfonyFinderAdapter implements ScannerPort
         }
     }
 }
-

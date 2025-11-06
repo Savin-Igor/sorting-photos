@@ -12,7 +12,7 @@ interface LoggerPort
     /**
      * Log debug message.
      *
-     * @param string $message Message
+     * @param string               $message Message
      * @param array<string, mixed> $context Context data
      */
     public function debug(string $message, array $context = []): void;
@@ -20,7 +20,7 @@ interface LoggerPort
     /**
      * Log info message.
      *
-     * @param string $message Message
+     * @param string               $message Message
      * @param array<string, mixed> $context Context data
      */
     public function info(string $message, array $context = []): void;
@@ -28,7 +28,7 @@ interface LoggerPort
     /**
      * Log warning message.
      *
-     * @param string $message Message
+     * @param string               $message Message
      * @param array<string, mixed> $context Context data
      */
     public function warning(string $message, array $context = []): void;
@@ -36,9 +36,8 @@ interface LoggerPort
     /**
      * Log error message.
      *
-     * @param string $message Message
+     * @param string               $message Message
      * @param array<string, mixed> $context Context data
      */
     public function error(string $message, array $context = []): void;
 }
-

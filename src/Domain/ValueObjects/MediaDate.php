@@ -9,7 +9,7 @@ use Carbon\Carbon;
 final class MediaDate
 {
     public function __construct(
-        private Carbon $dateTime
+        private Carbon $dateTime,
     ) {
     }
 
@@ -78,4 +78,3 @@ final class MediaDate
         return new self(Carbon::now());
     }
 }
-

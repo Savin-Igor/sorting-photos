@@ -58,4 +58,3 @@ final class FilePathTest extends TestCase
         new FilePath('');
     }
 }
-

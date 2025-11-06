@@ -11,4 +11,3 @@ interface OrganizerPolicy
 {
     public function organize(MediaAsset $asset): FilePath;
 }
-

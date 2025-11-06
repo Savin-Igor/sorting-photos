@@ -7,7 +7,7 @@ namespace SortingPhotosByDate\Domain\ValueObjects;
 final class FilePath
 {
     public function __construct(
-        private string $path
+        private string $path,
     ) {
         if (empty($this->path)) {
             throw new \InvalidArgumentException('File path cannot be empty');
@@ -48,4 +48,3 @@ final class FilePath
         return $this->path;
     }
 }
-

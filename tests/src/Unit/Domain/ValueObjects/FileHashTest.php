@@ -13,7 +13,7 @@ final class FileHashTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->testFile = sys_get_temp_dir() . '/test_hash_' . uniqid() . '.txt';
+        $this->testFile = sys_get_temp_dir().'/test_hash_'.uniqid().'.txt';
         file_put_contents($this->testFile, 'test content');
     }
 
@@ -103,4 +103,3 @@ final class FileHashTest extends TestCase
         $hash->getShortHash(65);
     }
 }
-

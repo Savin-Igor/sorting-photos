@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Tests\Unit\Domain\ValueObjects;
 
-use Carbon\Carbon;
 use PHPUnit\Framework\TestCase;
 use SortingPhotosByDate\Domain\ValueObjects\FileCategory;
 use SortingPhotosByDate\Domain\ValueObjects\FileType;
@@ -100,4 +99,3 @@ final class FileTypeTest extends TestCase
         $this->assertEquals(FileType::OTHER, $type);
     }
 }
-

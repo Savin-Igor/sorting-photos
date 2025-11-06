@@ -21,7 +21,7 @@ final class Sorter
     public function __construct(
         string $catalogUnsortedPhotos,
         string $copyToDirectory,
-        LoggerInterface $logger
+        LoggerInterface $logger,
     ) {
         if (!is_dir($catalogUnsortedPhotos)) {
             throw SortingPhotosException::noSuchDirectory($catalogUnsortedPhotos);
@@ -52,7 +52,7 @@ final class Sorter
                 continue;
             }
 
-            $filePath = $directory . '/' . $fileName;
+            $filePath = $directory.'/'.$fileName;
 
             if (is_dir($filePath)) {
                 $this->processDirectory($filePath);
@@ -113,7 +113,7 @@ final class Sorter
 
         $newFile = sprintf('%s/%s', $copyToDir, $file->getName());
         if (file_exists($newFile)) {
-            echo 'File is exist' . PHP_EOL;
+            echo 'File is exist'.PHP_EOL;
             // throw SortingPhotosException::fileExists($newFile);
         }
 

@@ -10,7 +10,7 @@ final class FileHash
     private const DEFAULT_SHORT_HASH_LENGTH = 8;
 
     public function __construct(
-        private readonly string $hash
+        private readonly string $hash,
     ) {
         if (empty($this->hash)) {
             throw new \InvalidArgumentException('File hash cannot be empty');
@@ -59,4 +59,3 @@ final class FileHash
         return new self($hash);
     }
 }
-

@@ -16,7 +16,7 @@ final class MediaMeta
         private ?string $artist = null,
         private ?string $title = null,
         private ?string $album = null,
-        private array $additionalMetadata = []
+        private array $additionalMetadata = [],
     ) {
         if (empty($this->fileName)) {
             throw new \InvalidArgumentException('File name cannot be empty');
@@ -72,6 +72,9 @@ final class MediaMeta
         return $this->album;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function getAdditionalMetadata(): array
     {
         return $this->additionalMetadata;
@@ -87,4 +90,3 @@ final class MediaMeta
         return \array_key_exists($key, $this->additionalMetadata);
     }
 }
-

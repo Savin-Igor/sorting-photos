@@ -16,6 +16,7 @@ interface MetadataExtractorPort
      * Extract metadata from file.
      *
      * @param string $filePath Path to the file
+     *
      * @return MediaMeta Extracted metadata
      */
     public function extract(string $filePath): MediaMeta;
@@ -24,6 +25,7 @@ interface MetadataExtractorPort
      * Extract date from file.
      *
      * @param string $filePath Path to the file
+     *
      * @return MediaDate Extracted date
      */
     public function extractDate(string $filePath): MediaDate;
@@ -32,8 +34,8 @@ interface MetadataExtractorPort
      * Check if this extractor supports the given MIME type.
      *
      * @param string $mimeType MIME type to check
+     *
      * @return bool True if supported
      */
     public function supports(string $mimeType): bool;
 }
-

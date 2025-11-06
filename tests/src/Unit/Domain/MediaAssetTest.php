@@ -107,4 +107,3 @@ final class MediaAssetTest extends TestCase
         $this->assertEquals(FileCategory::AUDIO, $asset->getCategory());
     }
 }
-

@@ -11,11 +11,13 @@ use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
 final class ExifAdapter implements MetadataExtractorPort
 {
+    #[\Override]
     public function supports(string $mimeType): bool
     {
         return str_starts_with($mimeType, 'image/');
     }
 
+    #[\Override]
     public function extract(string $filePath): MediaMeta
     {
         if (!function_exists('exif_read_data')) {
@@ -28,17 +30,18 @@ final class ExifAdapter implements MetadataExtractorPort
 
         $exifData = @exif_read_data($filePath);
         $fileInfo = new \SplFileInfo($filePath);
-        $mimeType = mime_content_type($filePath) ?: 'application/octet-stream';
+        $mimeTypeResult = mime_content_type($filePath);
+        $mimeType = (false !== $mimeTypeResult) ? $mimeTypeResult : 'application/octet-stream';
 
         $width = null;
         $height = null;
-        if ($exifData !== false && isset($exifData['COMPUTED']['Width'], $exifData['COMPUTED']['Height'])) {
+        if (false !== $exifData && isset($exifData['COMPUTED']['Width'], $exifData['COMPUTED']['Height'])) {
             $width = (int) $exifData['COMPUTED']['Width'];
             $height = (int) $exifData['COMPUTED']['Height'];
         }
 
         $additionalMetadata = [];
-        if ($exifData !== false) {
+        if (false !== $exifData) {
             $additionalMetadata = $this->sanitizeExifData($exifData);
         }
 
@@ -56,6 +59,7 @@ final class ExifAdapter implements MetadataExtractorPort
         );
     }
 
+    #[\Override]
     public function extractDate(string $filePath): MediaDate
     {
         if (!file_exists($filePath)) {
@@ -64,17 +68,17 @@ final class ExifAdapter implements MetadataExtractorPort
 
         // Priority: EXIF DateTimeOriginal > EXIF DateTime > mtime
         $exifData = @exif_read_data($filePath);
-        if ($exifData !== false) {
-            if (isset($exifData['DateTimeOriginal'])) {
+        if (false !== $exifData) {
+            if (isset($exifData['DateTimeOriginal']) && is_string($exifData['DateTimeOriginal'])) {
                 $date = $this->parseExifDate($exifData['DateTimeOriginal']);
-                if ($date !== null) {
+                if (null !== $date) {
                     return new MediaDate($date);
                 }
             }
 
-            if (isset($exifData['DateTime'])) {
+            if (isset($exifData['DateTime']) && is_string($exifData['DateTime'])) {
                 $date = $this->parseExifDate($exifData['DateTime']);
-                if ($date !== null) {
+                if (null !== $date) {
                     return new MediaDate($date);
                 }
             }
@@ -82,7 +86,7 @@ final class ExifAdapter implements MetadataExtractorPort
 
         // Fallback to file modification time
         $mtime = filemtime($filePath);
-        if ($mtime === false) {
+        if (false === $mtime) {
             throw new \RuntimeException("Failed to get file modification time: {$filePath}");
         }
 
@@ -93,7 +97,8 @@ final class ExifAdapter implements MetadataExtractorPort
     {
         try {
             // EXIF date format: "YYYY:MM:DD HH:MM:SS"
-            $dateString = str_replace(':', '-', substr($dateString, 0, 10)) . ' ' . substr($dateString, 11);
+            $dateString = str_replace(':', '-', substr($dateString, 0, 10)).' '.substr($dateString, 11);
+
             return Carbon::parse($dateString);
         } catch (\Exception $e) {
             return null;
@@ -114,4 +119,3 @@ final class ExifAdapter implements MetadataExtractorPort
         return $sanitized;
     }
 }
-

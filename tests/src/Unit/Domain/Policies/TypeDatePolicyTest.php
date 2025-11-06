@@ -65,7 +65,7 @@ final class TypeDatePolicyTest extends TestCase
 
     private function createAsset(FileType $type, string $date, string $fileName): MediaAsset
     {
-        $sourcePath = new FilePath('/source/' . $fileName);
+        $sourcePath = new FilePath('/source/'.$fileName);
         $metadata = new MediaMeta($fileName, 'test/mime', 1024);
         $mediaDate = new MediaDate(Carbon::parse($date));
         $hash = new FileHash('a1b2c3d4e5f6');
