@@ -4,15 +4,32 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Adapters\Filesystem;
 
+use League\Flysystem\FilesystemOperator;
+use League\Flysystem\Local\LocalFilesystemAdapter as FlysystemLocalAdapter;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 use SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier;
 use SortingPhotosByDate\Ports\FilesystemPort;
 
+/**
+ * Local filesystem adapter using Flysystem.
+ * All filesystem operations go through Flysystem instead of native PHP functions.
+ */
 final class LocalFilesystemAdapter implements FilesystemPort
 {
+    private readonly FilesystemOperator $filesystem;
+
     public function __construct(
         private readonly MetadataPreservingCopier $copier,
+        ?FilesystemOperator $filesystem = null,
+        private readonly int $defaultDirectoryPermissions = 0755,
     ) {
+        // Create Flysystem instance if not provided
+        if (null === $filesystem) {
+            $adapter = new FlysystemLocalAdapter('/');
+            $this->filesystem = new \League\Flysystem\Filesystem($adapter);
+        } else {
+            $this->filesystem = $filesystem;
+        }
     }
 
     #[\Override]
@@ -29,71 +46,231 @@ final class LocalFilesystemAdapter implements FilesystemPort
     public function ensureDirectory(FilePath $directory): bool
     {
         $path = $directory->getPath();
-        if (is_dir($path)) {
-            return true;
-        }
 
-        return mkdir($path, 0755, true);
+        try {
+            if ($this->filesystem->directoryExists($path)) {
+                return true;
+            }
+
+            $this->filesystem->createDirectory($path, [
+                'visibility' => $this->permissionsToVisibility($this->defaultDirectoryPermissions),
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     #[\Override]
     public function delete(FilePath $filePath): bool
     {
-        if (!file_exists($filePath->getPath())) {
+        $path = $filePath->getPath();
+
+        try {
+            if (!$this->filesystem->fileExists($path)) {
+                return false;
+            }
+
+            $this->filesystem->delete($path);
+
+            return true;
+        } catch (\Exception $e) {
             return false;
         }
-
-        return unlink($filePath->getPath());
     }
 
     #[\Override]
     public function exists(FilePath $filePath): bool
     {
-        return file_exists($filePath->getPath());
+        $path = $filePath->getPath();
+
+        try {
+            return $this->filesystem->fileExists($path);
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     #[\Override]
     public function getSize(FilePath $filePath): int
     {
-        $size = filesize($filePath->getPath());
-        if (false === $size) {
-            throw new \RuntimeException("Failed to get file size: {$filePath->getPath()}");
-        }
+        $path = $filePath->getPath();
 
-        return $size;
+        try {
+            $attributes = $this->filesystem->visibility($path);
+            $size = $this->filesystem->fileSize($path);
+
+            return $size;
+        } catch (\Exception $e) {
+            throw new \RuntimeException("Failed to get file size: {$path}", 0, $e);
+        }
     }
 
     #[\Override]
     public function getPermissions(FilePath $filePath): int
     {
-        $perms = fileperms($filePath->getPath());
-        if (false === $perms) {
-            throw new \RuntimeException("Failed to get file permissions: {$filePath->getPath()}");
-        }
+        $path = $filePath->getPath();
 
-        return $perms & 0777;
+        try {
+            $visibility = $this->filesystem->visibility($path);
+
+            return $this->visibilityToPermissions($visibility);
+        } catch (\Exception $e) {
+            throw new \RuntimeException("Failed to get file permissions: {$path}", 0, $e);
+        }
     }
 
     #[\Override]
     public function setPermissions(FilePath $filePath, int $permissions): bool
     {
-        return chmod($filePath->getPath(), $permissions);
+        $path = $filePath->getPath();
+
+        try {
+            $this->filesystem->setVisibility($path, $this->permissionsToVisibility($permissions));
+
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     #[\Override]
     public function getModificationTime(FilePath $filePath): int
     {
-        $mtime = filemtime($filePath->getPath());
-        if (false === $mtime) {
-            throw new \RuntimeException("Failed to get file modification time: {$filePath->getPath()}");
-        }
+        $path = $filePath->getPath();
 
-        return $mtime;
+        try {
+            $lastModified = $this->filesystem->lastModified($path);
+
+            return $lastModified;
+        } catch (\Exception $e) {
+            throw new \RuntimeException("Failed to get file modification time: {$path}", 0, $e);
+        }
     }
 
     #[\Override]
     public function setModificationTime(FilePath $filePath, int $timestamp): bool
     {
-        return touch($filePath->getPath(), $timestamp);
+        // Flysystem doesn't support setting modification time directly
+        // We'll need to use native PHP for this specific operation
+        $path = $filePath->getPath();
+
+        try {
+            if ($this->filesystem->fileExists($path)) {
+                // Use native touch for setting mtime (Flysystem limitation)
+                return touch($path, $timestamp);
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    #[\Override]
+    public function getAccessTime(FilePath $filePath): int
+    {
+        // Flysystem doesn't support access time directly
+        // Fallback to native PHP function
+        $path = $filePath->getPath();
+
+        try {
+            if (!$this->filesystem->fileExists($path)) {
+                throw new \RuntimeException("File does not exist: {$path}");
+            }
+
+            $atime = fileatime($path);
+            if (false === $atime) {
+                throw new \RuntimeException("Failed to get file access time: {$path}");
+            }
+
+            return $atime;
+        } catch (\Exception $e) {
+            throw new \RuntimeException("Failed to get file access time: {$path}", 0, $e);
+        }
+    }
+
+    #[\Override]
+    public function setTimestamps(FilePath $filePath, int $mtime, int $atime): bool
+    {
+        // Flysystem doesn't support setting timestamps directly
+        // Use native PHP touch function
+        $path = $filePath->getPath();
+
+        try {
+            if (!$this->filesystem->fileExists($path)) {
+                return false;
+            }
+
+            return touch($path, $mtime, $atime);
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    #[\Override]
+    public function read(FilePath $filePath): string
+    {
+        $path = $filePath->getPath();
+
+        try {
+            return $this->filesystem->read($path);
+        } catch (\Exception $e) {
+            throw new \RuntimeException("Failed to read file: {$path}", 0, $e);
+        }
+    }
+
+    #[\Override]
+    public function calculateHash(FilePath $filePath): string
+    {
+        $path = $filePath->getPath();
+
+        try {
+            $content = $this->filesystem->read($path);
+            $hash = hash('sha256', $content);
+
+            if (false === $hash) {
+                throw new \RuntimeException("Failed to calculate hash for file: {$path}");
+            }
+
+            return $hash;
+        } catch (\Exception $e) {
+            throw new \RuntimeException("Failed to calculate hash for file: {$path}", 0, $e);
+        }
+    }
+
+    #[\Override]
+    public function write(FilePath $filePath, string $content): void
+    {
+        $path = $filePath->getPath();
+
+        try {
+            // Ensure directory exists
+            $directory = new FilePath(dirname($path));
+            $this->ensureDirectory($directory);
+
+            $this->filesystem->write($path, $content);
+        } catch (\Exception $e) {
+            throw new \RuntimeException("Failed to write file: {$path}", 0, $e);
+        }
+    }
+
+    /**
+     * Convert Flysystem visibility to Unix permissions.
+     */
+    private function visibilityToPermissions(string $visibility): int
+    {
+        // Flysystem visibility: 'public' = 0644, 'private' = 0600
+        return 'public' === $visibility ? 0644 : 0600;
+    }
+
+    /**
+     * Convert Unix permissions to Flysystem visibility.
+     */
+    private function permissionsToVisibility(int $permissions): string
+    {
+        // Simple mapping: if world-readable, it's public
+        return ($permissions & 0044) ? 'public' : 'private';
     }
 }

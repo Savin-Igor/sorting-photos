@@ -69,6 +69,12 @@ final class IngestFileHandlerTest extends TestCase
             ->with($filePath)
             ->willReturn($fileSize);
 
+        $this->filesystem
+            ->expects($this->once())
+            ->method('calculateHash')
+            ->with($filePath)
+            ->willReturn(hash('sha256', 'test content'));
+
         $this->metadataExtractor
             ->expects($this->once())
             ->method('extract')
@@ -135,6 +141,12 @@ final class IngestFileHandlerTest extends TestCase
             ->method('getSize')
             ->with($filePath)
             ->willReturn($fileSize);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('calculateHash')
+            ->with($filePath)
+            ->willReturn(hash('sha256', 'test content'));
 
         $this->metadataExtractor
             ->expects($this->once())

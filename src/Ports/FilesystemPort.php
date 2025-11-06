@@ -94,4 +94,56 @@ interface FilesystemPort
      * @return bool True on success
      */
     public function setModificationTime(FilePath $filePath, int $timestamp): bool;
+
+    /**
+     * Get file access time.
+     *
+     * @param FilePath $filePath File path
+     *
+     * @return int Unix timestamp
+     */
+    public function getAccessTime(FilePath $filePath): int;
+
+    /**
+     * Set file access and modification time.
+     *
+     * @param FilePath $filePath File path
+     * @param int      $mtime    Modification time (Unix timestamp)
+     * @param int      $atime    Access time (Unix timestamp)
+     *
+     * @return bool True on success
+     */
+    public function setTimestamps(FilePath $filePath, int $mtime, int $atime): bool;
+
+    /**
+     * Read file contents.
+     *
+     * @param FilePath $filePath File path
+     *
+     * @return string File contents
+     *
+     * @throws \RuntimeException If file cannot be read
+     */
+    public function read(FilePath $filePath): string;
+
+    /**
+     * Calculate SHA-256 hash of file.
+     *
+     * @param FilePath $filePath File path
+     *
+     * @return string SHA-256 hash (hexadecimal)
+     *
+     * @throws \RuntimeException If hash cannot be calculated
+     */
+    public function calculateHash(FilePath $filePath): string;
+
+    /**
+     * Write file contents.
+     *
+     * @param FilePath $filePath File path
+     * @param string   $content  File contents
+     *
+     * @throws \RuntimeException If file cannot be written
+     */
+    public function write(FilePath $filePath, string $content): void;
 }

@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Filesystem;
 
-use League\Flysystem\FilesystemOperator;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Ports\FilesystemPort;
 
 /**
  * Service for copying files while preserving all metadata.
- * Uses Flysystem for filesystem operations but handles metadata preservation manually
- * since Flysystem doesn't preserve extended attributes and some metadata by default.
+ * Uses FilesystemPort (Flysystem) for all filesystem operations.
+ * Extended attributes are handled separately since Flysystem doesn't support them.
  */
 final class MetadataPreservingCopier
 {
     public function __construct(
-        private readonly ?FilesystemOperator $filesystem = null,
+        private readonly FilesystemPort $filesystem,
+        private readonly int $defaultDirectoryPermissions = 0755,
     ) {
     }
 
@@ -32,105 +33,56 @@ final class MetadataPreservingCopier
      */
     public function copy(FilePath $source, FilePath $destination): bool
     {
-        $sourcePath = $source->getPath();
-        $destinationPath = $destination->getPath();
-
-        if (!file_exists($sourcePath)) {
-            throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
+        if (!$this->filesystem->exists($source)) {
+            throw new \InvalidArgumentException("Source file does not exist: {$source->getPath()}");
         }
 
         // Ensure destination directory exists
-        $destinationDir = dirname($destinationPath);
-        if (!is_dir($destinationDir)) {
-            if (!mkdir($destinationDir, 0755, true)) {
-                throw new \RuntimeException("Failed to create destination directory: {$destinationDir}");
-            }
-        }
+        $destinationDir = new FilePath(dirname($destination->getPath()));
+        $this->filesystem->ensureDirectory($destinationDir);
 
         // Get source metadata before copying
-        $permissions = $this->getPermissions($sourcePath);
-        $mtime = filemtime($sourcePath);
-        if (false === $mtime) {
-            throw new \RuntimeException("Failed to get source file modification time: {$sourcePath}");
-        }
+        $permissions = $this->filesystem->getPermissions($source);
+        $mtime = $this->filesystem->getModificationTime($source);
+        $atime = $this->filesystem->getAccessTime($source);
 
-        $atime = fileatime($sourcePath);
-        if (false === $atime) {
-            $atime = $mtime;
-        }
+        // Read source file content
+        $content = $this->filesystem->read($source);
 
-        // Copy file content
-        if (null !== $this->filesystem) {
-            // Use Flysystem if available
-            try {
-                $content = $this->filesystem->read($sourcePath);
-                $this->filesystem->write($destinationPath, $content);
-            } catch (\Exception $e) {
-                // Fallback to native copy if Flysystem fails
-                if (!copy($sourcePath, $destinationPath)) {
-                    throw new \RuntimeException("Failed to copy file from {$sourcePath} to {$destinationPath}: {$e->getMessage()}");
-                }
-            }
-        } else {
-            // Use native PHP copy
-            if (!copy($sourcePath, $destinationPath)) {
-                throw new \RuntimeException("Failed to copy file from {$sourcePath} to {$destinationPath}");
-            }
-        }
+        // Write destination file
+        $this->filesystem->write($destination, $content);
 
         // Verify file integrity by comparing hashes
-        $this->verifyIntegrity($sourcePath, $destinationPath);
+        $this->verifyIntegrity($source, $destination);
 
         // Restore metadata
-        $this->setPermissions($destinationPath, $permissions);
-        touch($destinationPath, $mtime, $atime);
+        $this->filesystem->setPermissions($destination, $permissions);
+        $this->filesystem->setTimestamps($destination, $mtime, $atime);
 
-        // Copy extended attributes if supported
-        $this->copyExtendedAttributes($sourcePath, $destinationPath);
+        // Copy extended attributes if supported (requires native PHP)
+        $this->copyExtendedAttributes($source->getPath(), $destination->getPath());
 
         return true;
     }
 
     /**
-     * Get file permissions.
-     */
-    private function getPermissions(string $filePath): int
-    {
-        $perms = fileperms($filePath);
-        if (false === $perms) {
-            throw new \RuntimeException("Failed to get file permissions: {$filePath}");
-        }
-
-        return $perms & 0777;
-    }
-
-    /**
-     * Set file permissions.
-     */
-    private function setPermissions(string $filePath, int $permissions): void
-    {
-        if (!chmod($filePath, $permissions)) {
-            throw new \RuntimeException("Failed to set file permissions: {$filePath}");
-        }
-    }
-
-    /**
      * Verify file integrity by comparing SHA-256 hashes.
      */
-    private function verifyIntegrity(string $sourcePath, string $destinationPath): void
+    private function verifyIntegrity(FilePath $sourcePath, FilePath $destinationPath): void
     {
-        $sourceHash = hash_file('sha256', $sourcePath);
-        $destHash = hash_file('sha256', $destinationPath);
+        $sourceHash = $this->filesystem->calculateHash($sourcePath);
+        $destHash = $this->filesystem->calculateHash($destinationPath);
 
         if ($sourceHash !== $destHash) {
             // Clean up destination file if integrity check fails
-            @unlink($destinationPath);
+            $this->filesystem->delete($destinationPath);
             throw new \RuntimeException("File integrity check failed: source hash {$sourceHash} does not match destination hash {$destHash}");
         }
     }
 
     /**
      * Copy extended attributes if supported by the filesystem.
+     * Note: Extended attributes require native PHP functions as Flysystem doesn't support them.
      */
     private function copyExtendedAttributes(string $source, string $destination): void
     {
