@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Command;
 
 use SortingPhotosByDate\Domain\Event\FileDiscovered;
-use SortingPhotosByDate\Infrastructure\Helper\ProgressTracker;
 use SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
@@ -95,10 +94,7 @@ final class ScanFilesCommand extends Command
                 return Command::SUCCESS;
             }
 
-            // Initialize progress bar
-            $progressTracker = new ProgressTracker($output, $output->isVerbose());
-            $progressTracker->initialize($totalFiles);
-
+            // Scan files without progress bar (will be shown during processing)
             $files = $this->scanner->scan($sourceDirectory);
             $fileCount = 0;
             $discoveredCount = 0;
@@ -112,9 +108,7 @@ final class ScanFilesCommand extends Command
                     $this->logger->warning('File does not exist, skipping', [
                         'file_path' => $filePath->getPath(),
                     ]);
-                    $progressTracker->incrementSkipped();
                     ++$skippedCount;
-                    $progressTracker->advance('Skipped: '.basename((string) $filePath->getPath()));
                     continue;
                 }
 
@@ -126,7 +120,6 @@ final class ScanFilesCommand extends Command
                 $this->messageBus->dispatch($event);
 
                 ++$discoveredCount;
-                $progressTracker->advance('Processing: '.basename((string) $filePath->getPath()));
 
                 if (0 === $fileCount % 100) {
                     $this->logger->debug('Scanned files', [
@@ -136,8 +129,6 @@ final class ScanFilesCommand extends Command
                     ]);
                 }
             }
-
-            $progressTracker->finish();
 
             $io->success(\sprintf(
                 'Scan completed: %d files found, %d events published, %d skipped',

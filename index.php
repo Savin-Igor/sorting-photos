@@ -196,7 +196,6 @@ try {
         throw new RuntimeException('File scan failed');
     }
 
-    $output->writeln('');
     $logger->debug('Scan command completed successfully');
 
     // Process messages and show progress
@@ -205,6 +204,9 @@ try {
         $totalFiles = $stats['total'];
 
         if ($totalFiles > 0) {
+            $output->writeln('');
+            $output->writeln('<info>Processing files...</info>');
+
             // Create Redis-based progress tracker
             $redisProgressTracker = new SortingPhotosByDate\Infrastructure\Helper\RedisProgressTracker(
                 $output,
@@ -212,9 +214,6 @@ try {
                 $output->isVerbose()
             );
             $redisProgressTracker->initialize($totalFiles);
-
-            $output->writeln('');
-            $output->writeln('<info>Processing files...</info>');
 
             // In async mode, wait for workers to process
             // In sync mode, messages are processed immediately
@@ -230,8 +229,8 @@ try {
                     $stats = $statisticsService->getStats();
                     $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
 
-                    // Update progress bar every 0.1 seconds for smoother updates
-                    if (($waited - $lastUpdate) >= 0.1) {
+                    // Update progress bar every 0.2 seconds for smoother updates
+                    if (($waited - $lastUpdate) >= 0.2) {
                         $redisProgressTracker->update();
                         $lastUpdate = $waited;
                     }
@@ -240,7 +239,7 @@ try {
                     if ($current === $lastProcessed && $current > 0) {
                         ++$stalledCount;
                         // If stalled for more than 5 seconds, check if workers are running
-                        if ($stalledCount > 50) { // 50 * 0.1 = 5 seconds
+                        if ($stalledCount > 25) { // 25 * 0.2 = 5 seconds
                             $output->writeln('');
                             $output->writeln('<comment>Processing seems stalled. Make sure workers are running:</comment>');
                             $output->writeln('<comment>  make consume-workers WORKERS=8</comment>');
@@ -257,8 +256,8 @@ try {
                         break;
                     }
 
-                    usleep(100000); // 0.1 seconds
-                    $waited += 0.1;
+                    usleep(200000); // 0.2 seconds
+                    $waited += 0.2;
                 }
 
                 $redisProgressTracker->update();
@@ -275,8 +274,8 @@ try {
                     $stats = $statisticsService->getStats();
                     $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
 
-                    // Update progress bar every 0.1 seconds
-                    if (($waited - $lastUpdate) >= 0.1) {
+                    // Update progress bar every 0.2 seconds
+                    if (($waited - $lastUpdate) >= 0.2) {
                         $redisProgressTracker->update();
                         $lastUpdate = $waited;
                     }
@@ -286,8 +285,8 @@ try {
                         break;
                     }
 
-                    usleep(100000); // 0.1 seconds
-                    $waited += 0.1;
+                    usleep(200000); // 0.2 seconds
+                    $waited += 0.2;
                 }
 
                 $redisProgressTracker->update();
