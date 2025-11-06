@@ -117,6 +117,7 @@ services:
     
     # GetID3 Adapter for AudioVideoMetadataAnalyzerInterface
     SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter:
+        class: SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter
         public: true
         arguments:
             $getId3: '@JamesHeinrich\GetID3\GetID3'
