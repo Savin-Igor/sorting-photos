@@ -103,6 +103,11 @@ try {
         $destinationDirectoryHost = explode(':', (string) $destinationDirectoryHost)[0];
     }
 
+    // Reset skipped files statistics for this run
+    if (class_exists(SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::class)) {
+        SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::resetStats();
+    }
+
     // Log startup information (console: important, file: detailed)
     $logger->info('=== File Sorting Application Started ===');
     $logger->debug('Source Directory (host): '.($sourceDirectoryHost ?? 'N/A'));
