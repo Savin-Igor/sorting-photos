@@ -112,10 +112,12 @@ services:
     # ============================================
     
     # GetID3 library instance
-    JamesHeinrich\GetID3\GetID3: ~
+    JamesHeinrich\GetID3\GetID3:
+        public: true
     
     # GetID3 Adapter for AudioVideoMetadataAnalyzerInterface
     SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter:
+        public: true
         arguments:
             $getId3: '@JamesHeinrich\GetID3\GetID3'
     
