@@ -109,11 +109,11 @@ services:
     # ============================================
     
     # Redis client for statistics
+    # Connection string for Redis (default: tcp://redis:6379)
     Predis\ClientInterface:
         class: Predis\Client
         arguments:
-            $parameters:
-                - 'tcp://redis:6379'
+            $parameters: 'tcp://redis:6379'
         public: true
     
     # Redis Statistics Service
