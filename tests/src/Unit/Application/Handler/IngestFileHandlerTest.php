@@ -98,6 +98,16 @@ final class IngestFileHandlerTest extends TestCase
             ->with($filePath->getPath())
             ->willReturn($mediaDate);
 
+        $hashString = hash('sha256', 'test content');
+        new FileHash($hashString);
+
+        // Mock repository: no duplicate found
+        $this->repository
+            ->expects($this->once())
+            ->method('findByHash')
+            ->with($this->isInstanceOf(FileHash::class))
+            ->willReturn(null);
+
         $this->repository
             ->expects($this->once())
             ->method('isProcessed')
@@ -153,11 +163,13 @@ final class IngestFileHandlerTest extends TestCase
             ->with($filePath)
             ->willReturn($fileSize);
 
+        $hashString = hash('sha256', 'test content');
+
         $this->filesystem
             ->expects($this->once())
             ->method('calculateHash')
             ->with($filePath)
-            ->willReturn(hash('sha256', 'test content'));
+            ->willReturn($hashString);
 
         $this->metadataExtractor
             ->expects($this->once())
@@ -171,12 +183,17 @@ final class IngestFileHandlerTest extends TestCase
             ->with($mimeType)
             ->willReturn(true);
 
-        // MediaDate::fromTimestamp is final, so we need to use real call
         $this->metadataExtractor
             ->expects($this->once())
             ->method('extractDate')
             ->with($filePath->getPath())
             ->willReturn(MediaDate::fromTimestamp(time()));
+
+        $this->repository
+            ->expects($this->once())
+            ->method('findByHash')
+            ->with($this->isInstanceOf(FileHash::class))
+            ->willReturn(null);
 
         $this->repository
             ->expects($this->once())
@@ -187,6 +204,107 @@ final class IngestFileHandlerTest extends TestCase
         $this->repository
             ->expects($this->never())
             ->method('save');
+
+        $result = $this->handler->handle($command);
+
+        $this->assertNull($result);
+
+        // Cleanup
+        @unlink($tempFile);
+    }
+
+    public function testHandleSkipsDuplicateFile(): void
+    {
+        // Create temporary file
+        $tempFile = sys_get_temp_dir().'/test_file_'.uniqid().'.jpg';
+        file_put_contents($tempFile, 'test content');
+        $filePath = new FilePath($tempFile);
+        $command = new IngestFileCommand($filePath);
+
+        $mimeType = 'image/jpeg';
+        $fileSize = strlen('test content');
+        $mediaMeta = new MediaMeta(
+            'file.jpg',
+            $mimeType,
+            $fileSize
+        );
+
+        $hashString = hash('sha256', 'test content');
+        $fileHash = new FileHash($hashString);
+
+        // Create existing asset with same hash but different path
+        $existingPath = new FilePath('/existing/path/file.jpg');
+        $existingAsset = new MediaAsset(
+            $existingPath,
+            \SortingPhotosByDate\Domain\ValueObjects\FileType::IMAGE,
+            new MediaMeta('existing.jpg', $mimeType, $fileSize),
+            MediaDate::fromTimestamp(time()),
+            $fileHash
+        );
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('exists')
+            ->with($filePath)
+            ->willReturn(true);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('getSize')
+            ->with($filePath)
+            ->willReturn($fileSize);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('calculateHash')
+            ->with($filePath)
+            ->willReturn($hashString);
+
+        $this->metadataExtractor
+            ->expects($this->once())
+            ->method('extract')
+            ->with($filePath->getPath())
+            ->willReturn($mediaMeta);
+
+        $this->metadataExtractor
+            ->expects($this->once())
+            ->method('supports')
+            ->with($mimeType)
+            ->willReturn(true);
+
+        $this->metadataExtractor
+            ->expects($this->once())
+            ->method('extractDate')
+            ->with($filePath->getPath())
+            ->willReturn(MediaDate::fromTimestamp(time()));
+
+        // Mock repository: duplicate found
+        $this->repository
+            ->expects($this->once())
+            ->method('findByHash')
+            ->with($this->isInstanceOf(FileHash::class))
+            ->willReturn($existingAsset);
+
+        $this->logger
+            ->expects($this->once())
+            ->method('warning')
+            ->with('Duplicate file detected, skipping', $this->callback(fn(array $context): bool => $context['file_path'] === $filePath->getPath()
+                && $context['existing_file_path'] === $existingPath->getPath()
+                && $context['hash'] === $fileHash->getHash()));
+
+        // Repository should not check isProcessed or save for duplicates
+        $this->repository
+            ->expects($this->never())
+            ->method('isProcessed');
+
+        $this->repository
+            ->expects($this->never())
+            ->method('save');
+
+        // Message bus should not be called for duplicates
+        $this->messageBus
+            ->expects($this->never())
+            ->method('dispatch');
 
         $result = $this->handler->handle($command);
 

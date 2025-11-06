@@ -10,17 +10,20 @@ use SortingPhotosByDate\Domain\Policies\OrganizerPolicy;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
+use SortingPhotosByDate\Ports\MetadataRepositoryPort;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 /**
  * Handler for OrganizeFileCommand.
  * Applies organizer policy, copies file with metadata preservation, verifies hash, and deletes source.
+ * Includes duplicate detection to prevent copying identical files (byte-by-byte identical).
  */
 final readonly class OrganizeFileHandler
 {
     public function __construct(
         private FilesystemPort $filesystem,
         private OrganizerPolicy $policy,
+        private MetadataRepositoryPort $repository,
         private LoggerPort $logger,
         private MessageBusInterface $messageBus,
     ) {
@@ -30,6 +33,24 @@ final readonly class OrganizeFileHandler
     {
         $asset = $command->getAsset();
         $sourcePath = $asset->getSourcePath();
+
+        // Check for duplicate: if file with same hash already exists, skip copying
+        $existingAsset = $this->repository->findByHash($asset->getHash());
+        if ($existingAsset instanceof \SortingPhotosByDate\Domain\MediaAsset) {
+            // Check if existing file is different from current source (duplicate)
+            $existingPath = $existingAsset->getSourcePath();
+            if ($existingPath->getPath() !== $sourcePath->getPath()) {
+                $this->logger->warning('Duplicate file detected, skipping organization', [
+                    'source_path' => $sourcePath->getPath(),
+                    'hash' => $asset->getHash()->getHash(),
+                    'existing_file_path' => $existingPath->getPath(),
+                    'existing_file_size' => $existingAsset->getFileSize(),
+                ]);
+
+                // Return existing path as if we organized it (but we didn't copy)
+                return $existingPath;
+            }
+        }
 
         // Apply organizer policy to get target path
         $targetPath = $this->policy->organize($asset);

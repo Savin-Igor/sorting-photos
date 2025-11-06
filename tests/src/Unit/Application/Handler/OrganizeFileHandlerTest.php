@@ -16,6 +16,7 @@ use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
+use SortingPhotosByDate\Ports\MetadataRepositoryPort;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 
@@ -23,6 +24,7 @@ final class OrganizeFileHandlerTest extends TestCase
 {
     private \PHPUnit\Framework\MockObject\MockObject $filesystem;
     private \PHPUnit\Framework\MockObject\MockObject $policy;
+    private \PHPUnit\Framework\MockObject\MockObject $repository;
     private \PHPUnit\Framework\MockObject\MockObject $logger;
     private \PHPUnit\Framework\MockObject\MockObject $messageBus;
     private OrganizeFileHandler $handler;
@@ -31,12 +33,14 @@ final class OrganizeFileHandlerTest extends TestCase
     {
         $this->filesystem = $this->createMock(FilesystemPort::class);
         $this->policy = $this->createMock(OrganizerPolicy::class);
+        $this->repository = $this->createMock(MetadataRepositoryPort::class);
         $this->logger = $this->createMock(LoggerPort::class);
         $this->messageBus = $this->createMock(MessageBusInterface::class);
 
         $this->handler = new OrganizeFileHandler(
             $this->filesystem,
             $this->policy,
+            $this->repository,
             $this->logger,
             $this->messageBus
         );
@@ -62,6 +66,13 @@ final class OrganizeFileHandlerTest extends TestCase
         );
 
         $command = new OrganizeFileCommand($asset, $destinationBasePath);
+
+        // Mock repository: no duplicate found
+        $this->repository
+            ->expects($this->once())
+            ->method('findByHash')
+            ->with($hash)
+            ->willReturn(null);
 
         $this->policy
             ->expects($this->once())
@@ -150,6 +161,13 @@ final class OrganizeFileHandlerTest extends TestCase
 
         $command = new OrganizeFileCommand($asset, $destinationBasePath);
 
+        // Mock repository: no duplicate found
+        $this->repository
+            ->expects($this->once())
+            ->method('findByHash')
+            ->with($hash)
+            ->willReturn(null);
+
         $this->policy
             ->expects($this->once())
             ->method('organize')
@@ -225,6 +243,78 @@ final class OrganizeFileHandlerTest extends TestCase
         }
     }
 
+    public function testHandleSkipsDuplicateFile(): void
+    {
+        // Create temporary file
+        $tempFile = sys_get_temp_dir().'/test_file_'.uniqid().'.jpg';
+        file_put_contents($tempFile, 'test content');
+        $sourcePath = new FilePath($tempFile);
+        $destinationBasePath = new FilePath('/destination');
+
+        $hashString = hash('sha256', 'test content');
+        $hash = new FileHash($hashString);
+        $asset = new MediaAsset(
+            $sourcePath,
+            FileType::IMAGE,
+            new MediaMeta('file.jpg', 'image/jpeg', 12345),
+            MediaDate::fromTimestamp(1730419200),
+            $hash
+        );
+
+        // Create existing asset with same hash but different path
+        $existingPath = new FilePath('/destination/2024/01/images/existing.jpg');
+        $existingAsset = new MediaAsset(
+            $existingPath,
+            FileType::IMAGE,
+            new MediaMeta('existing.jpg', 'image/jpeg', 12345),
+            MediaDate::fromTimestamp(1704067200),
+            $hash
+        );
+
+        $command = new OrganizeFileCommand($asset, $destinationBasePath);
+
+        // Mock repository: duplicate found
+        $this->repository
+            ->expects($this->once())
+            ->method('findByHash')
+            ->with($hash)
+            ->willReturn($existingAsset);
+
+        $this->logger
+            ->expects($this->once())
+            ->method('warning')
+            ->with('Duplicate file detected, skipping organization', $this->callback(fn(array $context): bool => $context['source_path'] === $sourcePath->getPath()
+                && $context['existing_file_path'] === $existingPath->getPath()
+                && $context['hash'] === $hash->getHash()));
+
+        // Policy should not be called for duplicates
+        $this->policy
+            ->expects($this->never())
+            ->method('organize');
+
+        // Filesystem operations should not be called for duplicates
+        $this->filesystem
+            ->expects($this->never())
+            ->method('copyWithMetadata');
+
+        $this->filesystem
+            ->expects($this->never())
+            ->method('delete');
+
+        // Message bus should not be called for duplicates
+        $this->messageBus
+            ->expects($this->never())
+            ->method('dispatch');
+
+        $result = $this->handler->handle($command);
+
+        // Should return existing path
+        $this->assertEquals($existingPath->getPath(), $result->getPath());
+
+        // Cleanup
+        @unlink($tempFile);
+    }
+
     public function testHandleThrowsExceptionWhenCopyFails(): void
     {
         // Create temporary file for hash verification
@@ -246,17 +336,18 @@ final class OrganizeFileHandlerTest extends TestCase
 
         $command = new OrganizeFileCommand($asset, $destinationBasePath);
 
+        // Mock repository: no duplicate found
+        $this->repository
+            ->expects($this->once())
+            ->method('findByHash')
+            ->with($hash)
+            ->willReturn(null);
+
         $this->policy
             ->expects($this->once())
             ->method('organize')
             ->with($asset)
             ->willReturn($targetPath);
-
-        $this->filesystem
-            ->expects($this->once())
-            ->method('exists')
-            ->with($targetPath)
-            ->willReturn(false);
 
         $this->filesystem
             ->expects($this->once())

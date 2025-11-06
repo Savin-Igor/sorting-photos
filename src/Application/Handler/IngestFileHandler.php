@@ -60,7 +60,21 @@ final readonly class IngestFileHandler
         $hashString = $this->filesystem->calculateHash($filePath);
         $fileHash = new FileHash($hashString);
 
-        // Check if already processed (idempotency)
+        // Check for duplicate files (same hash, different path)
+        $existingAsset = $this->repository->findByHash($fileHash);
+        if ($existingAsset instanceof MediaAsset) {
+            // File with same hash already exists - this is a duplicate
+            $this->logger->warning('Duplicate file detected, skipping', [
+                'file_path' => $filePath->getPath(),
+                'hash' => $fileHash->getHash(),
+                'existing_file_path' => $existingAsset->getSourcePath()->getPath(),
+                'existing_file_size' => $existingAsset->getFileSize(),
+            ]);
+
+            return null;
+        }
+
+        // Check if already processed (idempotency - same path, size, hash)
         if ($this->repository->isProcessed($filePath, $fileSize, $fileHash)) {
             $this->logger->info('File already processed, skipping', [
                 'file_path' => $filePath->getPath(),
