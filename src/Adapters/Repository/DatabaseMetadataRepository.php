@@ -144,15 +144,21 @@ SQL;
         }
     }
 
+    /**
+     * @param array<string, mixed> $row
+     */
     private function hydrateAsset(array $row): MediaAsset
     {
-        $sourcePath = new FilePath($row['file_path']);
-        $fileType = \SortingPhotosByDate\Domain\ValueObjects\FileType::from($row['file_type']);
-        $hash = new FileHash($row['file_hash']);
+        $sourcePath = new FilePath((string) $row['file_path']);
+        $fileType = \SortingPhotosByDate\Domain\ValueObjects\FileType::from(\strtolower((string) $row['file_type']));
+        $hash = new FileHash((string) $row['file_hash']);
+
+        /** @var array<array-key, mixed> $additionalMetadata */
+        $additionalMetadata = null !== $row['metadata_json'] && is_string($row['metadata_json']) ? json_decode($row['metadata_json'], true, 512, JSON_THROW_ON_ERROR) : [];
 
         $metadata = new \SortingPhotosByDate\Domain\ValueObjects\MediaMeta(
-            $row['file_name'],
-            $row['mime_type'],
+            (string) $row['file_name'],
+            (string) $row['mime_type'],
             (int) $row['file_size'],
             null !== $row['width'] ? (int) $row['width'] : null,
             null !== $row['height'] ? (int) $row['height'] : null,
@@ -160,7 +166,7 @@ SQL;
             null,
             null,
             null,
-            null !== $row['metadata_json'] && is_string($row['metadata_json']) ? json_decode($row['metadata_json'], true, 512, JSON_THROW_ON_ERROR) : []
+            $additionalMetadata
         );
 
         $date = \SortingPhotosByDate\Domain\ValueObjects\MediaDate::fromString((string) $row['date_taken']);
