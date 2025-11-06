@@ -243,13 +243,26 @@ cp .env.example .env
 
 Key variables:
 
-- `SOURCE_DIRECTORY` - Source directory (default: `/var/data/source`)
-- `DESTINATION_DIRECTORY` - Destination directory (default: `/var/data/destination`)
+**Docker Volume Mounts (Host Paths):**
+- `SOURCE_DIRECTORY_HOST` - Source directory path on **host** (can be any path: USB drive, network share, etc.)
+  - Examples: `/home/user/Pictures`, `/mnt/usb/photos`, `/mnt/network/photos`
+  - Default: `./var/data/source`
+- `DESTINATION_DIRECTORY_HOST` - Destination directory path on **host** (can be any path)
+  - Examples: `/mnt/external/sorted`, `/home/user/Sorted`
+  - Default: `./var/data/destination`
+
+**Container Paths (Fixed - DO NOT change):**
+- `SOURCE_DIRECTORY` - Source directory path **inside container** (fixed: `/var/data/source`)
+- `DESTINATION_DIRECTORY` - Destination directory path **inside container** (fixed: `/var/data/destination`)
+
+**Other Configuration:**
 - `ORGANIZER_POLICY` - Organization policy (`date-type`, `date`, `type-date`)
 - `DRY_RUN` - Dry-run mode (`true`/`false`)
 - `MESSENGER_TRANSPORT_DSN` - Messenger transport:
   - Redis: `redis://redis:6379/messages`
   - RabbitMQ: `amqp://guest:guest@rabbitmq:5672/%2f/messages`
+
+**Important:** Use `SOURCE_DIRECTORY_HOST`/`DESTINATION_DIRECTORY_HOST` for host paths. The `SOURCE_DIRECTORY`/`DESTINATION_DIRECTORY` variables are fixed container paths and should not be changed.
 
 ### Configuration Files
 
