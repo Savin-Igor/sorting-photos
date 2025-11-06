@@ -9,13 +9,22 @@ services:
     container_name: sorting-photos-app
     volumes:
       - ./:/var/www/html
-      # Mount source directory from host if SOURCE_DIRECTORY_HOST is set, otherwise use default
+      # Mount source directory from host - can be any path (USB drive, network share, etc.)
+      # Set SOURCE_DIRECTORY_HOST env var to mount your source directory
+      # Example: SOURCE_DIRECTORY_HOST=/home/user/Pictures:/var/data/source:ro
+      # Or: SOURCE_DIRECTORY_HOST=/mnt/usb/photos:/var/data/source:ro
       - ${SOURCE_DIRECTORY_HOST:-./var/data/source}:/var/data/source:ro
-      - ./var/data/destination:/var/data/destination
+      # Mount destination directory from host - can be any path
+      # Set DESTINATION_DIRECTORY_HOST env var to mount your destination directory
+      # Example: DESTINATION_DIRECTORY_HOST=/mnt/external:/var/data/destination
+      - ${DESTINATION_DIRECTORY_HOST:-./var/data/destination}:/var/data/destination
       - ./var:/var/www/html/var
     environment:
-      - SOURCE_DIRECTORY=${SOURCE_DIRECTORY:-/var/data/source}
-      - DESTINATION_DIRECTORY=${DESTINATION_DIRECTORY:-/var/data/destination}
+      # These paths are ALWAYS INSIDE the container (after volume mount)
+      # DO NOT set SOURCE_DIRECTORY/DESTINATION_DIRECTORY on host - use SOURCE_DIRECTORY_HOST/DESTINATION_DIRECTORY_HOST instead
+      # These are fixed container paths where volumes are mounted
+      - SOURCE_DIRECTORY=/var/data/source
+      - DESTINATION_DIRECTORY=/var/data/destination
       - ORGANIZER_POLICY=${ORGANIZER_POLICY:-date-type}
       - DRY_RUN=${DRY_RUN:-false}
       - MESSENGER_TRANSPORT_DSN=${MESSENGER_TRANSPORT_DSN:-redis://redis:6379/messages}
@@ -83,12 +92,14 @@ services:
     container_name: sorting-photos-worker
     volumes:
       - ./:/var/www/html
-      - ./var/data/source:/var/data/source:ro
-      - ./var/data/destination:/var/data/destination
+      # Mount source and destination directories - same as app service
+      - "${SOURCE_DIRECTORY_HOST:-./var/data/source}:/var/data/source:ro"
+      - "${DESTINATION_DIRECTORY_HOST:-./var/data/destination}:/var/data/destination"
       - ./var:/var/www/html/var
     environment:
-      - SOURCE_DIRECTORY=${SOURCE_DIRECTORY:-/var/data/source}
-      - DESTINATION_DIRECTORY=${DESTINATION_DIRECTORY:-/var/data/destination}
+      # These paths are ALWAYS INSIDE the container (after volume mount)
+      - SOURCE_DIRECTORY=/var/data/source
+      - DESTINATION_DIRECTORY=/var/data/destination
       - ORGANIZER_POLICY=${ORGANIZER_POLICY:-date-type}
       - DRY_RUN=${DRY_RUN:-false}
       - MESSENGER_TRANSPORT_DSN=${MESSENGER_TRANSPORT_DSN:-redis://redis:6379/messages}

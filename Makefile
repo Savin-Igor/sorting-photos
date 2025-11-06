@@ -65,6 +65,8 @@ shell: ## Open shell in application container
 
 run: ## Run the application (sort files)
 	@echo "Running file sorting application..."
+	@echo "Using SOURCE_DIRECTORY_HOST: $${SOURCE_DIRECTORY_HOST:-./var/data/source}"
+	@echo "Using DESTINATION_DIRECTORY_HOST: $${DESTINATION_DIRECTORY_HOST:-./var/data/destination}"
 	${DOCKER_COMPOSE} exec app php index.php
 .PHONY: run
 

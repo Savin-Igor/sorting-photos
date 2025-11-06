@@ -33,9 +33,10 @@ A modern PHP 8.4 application for organizing photos, videos, audio files, and doc
    make data-init
    ```
 
-3. **Create environment file:**
+3. **Create environment file (optional):**
    ```bash
-   cp .env.docker.example .env
+   cp .env.example .env
+   # Edit .env to set SOURCE_DIRECTORY_HOST and DESTINATION_DIRECTORY_HOST if needed
    ```
 
 4. **Start the application:**
@@ -43,15 +44,24 @@ A modern PHP 8.4 application for organizing photos, videos, audio files, and doc
    make up
    ```
 
-5. **Place files to sort:**
+5. **Run with your directories:**
+   
+   You can use **any directories** on your host (USB drives, network shares, external drives, etc.):
+   
    ```bash
-   cp -r /path/to/your/photos/* var/data/source/
-   ```
-
-6. **Run the application:**
-   ```bash
+   # Using environment variables
+   SOURCE_DIRECTORY_HOST="/home/user/Pictures" \
+   DESTINATION_DIRECTORY_HOST="/mnt/external/sorted" \
    make run
+   
+   # Or set in .env file:
+   # SOURCE_DIRECTORY_HOST=/home/user/Pictures
+   # DESTINATION_DIRECTORY_HOST=/mnt/external/sorted
    ```
+   
+   **Default behavior** (if not specified):
+   - Source: `./var/data/source` (project directory)
+   - Destination: `./var/data/destination` (project directory)
 
 ### Local Installation
 

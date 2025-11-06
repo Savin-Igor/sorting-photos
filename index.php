@@ -65,17 +65,18 @@ try {
     $byteFormatter = new ByteFormatter();
     $directorySizeCalculator = new DirectorySizeCalculator($filesystem);
 
-    // Validate directories
+    // Validate directories exist (they must be mounted/created on host)
     if (!is_dir($sourceDirectory)) {
-        // Try to create source directory if it doesn't exist (for testing)
-        if (!mkdir($sourceDirectory, 0755, true)) {
-            throw new RuntimeException("Source directory does not exist and could not be created: {$sourceDirectory}");
-        }
+        throw new RuntimeException("Source directory does not exist: {$sourceDirectory}. Please ensure it exists and is mounted in Docker.");
     }
 
-    // Ensure destination directory exists
+    // Ensure destination directory exists (create if needed, but only if we have permissions)
     $destinationPath = new FilePath($destinationDirectory);
-    $filesystem->ensureDirectory($destinationPath);
+    if (!is_dir($destinationDirectory)) {
+        // Try to create, but don't fail if we don't have permissions
+        // Directory should be created on host or mounted in Docker
+        $filesystem->ensureDirectory($destinationPath);
+    }
 
     $logger->info('=== File Sorting Application Started ===');
     $logger->info('Source Directory: '.$sourceDirectory);
