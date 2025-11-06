@@ -63,6 +63,42 @@ A modern PHP 8.4 application for organizing photos, videos, audio files, and doc
    - Source: `./var/data/source` (project directory)
    - Destination: `./var/data/destination` (project directory)
 
+### Async Mode (Parallel Processing)
+
+⚠️ **Current Status**: Application runs in **synchronous mode** by default. Async mode infrastructure is ready but not activated.
+
+For large volumes (2+ TB, thousands of files), **async mode** provides parallel processing:
+
+**Option 1: Using Docker Compose Worker**:
+```bash
+# Start application with worker
+make up-worker
+
+# In another terminal, run scanning
+make run
+
+# Worker will automatically process all messages from queue
+```
+
+**Option 2: Manual Worker**:
+```bash
+# Start application
+make up
+
+# Run scanning (messages go to queue)
+make run
+
+# In another terminal, start worker(s)
+make consume-workers WORKERS=4
+```
+
+**Performance**:
+- **Sync mode** (default): ~10-50 files/sec
+- **Async mode** (4 workers): ~40-200 files/sec (4× faster)
+- **Async mode** (8 workers): ~80-400 files/sec (8× faster)
+
+See [ASYNC_PROCESSING.md](docs/ASYNC_PROCESSING.md) for detailed information about async processing and how to activate it.
+
 ### Local Installation
 
 1. **Install dependencies:**
@@ -203,10 +239,11 @@ sorting-photos/
 
 ### Application Commands
 
-- `make run` - Run file sorting
+- `make run` - Run file sorting (synchronous mode - default)
 - `make run-dry-run` - Run in dry-run mode (no files moved)
-- `make scan` - Scan files and dispatch events
-- `make consume` - Start message consumer
+- `make scan` - Scan files and dispatch events (without organizing)
+- `make consume` - Start single worker to consume messages from queue (async mode)
+- `make consume-workers WORKERS=4` - Start multiple workers for parallel processing (async mode)
 - `make metadata-clear` - Clear all metadata from database (reset processing locks)
 
 ### Testing & Quality
