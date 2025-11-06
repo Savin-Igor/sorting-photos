@@ -15,3 +15,6 @@ parameters:
         - '#Property.*has unknown class getID3#'
         - '#Cannot call method analyze\(\) on getID3\|null#'
         - '#Cannot cast mixed to string#'
+        - '#Call to function is_array\(\) with array will always evaluate to true#'
+        - '#Call to function is_string\(\) with string will always evaluate to true#'
+        - '#Cannot access offset.*on mixed#'

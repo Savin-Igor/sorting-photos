@@ -21,19 +21,17 @@ use Symfony\Component\Messenger\Middleware\HandleMessageMiddleware;
  * Processes messages immediately without queuing.
  * Routes commands and events to their handlers using lazy loading to avoid circular dependencies.
  */
-final class SynchronousMessageBus implements MessageBusInterface
+final readonly class SynchronousMessageBus implements MessageBusInterface
 {
     private MessageBusInterface $bus;
-    private ContainerInterface $container;
 
-    public function __construct(ContainerInterface $container)
+    public function __construct(private ContainerInterface $container)
     {
-        $this->container = $container;
-
         // Map message types to their handlers (lazy loaded)
         $handlersMap = [
             IngestFileCommand::class => [
                 function (IngestFileCommand $command) {
+                    /** @var \SortingPhotosByDate\Application\Handler\IngestFileHandler $handler */
                     $handler = $this->container->get(\SortingPhotosByDate\Application\Handler\IngestFileHandler::class);
 
                     return $handler->handle($command);
@@ -41,37 +39,38 @@ final class SynchronousMessageBus implements MessageBusInterface
             ],
             OrganizeFileCommand::class => [
                 function (OrganizeFileCommand $command) {
+                    /** @var \SortingPhotosByDate\Application\Handler\OrganizeFileHandler $handler */
                     $handler = $this->container->get(\SortingPhotosByDate\Application\Handler\OrganizeFileHandler::class);
 
                     return $handler->handle($command);
                 },
             ],
             FileDiscovered::class => [
-                function (FileDiscovered $event) {
+                function (FileDiscovered $event): void {
+                    /** @var FileDiscoveredHandler $handler */
                     $handler = $this->container->get(FileDiscoveredHandler::class);
-
-                    return $handler->__invoke($event);
+                    $handler->__invoke($event);
                 },
             ],
             FileProcessed::class => [
-                function (FileProcessed $event) {
+                function (FileProcessed $event): void {
+                    /** @var FileProcessedHandler $handler */
                     $handler = $this->container->get(FileProcessedHandler::class);
-
-                    return $handler->__invoke($event);
+                    $handler->__invoke($event);
                 },
             ],
             FileOrganized::class => [
-                function (FileOrganized $event) {
+                function (FileOrganized $event): void {
+                    /** @var FileOrganizedHandler $handler */
                     $handler = $this->container->get(FileOrganizedHandler::class);
-
-                    return $handler->__invoke($event);
+                    $handler->__invoke($event);
                 },
             ],
             FileError::class => [
-                function (FileError $event) {
+                function (FileError $event): void {
+                    /** @var FileErrorHandler $handler */
                     $handler = $this->container->get(FileErrorHandler::class);
-
-                    return $handler->__invoke($event);
+                    $handler->__invoke($event);
                 },
             ],
         ];

@@ -81,7 +81,8 @@ final readonly class OrganizeFileHandler
         // File exists - create collision path with hash prefix
         $pathInfo = pathinfo($targetPath->getPath());
         $directory = $pathInfo['dirname'] ?? '.';
-        $filename = $pathInfo['filename'] ?? '';
+        // Note: 'filename' key always exists in pathinfo result, so no need for ??
+        $filename = $pathInfo['filename'];
         $extension = isset($pathInfo['extension']) ? '.'.$pathInfo['extension'] : '';
         $hashPrefix = $hash->getShortHash(8);
 

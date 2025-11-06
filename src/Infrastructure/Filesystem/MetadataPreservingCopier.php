@@ -46,9 +46,23 @@ final readonly class MetadataPreservingCopier
         }
 
         // Get source metadata before copying (using native PHP for metadata Flysystem doesn't support)
-        $permissions = file_exists($sourcePath) ? fileperms($sourcePath) : 0644;
-        $mtime = file_exists($sourcePath) ? filemtime($sourcePath) : time();
-        $atime = file_exists($sourcePath) ? fileatime($sourcePath) : time();
+        $permissions = 0644;
+        $mtime = time();
+        $atime = time();
+        if (file_exists($sourcePath)) {
+            $perms = fileperms($sourcePath);
+            $mtimeResult = filemtime($sourcePath);
+            $atimeResult = fileatime($sourcePath);
+            if (false !== $perms) {
+                $permissions = $perms;
+            }
+            if (false !== $mtimeResult) {
+                $mtime = $mtimeResult;
+            }
+            if (false !== $atimeResult) {
+                $atime = $atimeResult;
+            }
+        }
 
         // Read source file content
         $content = $this->filesystem->read($sourcePath);
@@ -105,12 +119,12 @@ final readonly class MetadataPreservingCopier
                 return;
             }
 
-            /** @var array<string> $attributes */
-            foreach ($attributes as $attr) {
-                /** @var string $attr */
+            /** @var array<int, string> $attributesArray */
+            $attributesArray = $attributes;
+            foreach ($attributesArray as $attr) {
+                // $attr is string due to type annotation above
                 $value = xattr_get($source, $attr);
-                /** @var string|false $value */
-                if (false !== $value) {
+                if (is_string($value)) {
                     xattr_set($destination, $attr, $value);
                 }
             }

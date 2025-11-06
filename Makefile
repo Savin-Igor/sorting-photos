@@ -113,7 +113,7 @@ psalm: ## Run Psalm static analysis
 
 grumphp: ## Run GrumPHP (all code quality checks)
 	@echo "Running GrumPHP..."
-	${DOCKER_COMPOSE} exec app vendor/bin/grumphp run
+	@echo "no" | ${DOCKER_COMPOSE} exec -T app vendor/bin/grumphp run
 .PHONY: grumphp
 
 qa: ## Run all code quality checks

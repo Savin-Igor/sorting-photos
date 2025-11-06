@@ -12,7 +12,7 @@ use SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier;
 final class MetadataPreservingCopierTest extends TestCase
 {
     private MetadataPreservingCopier $copier;
-    private FilesystemOperator $filesystem;
+    private \PHPUnit\Framework\MockObject\MockObject $filesystem;
 
     protected function setUp(): void
     {
@@ -49,9 +49,7 @@ final class MetadataPreservingCopierTest extends TestCase
         $this->filesystem
             ->expects($this->exactly(3))
             ->method('read')
-            ->willReturnCallback(function ($path) use ($sourcePathStr, $destPathStr) {
-                return 'test content';
-            });
+            ->willReturnCallback(fn($path): string => 'test content');
 
         $this->filesystem
             ->expects($this->once())
@@ -105,30 +103,32 @@ final class MetadataPreservingCopierTest extends TestCase
             ->method('createDirectory')
             ->with($destDirStr);
 
-        // First read for copying
+        // Mock read calls: first for copying, then two for hash verification with different content
+        $readCallCount = 0;
         $this->filesystem
-            ->expects($this->at(2))
+            ->expects($this->exactly(3))
             ->method('read')
-            ->with($sourcePathStr)
-            ->willReturn('test content');
+            ->willReturnCallback(function ($path) use ($sourcePathStr, $destPathStr, &$readCallCount): string {
+                $readCallCount++;
+                // First read: source for copying
+                if ($readCallCount === 1 && $path === $sourcePathStr) {
+                    return 'test content';
+                }
+                // Second read: source for verification
+                if ($readCallCount === 2 && $path === $sourcePathStr) {
+                    return 'test content';
+                }
+                // Third read: destination for verification - different content to trigger failure
+                if ($readCallCount === 3 && $path === $destPathStr) {
+                    return 'different content';
+                }
+                throw new \RuntimeException("Unexpected read call: {$path} (call #{$readCallCount})");
+            });
 
         $this->filesystem
             ->expects($this->once())
             ->method('write')
             ->with($destPathStr, 'test content');
-
-        // Two reads for hash verification (source and destination) - different content
-        $this->filesystem
-            ->expects($this->at(3))
-            ->method('read')
-            ->with($sourcePathStr)
-            ->willReturn('test content');
-
-        $this->filesystem
-            ->expects($this->at(4))
-            ->method('read')
-            ->with($destPathStr)
-            ->willReturn('different content'); // Different content to trigger failure
 
         $this->filesystem
             ->expects($this->once())

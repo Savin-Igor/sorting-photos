@@ -114,9 +114,7 @@ final class IngestFileHandlerTest extends TestCase
             ->expects($this->once())
             ->method('dispatch')
             ->with($this->isInstanceOf(\SortingPhotosByDate\Domain\Event\FileProcessed::class))
-            ->willReturnCallback(function ($message) {
-                return Envelope::wrap($message);
-            });
+            ->willReturnCallback(fn(object $message): \Symfony\Component\Messenger\Envelope => Envelope::wrap($message));
 
         $result = $this->handler->handle($command);
 

@@ -101,10 +101,9 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->filesystem
             ->expects($this->exactly(2))
             ->method('calculateHash')
-            ->willReturnCallback(function (FilePath $path) use ($sourcePath, $targetPath, $hashString): string {
+            ->willReturnCallback(fn(FilePath $path): string =>
                 // Return hash for both source and target
-                return $hashString;
-            });
+                $hashString);
 
         $this->filesystem
             ->expects($this->once())
@@ -116,9 +115,7 @@ final class OrganizeFileHandlerTest extends TestCase
             ->expects($this->once())
             ->method('dispatch')
             ->with($this->isInstanceOf(\SortingPhotosByDate\Domain\Event\FileOrganized::class))
-            ->willReturnCallback(function ($message) {
-                return Envelope::wrap($message);
-            });
+            ->willReturnCallback(fn(object $message): \Symfony\Component\Messenger\Envelope => Envelope::wrap($message));
 
         $result = $this->handler->handle($command);
 
@@ -215,9 +212,7 @@ final class OrganizeFileHandlerTest extends TestCase
             ->expects($this->once())
             ->method('dispatch')
             ->with($this->isInstanceOf(\SortingPhotosByDate\Domain\Event\FileOrganized::class))
-            ->willReturnCallback(function ($message) {
-                return Envelope::wrap($message);
-            });
+            ->willReturnCallback(fn(object $message): \Symfony\Component\Messenger\Envelope => Envelope::wrap($message));
 
         $result = $this->handler->handle($command);
 

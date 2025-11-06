@@ -10,13 +10,10 @@ use SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface;
  * Adapter wrapper for getID3 library.
  * Implements AudioVideoMetadataAnalyzerInterface using vendor library.
  */
-final class GetId3Adapter implements AudioVideoMetadataAnalyzerInterface
+final readonly class GetId3Adapter implements AudioVideoMetadataAnalyzerInterface
 {
-    private \getID3 $getId3;
-
-    public function __construct(?\getID3 $getId3 = null)
+    public function __construct(private ?\getID3 $getId3 = new \getID3())
     {
-        $this->getId3 = $getId3 ?? new \getID3();
     }
 
     #[\Override]

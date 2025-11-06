@@ -85,7 +85,6 @@ grumphp:
             group: []
             always_execute: false
             order: null
-            triggered_by: ['php']
         rector:
             config: rector.php
             clear_cache: false

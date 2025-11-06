@@ -42,9 +42,14 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
 
         $width = null;
         $height = null;
-        if (isset($fileInfo['video']['resolution_x'], $fileInfo['video']['resolution_y'])) {
-            $width = (int) $fileInfo['video']['resolution_x'];
-            $height = (int) $fileInfo['video']['resolution_y'];
+        if (isset($fileInfo['video']) && is_array($fileInfo['video']) && isset($fileInfo['video']['resolution_x'], $fileInfo['video']['resolution_y'])) {
+            $video = $fileInfo['video'];
+            $resolutionX = $video['resolution_x'];
+            $resolutionY = $video['resolution_y'];
+            if (is_numeric($resolutionX) && is_numeric($resolutionY)) {
+                $width = (int) $resolutionX;
+                $height = (int) $resolutionY;
+            }
         }
 
         $duration = null;
@@ -59,21 +64,21 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
         if (isset($fileInfo['tags']) && is_array($fileInfo['tags'])) {
             /** @var array<string, mixed> $tags */
             $tags = $fileInfo['tags'];
-            if (isset($tags['id3v2']['artist'][0])) {
+            if (isset($tags['id3v2']) && is_array($tags['id3v2']) && isset($tags['id3v2']['artist']) && is_array($tags['id3v2']['artist']) && isset($tags['id3v2']['artist'][0])) {
                 $artist = (string) $tags['id3v2']['artist'][0];
-            } elseif (isset($tags['id3v1']['artist'][0])) {
+            } elseif (isset($tags['id3v1']) && is_array($tags['id3v1']) && isset($tags['id3v1']['artist']) && is_array($tags['id3v1']['artist']) && isset($tags['id3v1']['artist'][0])) {
                 $artist = (string) $tags['id3v1']['artist'][0];
             }
 
-            if (isset($tags['id3v2']['title'][0])) {
+            if (isset($tags['id3v2']) && is_array($tags['id3v2']) && isset($tags['id3v2']['title']) && is_array($tags['id3v2']['title']) && isset($tags['id3v2']['title'][0])) {
                 $title = (string) $tags['id3v2']['title'][0];
-            } elseif (isset($tags['id3v1']['title'][0])) {
+            } elseif (isset($tags['id3v1']) && is_array($tags['id3v1']) && isset($tags['id3v1']['title']) && is_array($tags['id3v1']['title']) && isset($tags['id3v1']['title'][0])) {
                 $title = (string) $tags['id3v1']['title'][0];
             }
 
-            if (isset($tags['id3v2']['album'][0])) {
+            if (isset($tags['id3v2']) && is_array($tags['id3v2']) && isset($tags['id3v2']['album']) && is_array($tags['id3v2']['album']) && isset($tags['id3v2']['album'][0])) {
                 $album = (string) $tags['id3v2']['album'][0];
-            } elseif (isset($tags['id3v1']['album'][0])) {
+            } elseif (isset($tags['id3v1']) && is_array($tags['id3v1']) && isset($tags['id3v1']['album']) && is_array($tags['id3v1']['album']) && isset($tags['id3v1']['album'][0])) {
                 $album = (string) $tags['id3v1']['album'][0];
             }
         }
@@ -109,7 +114,7 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
         $fileInfo = $this->metadataAnalyzer->analyze($filePath);
 
         // Priority: ID3 TDRC > ID3 TYER > mtime
-        if (isset($fileInfo['tags']['id3v2']['TDRC'][0])) {
+        if (isset($fileInfo['tags']) && is_array($fileInfo['tags']) && isset($fileInfo['tags']['id3v2']) && is_array($fileInfo['tags']['id3v2']) && isset($fileInfo['tags']['id3v2']['TDRC']) && is_array($fileInfo['tags']['id3v2']['TDRC']) && isset($fileInfo['tags']['id3v2']['TDRC'][0])) {
             $dateString = (string) $fileInfo['tags']['id3v2']['TDRC'][0];
             $date = $this->parseId3Date($dateString);
             if ($date instanceof Carbon) {
@@ -117,7 +122,7 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
             }
         }
 
-        if (isset($fileInfo['tags']['id3v2']['TYER'][0])) {
+        if (isset($fileInfo['tags']) && is_array($fileInfo['tags']) && isset($fileInfo['tags']['id3v2']) && is_array($fileInfo['tags']['id3v2']) && isset($fileInfo['tags']['id3v2']['TYER']) && is_array($fileInfo['tags']['id3v2']['TYER']) && isset($fileInfo['tags']['id3v2']['TYER'][0])) {
             $year = (string) $fileInfo['tags']['id3v2']['TYER'][0];
             if (is_numeric($year) && $year >= 1900 && $year <= 2100) {
                 return new MediaDate(Carbon::createFromDate((int) $year, 1, 1));
@@ -132,14 +137,18 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
 
     private function parseId3Date(string $dateString): ?Carbon
     {
-        try {
-            // Try various ID3 date formats
-            $formats = ['Y-m-d', 'Y-m-d H:i:s', 'Y'];
-            foreach ($formats as $format) {
+        // Try various ID3 date formats
+        $formats = ['Y-m-d', 'Y-m-d H:i:s', 'Y'];
+        foreach ($formats as $format) {
+            try {
                 return Carbon::createFromFormat($format, $dateString);
+            } catch (\Exception) {
+                continue;
             }
+        }
 
-            // Try parsing as ISO 8601
+        // Try parsing as ISO 8601
+        try {
             return Carbon::parse($dateString);
         } catch (\Exception) {
             return null;

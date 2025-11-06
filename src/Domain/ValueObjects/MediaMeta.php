@@ -16,6 +16,7 @@ final class MediaMeta
         private readonly ?string $artist = null,
         private readonly ?string $title = null,
         private readonly ?string $album = null,
+        /** @var array<array-key, mixed> */
         private array $additionalMetadata = [],
     ) {
         if ('' === $this->fileName || '0' === $this->fileName) {

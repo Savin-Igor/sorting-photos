@@ -32,6 +32,10 @@ final readonly class MimeTypeDetectorAdapter implements MimeTypeDetectorInterfac
             return 'application/octet-stream';
         }
 
+        if (!$this->detector instanceof MimeTypeDetector) {
+            return 'application/octet-stream';
+        }
+
         $mimeType = $this->detector->detectMimeTypeFromFile($filePath);
 
         return $mimeType ?? 'application/octet-stream';
@@ -40,6 +44,10 @@ final readonly class MimeTypeDetectorAdapter implements MimeTypeDetectorInterfac
     #[\Override]
     public function detectMimeTypeFromBuffer(string $contents): string
     {
+        if (!$this->detector instanceof MimeTypeDetector) {
+            return 'application/octet-stream';
+        }
+
         $mimeType = $this->detector->detectMimeTypeFromBuffer($contents);
 
         return $mimeType ?? 'application/octet-stream';

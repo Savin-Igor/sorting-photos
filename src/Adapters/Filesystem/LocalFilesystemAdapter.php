@@ -213,13 +213,8 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
 
         try {
             $content = $this->filesystem->read($path);
-            $hash = hash('sha256', $content);
 
-            if (false === $hash) {
-                throw new \RuntimeException("Failed to calculate hash for file: {$path}");
-            }
-
-            return $hash;
+            return hash('sha256', $content);
         } catch (\Exception $e) {
             throw new \RuntimeException("Failed to calculate hash for file: {$path}", 0, $e);
         }

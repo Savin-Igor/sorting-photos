@@ -16,10 +16,10 @@ use Symfony\Component\Messenger\MessageBusInterface;
 
 final class ScanFilesCommandTest extends TestCase
 {
-    private ScannerPort $scanner;
-    private MessageBusInterface $messageBus;
-    private FilesystemPort $filesystem;
-    private LoggerPort $logger;
+    private \PHPUnit\Framework\MockObject\MockObject $scanner;
+    private \PHPUnit\Framework\MockObject\MockObject $messageBus;
+    private \PHPUnit\Framework\MockObject\MockObject $filesystem;
+    private \PHPUnit\Framework\MockObject\MockObject $logger;
     private ScanFilesCommand $command;
 
     protected function setUp(): void
