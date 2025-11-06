@@ -12,7 +12,7 @@ use SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface;
  */
 final readonly class GetId3Adapter implements AudioVideoMetadataAnalyzerInterface
 {
-    public function __construct(private \JamesHeinrich\GetID3\GetID3 $getId3 = new \JamesHeinrich\GetID3\GetID3())
+    public function __construct(private \JamesHeinrich\GetID3\GetID3 $getId3)
     {
     }
 
