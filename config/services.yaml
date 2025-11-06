@@ -63,7 +63,7 @@ services:
     monolog.formatter.console:
         class: Monolog\Formatter\LineFormatter
         arguments:
-            $format: "%datetime% | %level_name% | %message%\n"
+            $format: "%%datetime%% | %%level_name%% | %%message%%\n"
             $dateFormat: 'Y-m-d H:i:s'
             $allowInlineLineBreaks: false
             $ignoreEmptyContextAndExtra: true
@@ -72,7 +72,7 @@ services:
     monolog.formatter.file:
         class: Monolog\Formatter\LineFormatter
         arguments:
-            $format: "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n"
+            $format: "[%%datetime%%] %%channel%%.%%level_name%%: %%message%% %%context%% %%extra%%\n"
             $dateFormat: 'Y-m-d\TH:i:sP'
             $allowInlineLineBreaks: true
             $ignoreEmptyContextAndExtra: false
