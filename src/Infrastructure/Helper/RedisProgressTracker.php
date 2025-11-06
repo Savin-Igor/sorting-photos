@@ -50,12 +50,15 @@ final class RedisProgressTracker
 
         // Update message with current stats
         $message = \sprintf(
-            'Processed: %d, Skipped: %d, Errors: %d',
+            'Processed: %d | Skipped: %d | Errors: %d',
             $processed,
             $skipped,
             $errors
         );
         $this->progressBar->setMessage($message);
+
+        // Force display update
+        $this->progressBar->display();
     }
 
     public function finish(): void

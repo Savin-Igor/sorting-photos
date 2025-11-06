@@ -220,27 +220,48 @@ try {
             // In sync mode, messages are processed immediately
             if ($asyncMode) {
                 // Wait for async processing with progress updates
-                $maxWait = 300; // 5 minutes max
+                $maxWait = 600; // 10 minutes max for large batches
                 $waited = 0;
                 $lastUpdate = 0;
+                $stalledCount = 0;
+                $lastProcessed = 0;
+
+                $output->writeln('<comment>Waiting for workers to process files...</comment>');
+                $output->writeln('');
 
                 while ($waited < $maxWait) {
                     $stats = $statisticsService->getStats();
                     $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
 
-                    // Update progress bar every 0.5 seconds
-                    if (($waited - $lastUpdate) >= 0.5) {
+                    // Update progress bar every 0.2 seconds
+                    if (($waited - $lastUpdate) >= 0.2) {
                         $redisProgressTracker->update();
                         $lastUpdate = $waited;
                     }
 
+                    // Check if processing is stalled
+                    if ($current === $lastProcessed && $current > 0) {
+                        ++$stalledCount;
+                        // If stalled for more than 5 seconds, check if workers are running
+                        if ($stalledCount > 25) { // 25 * 0.2 = 5 seconds
+                            $output->writeln('');
+                            $output->writeln('<comment>Processing seems stalled. Make sure workers are running:</comment>');
+                            $output->writeln('<comment>  make consume-workers WORKERS=8</comment>');
+                            $stalledCount = 0; // Reset counter
+                        }
+                    } else {
+                        $stalledCount = 0;
+                    }
+
+                    $lastProcessed = $current;
+
                     // If all files are processed, break
-                    if ($current >= $totalFiles) {
+                    if ($totalFiles > 0 && $current >= $totalFiles) {
                         break;
                     }
 
-                    usleep(500000); // 0.5 seconds
-                    $waited += 0.5;
+                    usleep(200000); // 0.2 seconds
+                    $waited += 0.2;
                 }
 
                 $redisProgressTracker->update();
@@ -249,7 +270,7 @@ try {
                 // In sync mode, process messages and update progress
                 // Messages are processed immediately by SynchronousMessageBus
                 // Just wait a bit and update progress bar
-                $maxWait = 60; // 1 minute max for sync processing
+                $maxWait = 120; // 2 minutes max for sync processing
                 $waited = 0;
                 $lastUpdate = 0;
 
