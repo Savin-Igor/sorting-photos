@@ -70,6 +70,10 @@ shell: ## Open shell in application container
 ##@ Application commands
 
 run: ## Run the application (sort files)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
 	@echo "Running file sorting application..."
 	@echo "Using SOURCE_DIRECTORY_HOST: $${SOURCE_DIRECTORY_HOST:-./var/data/source}"
 	@echo "Using DESTINATION_DIRECTORY_HOST: $${DESTINATION_DIRECTORY_HOST:-./var/data/destination}"
@@ -77,6 +81,10 @@ run: ## Run the application (sort files)
 .PHONY: run
 
 run-dry-run: ## Run the application in dry-run mode (no files moved)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
 	@echo "Running file sorting application in dry-run mode..."
 	@echo "Using SOURCE_DIRECTORY_HOST: $${SOURCE_DIRECTORY_HOST:-./var/data/source}"
 	@echo "Using DESTINATION_DIRECTORY_HOST: $${DESTINATION_DIRECTORY_HOST:-./var/data/destination}"
@@ -94,12 +102,20 @@ metadata-clear: ## Clear all metadata from database (reset processing locks)
 .PHONY: metadata-clear
 
 consume: ## Consume messages from queue (run worker)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
 	@echo "Starting message consumer..."
 	${DOCKER_COMPOSE} exec app php bin/console messenger:consume async -vv
 .PHONY: consume
 
 consume-workers: ## Start multiple workers for parallel processing (usage: make consume-workers WORKERS=4)
-	@echo "Starting ${WORKERS:-4} workers for parallel processing..."
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Starting $${WORKERS:-4} workers for parallel processing..."
 	@for i in $$(seq 1 $${WORKERS:-4}); do \
 		echo "Starting worker $$i..."; \
 		${DOCKER_COMPOSE} exec -d app php bin/console messenger:consume async -vv --time-limit=3600 || true; \
