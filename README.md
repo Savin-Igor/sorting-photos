@@ -76,25 +76,99 @@ A modern PHP 8.4 application for organizing photos, videos, audio files, and doc
 ```
 sorting-photos/
 ├── src/
-│   ├── Domain/              # Domain layer (Value Objects, Entities, Policies)
-│   ├── Application/         # Application layer (Commands, Handlers)
-│   ├── Ports/               # Ports (interfaces)
-│   ├── Adapters/            # Adapters (implementations)
-│   ├── Infrastructure/      # Infrastructure (Messenger, Filesystem)
-│   └── Command/             # Console commands
-├── config/                  # Configuration files
-├── tests/                   # Test suite
+│   ├── Domain/                      # Domain layer (isolated)
+│   │   ├── MediaAsset.php          # Aggregate Root
+│   │   ├── ValueObjects/           # Value Objects
+│   │   │   ├── FileType.php        # Enum (image, video, audio, other)
+│   │   │   ├── FileCategory.php    # Enum (images, audio, video, other)
+│   │   │   ├── FilePath.php        # Value Object
+│   │   │   ├── FileHash.php        # Value Object
+│   │   │   ├── MediaDate.php       # Value Object
+│   │   │   └── MediaMeta.php       # Value Object
+│   │   ├── Event/                   # Domain Events
+│   │   │   ├── FileDiscovered.php
+│   │   │   ├── FileProcessed.php
+│   │   │   ├── FileOrganized.php
+│   │   │   └── FileError.php
+│   │   └── Policies/                # Policy Pattern
+│   │       ├── OrganizerPolicy.php  # Interface
+│   │       ├── DateTypePolicy.php   # {year}/{month}/{category}/
+│   │       ├── DatePolicy.php       # {year}/{month}/
+│   │       └── TypeDatePolicy.php   # {category}/{year}/{month}/
+│   │
+│   ├── Application/                 # Use Cases & CQRS
+│   │   ├── Command/
+│   │   │   ├── IngestFileCommand.php
+│   │   │   └── OrganizeFileCommand.php
+│   │   └── Handler/
+│   │       ├── IngestFileHandler.php
+│   │       └── OrganizeFileHandler.php
+│   │
+│   ├── Ports/                       # Interfaces (Hexagonal)
+│   │   ├── ScannerPort.php
+│   │   ├── MetadataExtractorPort.php
+│   │   ├── FilesystemPort.php
+│   │   ├── LoggerPort.php
+│   │   ├── MetadataRepositoryPort.php
+│   │   ├── MimeTypeDetectorInterface.php
+│   │   └── AudioVideoMetadataAnalyzerInterface.php
+│   │
+│   ├── Adapters/                    # Port implementations
+│   │   ├── Scanner/
+│   │   │   └── SymfonyFinderAdapter.php
+│   │   ├── Metadata/
+│   │   │   ├── ExifAdapter.php
+│   │   │   ├── GetId3Adapter.php
+│   │   │   └── GenericAdapter.php
+│   │   ├── Filesystem/
+│   │   │   └── LocalFilesystemAdapter.php
+│   │   ├── Logger/
+│   │   │   └── MonologAdapter.php
+│   │   └── Repository/
+│   │       └── DatabaseMetadataRepository.php
+│   │
+│   ├── Infrastructure/
+│   │   ├── Messenger/
+│   │   │   ├── FileDiscoveredHandler.php
+│   │   │   ├── FileProcessedHandler.php
+│   │   │   ├── FileOrganizedHandler.php
+│   │   │   ├── FileErrorHandler.php
+│   │   │   ├── RetryPolicy.php
+│   │   │   └── SynchronousMessageBus.php
+│   │   ├── Filesystem/
+│   │   │   ├── MetadataPreservingCopier.php
+│   │   │   └── MimeTypeDetectorAdapter.php
+│   │   └── Metadata/
+│   │       ├── MetadataExtractorChain.php
+│   │       └── GetId3Adapter.php
+│   │
+│   └── Command/                     # Console commands
+│       └── ScanFilesCommand.php
+│
+├── config/
+│   ├── packages/
+│   │   ├── messenger.yaml          # Queue configuration
+│   │   └── flysystem.yaml          # Filesystem configuration
+│   └── services.yaml                # DI container
+│
+├── tests/                            # Test suite
+│   └── src/
+│       └── Unit/
+│
 ├── var/
-│   ├── data/                # Data directories
-│   │   ├── source/          # Source files (read-only)
-│   │   └── destination/      # Organized files
-│   ├── log/                 # Application logs
-│   ├── cache/               # Cache files
-│   └── database.sqlite      # SQLite database
-├── bin/                     # Executable scripts
-├── docker-compose.yml       # Docker Compose configuration
-├── Dockerfile               # Docker image definition
-└── Makefile                 # Make commands
+│   ├── data/                        # Data directories
+│   │   ├── source/                  # Source files (read-only)
+│   │   └── destination/            # Organized files
+│   ├── log/                         # Application logs
+│   ├── cache/                       # Cache files
+│   └── database.sqlite              # SQLite database
+│
+├── bin/                             # Executable scripts
+│   └── console                      # Symfony Console entry point
+│
+├── docker-compose.yml               # Docker Compose configuration
+├── Dockerfile                       # Docker image definition
+└── Makefile                         # Make commands
 ```
 
 ## Docker Commands
@@ -175,11 +249,114 @@ The application follows **Hexagonal Architecture** (Ports & Adapters) combined w
 
 ### Key Patterns
 
-- **CQRS**: Separation of commands and queries
-- **Event-Driven**: Domain events via Symfony Messenger
-- **Policy Pattern**: Flexible file organization rules
-- **Chain of Responsibility**: Metadata extraction chain
-- **Dependency Injection**: Symfony DI container
+- **Hexagonal Architecture** (Ports/Adapters) — Domain isolation
+- **Pipeline** — Processing pipeline via Messenger
+- **CQRS** — Commands (`IngestFile`, `OrganizeFile`) and Events (`FileOrganized`)
+- **Policy/Strategy** — Flexible file organization rules
+- **Retry/Dead Letter Queue** — Resilience
+- **Queue-based processing** — Scalability
+- **Chain of Responsibility** — Metadata extraction chain
+- **Dependency Injection** — Symfony DI container
+
+### Processing Pipeline
+
+```
+ScanFilesCommand
+    ↓
+FileDiscovered (event)
+    ↓
+Messenger Queue (async)
+    ↓
+IngestFileHandler
+    ├─→ Detect MIME type
+    ├─→ Extract metadata
+    └─→ Calculate hash
+    ↓
+FileProcessed (event)
+    ↓
+OrganizeFileHandler
+    ├─→ Apply OrganizerPolicy
+    ├─→ Copy with metadata preservation
+    ├─→ Verify hash
+    └─→ Delete source
+    ↓
+FileOrganized (event)
+```
+
+### Technology Stack
+
+**Core:**
+- `symfony/console` — Console commands
+- `symfony/messenger` — Async processing and retries
+- `symfony/finder` — File tree scanning
+
+**Detection & Metadata:**
+- `league/mime-type-detection` — Reliable MIME detection (finfo + extension map)
+- `james-heinrich/getid3` — Audio/video metadata extraction
+- `exif` (built-in) — Image metadata
+
+**Storage:**
+- `league/flysystem` — Filesystem abstraction (local/cloud)
+- `doctrine/dbal` — Metadata storage (SQLite/PostgreSQL) for idempotency
+
+**Logging:**
+- `monolog/monolog` — Structured logging
+
+**Queues (optional):**
+- Redis/RabbitMQ via Symfony Messenger transports
+
+### Implementation Details
+
+#### Date Detection (Priority Order)
+
+**Images:**
+1. `EXIF DateTimeOriginal`
+2. `EXIF DateTime`
+3. `mtime` (modification time)
+
+**Audio/Video (getID3):**
+1. `ID3 TDRC` (recording year)
+2. `ID3 TYER` (year)
+3. `mtime`
+
+**Other Files:**
+1. `mtime`
+2. `ctime` (creation time)
+
+#### Metadata Preservation Process
+
+1. Calculate SHA-256 hash of source file
+2. Binary file copy
+3. Verify hash of copy (compare with source)
+4. Restore metadata:
+   - `chmod()` — File permissions
+   - `touch()` — Timestamps (mtime, atime)
+   - `xattr` (if supported) — Extended attributes
+5. Delete source only after successful verification
+
+#### Idempotency
+
+- Database key: `(absolute_path, size, hash)`
+- Pre-processing check: if file already processed — skip
+- Deduplication by content hash
+
+#### Collision Resolution
+
+- If file exists: `{original-name}-{hash-prefix}.{ext}`
+- Hash used for deduplication and integrity verification
+
+#### Retry Mechanism
+
+- Automatic retries on errors (configurable)
+- Dead Letter Queue for problematic files
+- Notifications on critical errors
+- Logging of all attempts
+
+#### Horizontal Scaling
+
+- Multiple workers process queue in parallel
+- Worker count configurable
+- Load balancing via queue
 
 ## Development
 
@@ -312,6 +489,13 @@ Contributions are welcome! Please ensure:
 3. Follow PSR-12 coding standards
 4. Add tests for new features
 
-## See Also
+## Architecture Benefits
 
-- [REFACTORING_PROPOSALS.md](REFACTORING_PROPOSALS.md) - Technical specification and architecture details
+- ✅ **Scalability** — Parallel processing via Messenger
+- ✅ **Extensibility** — Hexagonal Architecture allows easy adapter swapping
+- ✅ **Resilience** — Retry, DLQ, idempotency
+- ✅ **Flexibility** — Policy Pattern for different organization rules
+- ✅ **Testability** — Easy to mock ports
+- ✅ **Isolation** — Domain doesn't know about concrete implementations
+- ✅ **Cloud-ready** — Easy to add S3/FTP via Flysystem
+- ✅ **Suitable for millions of files** — Horizontal scaling

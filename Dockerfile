@@ -11,7 +11,7 @@ RUN apk add --no-cache \
     zip \
     unzip \
     sqlite \
-    pdo_sqlite \
+    sqlite-dev \
     bash \
     shadow \
     linux-headers \

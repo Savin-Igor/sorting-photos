@@ -76,25 +76,99 @@
 ```
 sorting-photos/
 ├── src/
-│   ├── Domain/              # Доменный слой (Value Objects, Entities, Policies)
-│   ├── Application/         # Слой приложения (Commands, Handlers)
-│   ├── Ports/               # Порты (интерфейсы)
-│   ├── Adapters/            # Адаптеры (реализации)
-│   ├── Infrastructure/      # Инфраструктура (Messenger, Filesystem)
-│   └── Command/             # Консольные команды
-├── config/                  # Файлы конфигурации
-├── tests/                   # Набор тестов
+│   ├── Domain/                      # Доменный слой (изолирован)
+│   │   ├── MediaAsset.php          # Aggregate Root
+│   │   ├── ValueObjects/           # Value Objects
+│   │   │   ├── FileType.php        # Enum (image, video, audio, other)
+│   │   │   ├── FileCategory.php    # Enum (images, audio, video, other)
+│   │   │   ├── FilePath.php        # Value Object
+│   │   │   ├── FileHash.php        # Value Object
+│   │   │   ├── MediaDate.php       # Value Object
+│   │   │   └── MediaMeta.php       # Value Object
+│   │   ├── Event/                   # Доменные события
+│   │   │   ├── FileDiscovered.php
+│   │   │   ├── FileProcessed.php
+│   │   │   ├── FileOrganized.php
+│   │   │   └── FileError.php
+│   │   └── Policies/                # Policy Pattern
+│   │       ├── OrganizerPolicy.php  # Интерфейс
+│   │       ├── DateTypePolicy.php   # {год}/{месяц}/{категория}/
+│   │       ├── DatePolicy.php       # {год}/{месяц}/
+│   │       └── TypeDatePolicy.php   # {категория}/{год}/{месяц}/
+│   │
+│   ├── Application/                 # Use Cases & CQRS
+│   │   ├── Command/
+│   │   │   ├── IngestFileCommand.php
+│   │   │   └── OrganizeFileCommand.php
+│   │   └── Handler/
+│   │       ├── IngestFileHandler.php
+│   │       └── OrganizeFileHandler.php
+│   │
+│   ├── Ports/                       # Интерфейсы (Hexagonal)
+│   │   ├── ScannerPort.php
+│   │   ├── MetadataExtractorPort.php
+│   │   ├── FilesystemPort.php
+│   │   ├── LoggerPort.php
+│   │   ├── MetadataRepositoryPort.php
+│   │   ├── MimeTypeDetectorInterface.php
+│   │   └── AudioVideoMetadataAnalyzerInterface.php
+│   │
+│   ├── Adapters/                    # Реализации портов
+│   │   ├── Scanner/
+│   │   │   └── SymfonyFinderAdapter.php
+│   │   ├── Metadata/
+│   │   │   ├── ExifAdapter.php
+│   │   │   ├── GetId3Adapter.php
+│   │   │   └── GenericAdapter.php
+│   │   ├── Filesystem/
+│   │   │   └── LocalFilesystemAdapter.php
+│   │   ├── Logger/
+│   │   │   └── MonologAdapter.php
+│   │   └── Repository/
+│   │       └── DatabaseMetadataRepository.php
+│   │
+│   ├── Infrastructure/
+│   │   ├── Messenger/
+│   │   │   ├── FileDiscoveredHandler.php
+│   │   │   ├── FileProcessedHandler.php
+│   │   │   ├── FileOrganizedHandler.php
+│   │   │   ├── FileErrorHandler.php
+│   │   │   ├── RetryPolicy.php
+│   │   │   └── SynchronousMessageBus.php
+│   │   ├── Filesystem/
+│   │   │   ├── MetadataPreservingCopier.php
+│   │   │   └── MimeTypeDetectorAdapter.php
+│   │   └── Metadata/
+│   │       ├── MetadataExtractorChain.php
+│   │       └── GetId3Adapter.php
+│   │
+│   └── Command/                     # Консольные команды
+│       └── ScanFilesCommand.php
+│
+├── config/
+│   ├── packages/
+│   │   ├── messenger.yaml          # Конфигурация очередей
+│   │   └── flysystem.yaml          # Конфигурация файловой системы
+│   └── services.yaml                # DI контейнер
+│
+├── tests/                            # Набор тестов
+│   └── src/
+│       └── Unit/
+│
 ├── var/
-│   ├── data/                # Директории данных
-│   │   ├── source/          # Исходные файлы (только чтение)
-│   │   └── destination/     # Организованные файлы
-│   ├── log/                 # Логи приложения
-│   ├── cache/               # Файлы кэша
-│   └── database.sqlite      # База данных SQLite
-├── bin/                     # Исполняемые скрипты
-├── docker-compose.yml       # Конфигурация Docker Compose
-├── Dockerfile               # Определение Docker образа
-└── Makefile                 # Make команды
+│   ├── data/                        # Директории данных
+│   │   ├── source/                  # Исходные файлы (только чтение)
+│   │   └── destination/             # Организованные файлы
+│   ├── log/                         # Логи приложения
+│   ├── cache/                       # Файлы кэша
+│   └── database.sqlite              # База данных SQLite
+│
+├── bin/                             # Исполняемые скрипты
+│   └── console                      # Точка входа Symfony Console
+│
+├── docker-compose.yml               # Конфигурация Docker Compose
+├── Dockerfile                       # Определение Docker образа
+└── Makefile                         # Make команды
 ```
 
 ## Docker команды
@@ -175,11 +249,114 @@ cp .env.docker.example .env
 
 ### Ключевые паттерны
 
-- **CQRS**: Разделение команд и запросов
-- **Event-Driven**: Доменные события через Symfony Messenger
-- **Policy Pattern**: Гибкие правила организации файлов
-- **Chain of Responsibility**: Цепочка извлечения метаданных
-- **Dependency Injection**: Контейнер Symfony DI
+- **Hexagonal Architecture** (Ports/Adapters) — Изоляция домена
+- **Pipeline** — Конвейер обработки через Messenger
+- **CQRS** — Команды (`IngestFile`, `OrganizeFile`) и События (`FileOrganized`)
+- **Policy/Strategy** — Гибкие правила организации файлов
+- **Retry/Dead Letter Queue** — Устойчивость
+- **Queue-based processing** — Масштабируемость
+- **Chain of Responsibility** — Цепочка извлечения метаданных
+- **Dependency Injection** — Контейнер Symfony DI
+
+### Конвейер обработки
+
+```
+ScanFilesCommand
+    ↓
+FileDiscovered (событие)
+    ↓
+Messenger Queue (асинхронно)
+    ↓
+IngestFileHandler
+    ├─→ Определение MIME типа
+    ├─→ Извлечение метаданных
+    └─→ Вычисление хеша
+    ↓
+FileProcessed (событие)
+    ↓
+OrganizeFileHandler
+    ├─→ Применение OrganizerPolicy
+    ├─→ Копирование с сохранением метаданных
+    ├─→ Проверка хеша
+    └─→ Удаление источника
+    ↓
+FileOrganized (событие)
+```
+
+### Технологический стек
+
+**Основные:**
+- `symfony/console` — Консольные команды
+- `symfony/messenger` — Асинхронная обработка и повторы
+- `symfony/finder` — Сканирование дерева файлов
+
+**Детекция и метаданные:**
+- `league/mime-type-detection` — Надежное определение MIME (finfo + карта расширений)
+- `james-heinrich/getid3` — Извлечение метаданных аудио/видео
+- `exif` (встроенный) — Метаданные изображений
+
+**Хранилище:**
+- `league/flysystem` — Абстракция файловой системы (локально/облако)
+- `doctrine/dbal` — Хранилище метаданных (SQLite/PostgreSQL) для идемпотентности
+
+**Логирование:**
+- `monolog/monolog` — Структурированное логирование
+
+**Очереди (опционально):**
+- Redis/RabbitMQ через транспорты Symfony Messenger
+
+### Детали реализации
+
+#### Детекция даты (приоритеты)
+
+**Изображения:**
+1. `EXIF DateTimeOriginal`
+2. `EXIF DateTime`
+3. `mtime` (время модификации)
+
+**Аудио/Видео (getID3):**
+1. `ID3 TDRC` (год записи)
+2. `ID3 TYER` (год)
+3. `mtime`
+
+**Остальные файлы:**
+1. `mtime`
+2. `ctime` (время создания)
+
+#### Процесс сохранения метаданных
+
+1. Вычисление SHA-256 хеша исходного файла
+2. Бинарное копирование файла
+3. Верификация хеша копии (сравнение с исходным)
+4. Восстановление метаданных:
+   - `chmod()` — Права доступа
+   - `touch()` — Временные метки (mtime, atime)
+   - `xattr` (если поддерживается) — Расширенные атрибуты
+5. Удаление источника только после успешной верификации
+
+#### Идемпотентность
+
+- Ключ в БД: `(absolute_path, size, hash)`
+- Проверка перед обработкой: если файл уже обработан — пропуск
+- Дедупликация по хешу содержимого
+
+#### Разрешение коллизий
+
+- Если файл существует: `{original-name}-{hash-prefix}.{ext}`
+- Хеш используется для дедупликации и проверки целостности
+
+#### Механизм повторов
+
+- Автоматические повторы при ошибках (настраивается)
+- Dead Letter Queue для проблемных файлов
+- Уведомления о критических ошибках
+- Логирование всех попыток
+
+#### Горизонтальное масштабирование
+
+- Несколько воркеров обрабатывают очередь параллельно
+- Настройка количества воркеров через конфигурацию
+- Балансировка нагрузки через очередь
 
 ## Разработка
 
@@ -312,7 +489,14 @@ Igors Savins - igor.savin@inbox.lv
 3. Следуете стандартам кодирования PSR-12
 4. Добавляете тесты для новых функций
 
-## См. также
+## Преимущества архитектуры
 
-- [REFACTORING_PROPOSALS.md](REFACTORING_PROPOSALS.md) - Техническая спецификация и детали архитектуры
+- ✅ **Масштабируемость** — Параллельная обработка через Messenger
+- ✅ **Расширяемость** — Hexagonal Architecture позволяет легко менять адаптеры
+- ✅ **Устойчивость** — Retry, DLQ, идемпотентность
+- ✅ **Гибкость** — Policy Pattern для разных правил организации
+- ✅ **Тестируемость** — Легко мокировать порты
+- ✅ **Изоляция** — Домен не знает о конкретных реализациях
+- ✅ **Облачная готовность** — Легко добавить S3/FTP через Flysystem
+- ✅ **Подходит для миллионов файлов** — Горизонтальное масштабирование
 
