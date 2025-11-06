@@ -79,4 +79,3 @@ final readonly class MetadataExtractorChain implements MetadataExtractorPort
         throw new \RuntimeException("No extractor found for MIME type: {$mimeType}");
     }
 }
-

@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Filesystem;
 
+use League\Flysystem\FilesystemOperator;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
-use SortingPhotosByDate\Ports\FilesystemPort;
 
 /**
  * Service for copying files while preserving all metadata.
- * Uses FilesystemPort (Flysystem) for all filesystem operations.
+ * Uses FilesystemOperator (Flysystem) directly to avoid circular dependency.
  * Extended attributes are handled separately since Flysystem doesn't support them.
  */
 final readonly class MetadataPreservingCopier
 {
     public function __construct(
-        private FilesystemPort $filesystem,
+        private FilesystemOperator $filesystem,
     ) {
     }
 
@@ -32,34 +32,41 @@ final readonly class MetadataPreservingCopier
      */
     public function copy(FilePath $source, FilePath $destination): bool
     {
-        if (!$this->filesystem->exists($source)) {
-            throw new \InvalidArgumentException("Source file does not exist: {$source->getPath()}");
+        $sourcePath = $source->getPath();
+        $destPath = $destination->getPath();
+
+        if (!$this->filesystem->fileExists($sourcePath)) {
+            throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
         }
 
         // Ensure destination directory exists
-        $destinationDir = new FilePath(dirname($destination->getPath()));
-        $this->filesystem->ensureDirectory($destinationDir);
+        $destinationDir = dirname($destPath);
+        if (!$this->filesystem->directoryExists($destinationDir)) {
+            $this->filesystem->createDirectory($destinationDir);
+        }
 
-        // Get source metadata before copying
-        $permissions = $this->filesystem->getPermissions($source);
-        $mtime = $this->filesystem->getModificationTime($source);
-        $atime = $this->filesystem->getAccessTime($source);
+        // Get source metadata before copying (using native PHP for metadata Flysystem doesn't support)
+        $permissions = file_exists($sourcePath) ? fileperms($sourcePath) : 0644;
+        $mtime = file_exists($sourcePath) ? filemtime($sourcePath) : time();
+        $atime = file_exists($sourcePath) ? fileatime($sourcePath) : time();
 
         // Read source file content
-        $content = $this->filesystem->read($source);
+        $content = $this->filesystem->read($sourcePath);
 
         // Write destination file
-        $this->filesystem->write($destination, $content);
+        $this->filesystem->write($destPath, $content);
 
         // Verify file integrity by comparing hashes
-        $this->verifyIntegrity($source, $destination);
+        $this->verifyIntegrity($sourcePath, $destPath);
 
-        // Restore metadata
-        $this->filesystem->setPermissions($destination, $permissions);
-        $this->filesystem->setTimestamps($destination, $mtime, $atime);
+        // Restore metadata (using native PHP for operations Flysystem doesn't support)
+        if (file_exists($destPath)) {
+            chmod($destPath, $permissions);
+            touch($destPath, $mtime, $atime);
+        }
 
         // Copy extended attributes if supported (requires native PHP)
-        $this->copyExtendedAttributes($source->getPath(), $destination->getPath());
+        $this->copyExtendedAttributes($sourcePath, $destPath);
 
         return true;
     }
@@ -67,14 +74,17 @@ final readonly class MetadataPreservingCopier
     /**
      * Verify file integrity by comparing SHA-256 hashes.
      */
-    private function verifyIntegrity(FilePath $sourcePath, FilePath $destinationPath): void
+    private function verifyIntegrity(string $sourcePath, string $destPath): void
     {
-        $sourceHash = $this->filesystem->calculateHash($sourcePath);
-        $destHash = $this->filesystem->calculateHash($destinationPath);
+        $sourceContent = $this->filesystem->read($sourcePath);
+        $destContent = $this->filesystem->read($destPath);
+
+        $sourceHash = hash('sha256', $sourceContent);
+        $destHash = hash('sha256', $destContent);
 
         if ($sourceHash !== $destHash) {
             // Clean up destination file if integrity check fails
-            $this->filesystem->delete($destinationPath);
+            $this->filesystem->delete($destPath);
             throw new \RuntimeException("File integrity check failed: source hash {$sourceHash} does not match destination hash {$destHash}");
         }
     }

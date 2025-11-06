@@ -73,7 +73,7 @@ final class DatabaseMetadataRepositoryTest extends TestCase
 
     public function testFindByHashReturnsNullWhenNotFound(): void
     {
-        $found = $this->repository->findByHash(new FileHash('nonexistent'));
+        $found = $this->repository->findByHash(new FileHash('a1b2c3d4e5f6789012345678901234567890123456789012345678901234567890'));
 
         $this->assertNull($found);
     }
@@ -111,7 +111,7 @@ final class DatabaseMetadataRepositoryTest extends TestCase
         $isProcessed = $this->repository->isProcessed(
             new FilePath('/test/image.jpg'),
             1024,
-            new FileHash('different-hash')
+            new FileHash('b2c3d4e5f6789012345678901234567890123456789012345678901234567890a1')
         );
 
         $this->assertFalse($isProcessed);

@@ -76,6 +76,30 @@ function formatBytes(int $size): string
 try {
     // Load DI container
     $container = new ContainerBuilder();
+
+    // Set parameters BEFORE loading YAML files
+    $container->setParameter('kernel.project_dir', __DIR__);
+
+    // Get configuration from environment BEFORE loading services
+    $sourceDirectory = $_ENV['SOURCE_DIRECTORY'] ?? getenv('SOURCE_DIRECTORY') ?: '';
+    $destinationDirectory = $_ENV['DESTINATION_DIRECTORY'] ?? getenv('DESTINATION_DIRECTORY') ?: '';
+    $organizerPolicy = $_ENV['ORGANIZER_POLICY'] ?? getenv('ORGANIZER_POLICY') ?: 'date-type';
+    $dryRun = filter_var($_ENV['DRY_RUN'] ?? getenv('DRY_RUN') ?: 'false', FILTER_VALIDATE_BOOLEAN);
+
+    if (empty($sourceDirectory) || empty($destinationDirectory)) {
+        throw new RuntimeException('SOURCE_DIRECTORY and DESTINATION_DIRECTORY must be set in .env file or environment variables');
+    }
+
+    // Set application parameters
+    $container->setParameter('app.source_directory', $sourceDirectory);
+    $container->setParameter('app.destination_directory', $destinationDirectory);
+    $container->setParameter('app.organizer_policy', $organizerPolicy);
+    $container->setParameter('app.dry_run', $dryRun);
+
+    // Set FILESYSTEM_DEFAULT_DIR_PERMISSIONS parameter (resolve env var and convert to int)
+    $defaultDirPermissions = (int) ($_ENV['FILESYSTEM_DEFAULT_DIR_PERMISSIONS'] ?? getenv('FILESYSTEM_DEFAULT_DIR_PERMISSIONS') ?: '0755');
+    $container->setParameter('env(int:FILESYSTEM_DEFAULT_DIR_PERMISSIONS)', $defaultDirPermissions);
+
     $loader = new YamlFileLoader($container, new FileLocator(__DIR__.'/config'));
     $loader->load('services.yaml');
 
@@ -86,11 +110,6 @@ try {
 
     // Load messenger configuration if needed
     // Note: For index.php, we'll use sync transport for immediate processing
-
-    // Set kernel.project_dir parameter
-    if (!$container->hasParameter('kernel.project_dir')) {
-        $container->setParameter('kernel.project_dir', __DIR__);
-    }
 
     // Ensure var directory exists
     $varDir = __DIR__.'/var';
@@ -103,19 +122,6 @@ try {
     if (!is_dir($logDir)) {
         mkdir($logDir, 0755, true);
     }
-
-    // Get configuration from environment BEFORE compiling container
-    $sourceDirectory = $_ENV['SOURCE_DIRECTORY'] ?? getenv('SOURCE_DIRECTORY') ?: '';
-    $destinationDirectory = $_ENV['DESTINATION_DIRECTORY'] ?? getenv('DESTINATION_DIRECTORY') ?: '';
-    $organizerPolicy = $_ENV['ORGANIZER_POLICY'] ?? getenv('ORGANIZER_POLICY') ?: 'date-type';
-    $dryRun = filter_var($_ENV['DRY_RUN'] ?? getenv('DRY_RUN') ?: 'false', FILTER_VALIDATE_BOOLEAN);
-
-    if (empty($sourceDirectory) || empty($destinationDirectory)) {
-        throw new RuntimeException('SOURCE_DIRECTORY and DESTINATION_DIRECTORY must be set in .env file or environment variables');
-    }
-
-    // Update destination directory parameter before compiling
-    $container->setParameter('app.destination_directory', $destinationDirectory);
 
     // Configure organizer policy based on environment variable
     $policyClass = match ($organizerPolicy) {
@@ -131,15 +137,25 @@ try {
     // Compile container
     $container->compile();
 
+    // Create SynchronousMessageBus manually after compilation to avoid circular dependency
+    // (handlers depend on MessageBusInterface, which is SynchronousMessageBus)
+    $messageBus = new SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus($container);
+
+    // Set it in container for other services that might need it
+    $container->set(MessageBusInterface::class, $messageBus);
+    $container->set(SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus::class, $messageBus);
+
     // Get services after compilation
     $logger = $container->get(LoggerPort::class);
     $filesystem = $container->get(FilesystemPort::class);
     $scanner = $container->get(ScannerPort::class);
-    $messageBus = $container->get(MessageBusInterface::class);
 
     // Validate directories
     if (!is_dir($sourceDirectory)) {
-        throw new RuntimeException("Source directory does not exist: {$sourceDirectory}");
+        // Try to create source directory if it doesn't exist (for testing)
+        if (!mkdir($sourceDirectory, 0755, true)) {
+            throw new RuntimeException("Source directory does not exist and could not be created: {$sourceDirectory}");
+        }
     }
 
     // Ensure destination directory exists

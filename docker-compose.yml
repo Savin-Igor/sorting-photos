@@ -31,8 +31,10 @@ services:
   redis:
     image: redis:7-alpine
     container_name: sorting-photos-redis
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    # Port mapping: Redis is accessible only within Docker network by default
+    # To expose Redis port, uncomment the line below and set REDIS_PORT (e.g., REDIS_PORT=6380:6379)
+    # ports:
+    #   - "${REDIS_PORT:-6380:6379}"
     volumes:
       - redis-data:/data
     networks:

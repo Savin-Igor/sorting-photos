@@ -40,13 +40,25 @@ CREATE TABLE IF NOT EXISTS file_metadata (
     duration INTEGER,
     metadata_json TEXT,
     created_at DATETIME NOT NULL,
-    UNIQUE(file_path, file_size, file_hash),
-    INDEX idx_hash (file_hash),
-    INDEX idx_path (file_path)
+    UNIQUE(file_path, file_size, file_hash)
 )
 SQL;
 
         $this->connection->executeStatement($sql);
+
+        // Create indexes separately (SQLite doesn't support INDEX in CREATE TABLE)
+        $indexes = [
+            'CREATE INDEX IF NOT EXISTS idx_hash ON file_metadata(file_hash)',
+            'CREATE INDEX IF NOT EXISTS idx_path ON file_metadata(file_path)',
+        ];
+
+        foreach ($indexes as $indexSql) {
+            try {
+                $this->connection->executeStatement($indexSql);
+            } catch (\Exception) {
+                // Index might already exist, ignore
+            }
+        }
     }
 
     #[\Override]

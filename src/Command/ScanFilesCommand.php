@@ -97,7 +97,7 @@ final class ScanFilesCommand extends Command
 
                 ++$discoveredCount;
 
-                if ($fileCount % 100 === 0) {
+                if (0 === $fileCount % 100) {
                     $this->logger->debug('Scanned files', [
                         'count' => $fileCount,
                         'discovered' => $discoveredCount,
@@ -143,4 +143,3 @@ final class ScanFilesCommand extends Command
         }
     }
 }
-

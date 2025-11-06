@@ -10,7 +10,8 @@ DOCKER_COMPOSE:=${DOCKER} compose
 up: ## Start up application with Redis (default)
 	@echo "Starting application with Redis..."
 	${DOCKER_COMPOSE} up -d --remove-orphans
-	@echo "Application is running. Redis is available at localhost:6379"
+	@echo "Application is running. Redis is accessible within Docker network."
+	@echo "To expose Redis port externally, edit docker-compose.yml and uncomment ports section."
 .PHONY: up
 
 up-rabbitmq: ## Start up application with RabbitMQ instead of Redis
@@ -96,12 +97,13 @@ test-filter: ## Run specific test (usage: make test-filter TEST=TestClassName)
 
 cs-fix: ## Run PHP-CS-Fixer
 	@echo "Running PHP-CS-Fixer..."
+	${DOCKER_COMPOSE} exec -u root app chown -R www-data:www-data /var/www/html
 	${DOCKER_COMPOSE} exec app vendor/bin/php-cs-fixer fix --allow-risky=yes
 .PHONY: cs-fix
 
 phpstan: ## Run PHPStan static analysis
 	@echo "Running PHPStan..."
-	${DOCKER_COMPOSE} exec app vendor/bin/phpstan analyse
+	${DOCKER_COMPOSE} exec app vendor/bin/phpstan analyse --memory-limit=512M
 .PHONY: phpstan
 
 psalm: ## Run Psalm static analysis
@@ -149,7 +151,12 @@ data-clean: ## Clean destination directory (WARNING: removes all organized files
 ##@ Redis commands
 
 redis-cli: ## Open Redis CLI
-	${DOCKER_COMPOSE} exec redis redis-cli
+	@if [ -z "${REDIS_PORT}" ]; then \
+		${DOCKER_COMPOSE} exec redis redis-cli; \
+	else \
+		echo "Connecting to Redis via exposed port..."; \
+		redis-cli -h localhost -p $$(echo ${REDIS_PORT} | cut -d: -f1); \
+	fi
 .PHONY: redis-cli
 
 redis-flush: ## Flush all Redis data

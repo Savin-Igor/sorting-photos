@@ -36,11 +36,14 @@ RUN apk add --no-cache pcre-dev $PHPIZE_DEPS \
 
 # Install AMQP extension for RabbitMQ (optional)
 # Note: This may fail if dependencies are not available, but that's OK
+# We install runtime library to avoid loading errors
 RUN set -eux; \
     apk add --no-cache --virtual .build-deps \
         rabbitmq-c-dev \
         $PHPIZE_DEPS; \
-    (pecl install amqp && docker-php-ext-enable amqp) || echo "AMQP extension installation failed, continuing..."; \
+    (pecl install amqp && docker-php-ext-enable amqp && apk add --no-cache rabbitmq-c) || \
+    (echo "AMQP extension installation failed, disabling..." && \
+     rm -f /usr/local/etc/php/conf.d/docker-php-ext-amqp.ini 2>/dev/null || true); \
     apk del .build-deps || true
 
 # Install Composer
@@ -61,6 +64,7 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p var/log var/cache var/database var/coverage \
     && chown -R www-data:www-data var \
+    && chmod -R 777 var/log \
     && chmod -R 755 var
 
 # Create data directories
@@ -74,6 +78,7 @@ RUN chown -R www-data:www-data /var/www/html
 # Switch to www-data user
 USER www-data
 
-# Default command
-CMD ["php", "index.php"]
+# Default command - keep container running for exec commands
+# Use: docker compose exec app php index.php to run the application
+CMD ["tail", "-f", "/dev/null"]
 

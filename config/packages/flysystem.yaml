@@ -30,14 +30,13 @@ services:
     # ============================================
     
     # Flysystem Local Adapter (vendor class)
+    # Constructor signature: __construct(string $location, int $writeFlags = LOCK_EX, int $linkHandling = self::DISALLOW_LINKS, ?MimeTypeDetector $mimeTypeDetector = null)
     League\Flysystem\Local\LocalFilesystemAdapter:
         arguments:
-            $location: '%env(FILESYSTEM_LOCAL_ROOT)%'
+            $location: '%kernel.project_dir%'
             $writeFlags: 0
             $linkHandling: 0
             $mimeTypeDetector: null
-            $visibilityConverter: null
-            $directoryVisibility: null
     
     # Flysystem Filesystem (vendor class)
     League\Flysystem\Filesystem:
@@ -45,21 +44,22 @@ services:
             $adapter: '@League\Flysystem\Local\LocalFilesystemAdapter'
             $config: []
     
-    # MetadataPreservingCopier - uses FilesystemPort
+    # MetadataPreservingCopier - uses FilesystemOperator directly to avoid circular dependency
     SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier:
         arguments:
-            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filesystem: '@League\Flysystem\Filesystem'
     
     # LocalFilesystemAdapter - implements FilesystemPort using Flysystem
     SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter:
         arguments:
             $copier: '@SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier'
             $filesystem: '@League\Flysystem\Filesystem'
-            $defaultDirectoryPermissions: '%env(int:FILESYSTEM_DEFAULT_DIR_PERMISSIONS)%'
+            $defaultDirectoryPermissions: 493  # 0755 in decimal
     
     # Bind FilesystemPort interface to implementation
     SortingPhotosByDate\Ports\FilesystemPort:
         alias: SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter
+        public: true
     
     # ============================================
     # Metadata Extractors

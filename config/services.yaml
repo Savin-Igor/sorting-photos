@@ -24,6 +24,9 @@ services:
     SortingPhotosByDate\Infrastructure\Messenger\:
         resource: '../src/Infrastructure/Messenger/*'
         tags: ['messenger.message_handler']
+    
+    # FileProcessedHandler needs destinationBasePath
+    SortingPhotosByDate\Infrastructure\Messenger\FileProcessedHandler:
         arguments:
             $destinationBasePath: '%app.destination_directory%'
 
@@ -31,13 +34,14 @@ services:
     # Logger Configuration
     # ============================================
     
-    # Monolog Logger
+    # Monolog Logger (only console handler to avoid file permission issues)
     Monolog\Logger:
         arguments:
             $name: 'file-sorter'
             $handlers:
                 - '@monolog.handler.console'
-                - '@monolog.handler.file'
+                # File handler disabled temporarily to avoid permission issues
+                # - '@monolog.handler.file'
     
     monolog.handler.console:
         class: Monolog\Handler\StreamHandler
@@ -54,6 +58,7 @@ services:
     # Bind LoggerPort interface to MonologAdapter
     SortingPhotosByDate\Ports\LoggerPort:
         alias: SortingPhotosByDate\Adapters\Logger\MonologAdapter
+        public: true
     
     SortingPhotosByDate\Adapters\Logger\MonologAdapter:
         arguments:
@@ -70,6 +75,7 @@ services:
     # Bind ScannerPort interface to SymfonyFinderAdapter
     SortingPhotosByDate\Ports\ScannerPort:
         alias: SortingPhotosByDate\Adapters\Scanner\SymfonyFinderAdapter
+        public: true
     
     SortingPhotosByDate\Adapters\Scanner\SymfonyFinderAdapter:
         arguments:
@@ -141,25 +147,7 @@ services:
     # Messenger Configuration
     # ============================================
     
-    # Synchronous MessageBus for index.php
-    SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus:
-        arguments:
-            $ingestHandler: '@SortingPhotosByDate\Application\Handler\IngestFileHandler'
-            $organizeHandler: '@SortingPhotosByDate\Application\Handler\OrganizeFileHandler'
-            $fileDiscoveredHandler: '@SortingPhotosByDate\Infrastructure\Messenger\FileDiscoveredHandler'
-            $fileProcessedHandler: '@SortingPhotosByDate\Infrastructure\Messenger\FileProcessedHandler'
-            $fileOrganizedHandler: '@SortingPhotosByDate\Infrastructure\Messenger\FileOrganizedHandler'
-            $fileErrorHandler: '@SortingPhotosByDate\Infrastructure\Messenger\FileErrorHandler'
-    
-    # Bind MessageBusInterface to SynchronousMessageBus for index.php
-    Symfony\Component\Messenger\MessageBusInterface:
-        alias: SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus
-    
-    # Parameters
-    parameters:
-        kernel.project_dir: '%kernel.project_dir%'
-        app.source_directory: '%env(SOURCE_DIRECTORY)%'
-        app.destination_directory: '%env(DESTINATION_DIRECTORY)%'
-        app.organizer_policy: '%env(ORGANIZER_POLICY)%'
-        app.dry_run: '%env(bool:DRY_RUN)%'
+    # Synchronous MessageBus will be created manually in index.php after container compilation
+    # to avoid circular dependency (handlers depend on MessageBusInterface, which is SynchronousMessageBus)
+    # No service definition here - created in index.php
 
