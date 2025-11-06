@@ -1,4 +1,8 @@
 
+# Temporary directories
+/tmp/
+tmp/
+
 ### Project ###
 /fotos
 *-fotos/*
