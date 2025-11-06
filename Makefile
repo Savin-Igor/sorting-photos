@@ -72,7 +72,9 @@ run: ## Run the application (sort files)
 
 run-dry-run: ## Run the application in dry-run mode (no files moved)
 	@echo "Running file sorting application in dry-run mode..."
-	${DOCKER_COMPOSE} exec -e DRY_RUN=true app php index.php
+	@echo "Using SOURCE_DIRECTORY_HOST: $${SOURCE_DIRECTORY_HOST:-./var/data/source}"
+	@echo "Using DESTINATION_DIRECTORY_HOST: $${DESTINATION_DIRECTORY_HOST:-./var/data/destination}"
+	${DOCKER_COMPOSE} exec -e DRY_RUN=true -e SOURCE_DIRECTORY_HOST="$${SOURCE_DIRECTORY_HOST:-}" -e DESTINATION_DIRECTORY_HOST="$${DESTINATION_DIRECTORY_HOST:-}" app php index.php
 .PHONY: run-dry-run
 
 scan: ## Scan files and dispatch events (without organizing)
