@@ -49,6 +49,7 @@ SQL;
         $this->connection->executeStatement($sql);
     }
 
+    #[\Override]
     public function save(MediaAsset $asset): bool
     {
         try {
@@ -97,6 +98,7 @@ SQL;
         }
     }
 
+    #[\Override]
     public function findByPathSizeAndHash(FilePath $filePath, int $fileSize, FileHash $hash): ?MediaAsset
     {
         $result = $this->connection->fetchAssociative(
@@ -132,6 +134,7 @@ SQL;
         return null !== $this->findByPathSizeAndHash($filePath, $fileSize, $hash);
     }
 
+    #[\Override]
     public function delete(FilePath $filePath): bool
     {
         try {
