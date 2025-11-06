@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Adapters\Filesystem;
 
 use League\Flysystem\FilesystemOperator;
-use League\Flysystem\Local\LocalFilesystemAdapter as FlysystemLocalAdapter;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 use SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier;
 use SortingPhotosByDate\Ports\FilesystemPort;
@@ -15,16 +14,10 @@ use SortingPhotosByDate\Ports\FilesystemPort;
  * All filesystem operations go through Flysystem instead of native PHP functions.
  * Implements FilesystemPort interface.
  */
-final class LocalFilesystemAdapter implements FilesystemPort
+final readonly class LocalFilesystemAdapter implements FilesystemPort
 {
-    private readonly FilesystemOperator $filesystem;
-
-    public function __construct(
-        private readonly MetadataPreservingCopier $copier,
-        FilesystemOperator $filesystem,
-        private readonly int $defaultDirectoryPermissions = 0755,
-    ) {
-        $this->filesystem = $filesystem;
+    public function __construct(private MetadataPreservingCopier $copier, private FilesystemOperator $filesystem, private int $defaultDirectoryPermissions = 0755)
+    {
     }
 
     #[\Override]
@@ -32,7 +25,7 @@ final class LocalFilesystemAdapter implements FilesystemPort
     {
         try {
             return $this->copier->copy($source, $destination);
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }
@@ -52,7 +45,7 @@ final class LocalFilesystemAdapter implements FilesystemPort
             ]);
 
             return true;
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }
@@ -70,7 +63,7 @@ final class LocalFilesystemAdapter implements FilesystemPort
             $this->filesystem->delete($path);
 
             return true;
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }
@@ -82,7 +75,7 @@ final class LocalFilesystemAdapter implements FilesystemPort
 
         try {
             return $this->filesystem->fileExists($path);
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }
@@ -94,9 +87,8 @@ final class LocalFilesystemAdapter implements FilesystemPort
 
         try {
             $attributes = $this->filesystem->visibility($path);
-            $size = $this->filesystem->fileSize($path);
 
-            return $size;
+            return $this->filesystem->fileSize($path);
         } catch (\Exception $e) {
             throw new \RuntimeException("Failed to get file size: {$path}", 0, $e);
         }
@@ -125,7 +117,7 @@ final class LocalFilesystemAdapter implements FilesystemPort
             $this->filesystem->setVisibility($path, $this->permissionsToVisibility($permissions));
 
             return true;
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }
@@ -136,9 +128,7 @@ final class LocalFilesystemAdapter implements FilesystemPort
         $path = $filePath->getPath();
 
         try {
-            $lastModified = $this->filesystem->lastModified($path);
-
-            return $lastModified;
+            return $this->filesystem->lastModified($path);
         } catch (\Exception $e) {
             throw new \RuntimeException("Failed to get file modification time: {$path}", 0, $e);
         }
@@ -158,7 +148,7 @@ final class LocalFilesystemAdapter implements FilesystemPort
             }
 
             return false;
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }
@@ -199,7 +189,7 @@ final class LocalFilesystemAdapter implements FilesystemPort
             }
 
             return touch($path, $mtime, $atime);
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }
@@ -266,6 +256,6 @@ final class LocalFilesystemAdapter implements FilesystemPort
     private function permissionsToVisibility(int $permissions): string
     {
         // Simple mapping: if world-readable, it's public
-        return ($permissions & 0044) ? 'public' : 'private';
+        return (($permissions & 0044) !== 0) ? 'public' : 'private';
     }
 }

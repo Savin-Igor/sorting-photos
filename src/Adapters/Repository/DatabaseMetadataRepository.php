@@ -10,12 +10,12 @@ use SortingPhotosByDate\Domain\ValueObjects\FileHash;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 use SortingPhotosByDate\Ports\MetadataRepositoryPort;
 
-final class DatabaseMetadataRepository implements MetadataRepositoryPort
+final readonly class DatabaseMetadataRepository implements MetadataRepositoryPort
 {
-    private const TABLE_NAME = 'file_metadata';
+    private const string TABLE_NAME = 'file_metadata';
 
     public function __construct(
-        private readonly Connection $connection,
+        private Connection $connection,
     ) {
     }
 
@@ -76,7 +76,7 @@ SQL;
                 $asset->getHash()
             );
 
-            if (null !== $existing) {
+            if ($existing instanceof MediaAsset) {
                 // Update existing record
                 $this->connection->update(
                     self::TABLE_NAME,
@@ -93,7 +93,7 @@ SQL;
             }
 
             return true;
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }
@@ -131,7 +131,7 @@ SQL;
     #[\Override]
     public function isProcessed(FilePath $filePath, int $fileSize, FileHash $hash): bool
     {
-        return null !== $this->findByPathSizeAndHash($filePath, $fileSize, $hash);
+        return $this->findByPathSizeAndHash($filePath, $fileSize, $hash) instanceof MediaAsset;
     }
 
     #[\Override]
@@ -144,7 +144,7 @@ SQL;
             );
 
             return $affected > 0;
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return false;
         }
     }

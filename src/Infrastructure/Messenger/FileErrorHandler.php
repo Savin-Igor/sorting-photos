@@ -11,10 +11,10 @@ use SortingPhotosByDate\Ports\LoggerPort;
  * Event handler for FileError event.
  * Logs file processing errors.
  */
-final class FileErrorHandler
+final readonly class FileErrorHandler
 {
     public function __construct(
-        private readonly LoggerPort $logger,
+        private LoggerPort $logger,
     ) {
     }
 
@@ -25,9 +25,9 @@ final class FileErrorHandler
             'error_message' => $event->getErrorMessage(),
         ];
 
-        if (null !== $event->getException()) {
+        if ($event->getException() instanceof \Throwable) {
             $context['exception'] = $event->getException()->getMessage();
-            $context['exception_class'] = get_class($event->getException());
+            $context['exception_class'] = $event->getException()::class;
             $context['trace'] = $event->getException()->getTraceAsString();
         }
 

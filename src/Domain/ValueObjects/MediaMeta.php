@@ -7,18 +7,18 @@ namespace SortingPhotosByDate\Domain\ValueObjects;
 final class MediaMeta
 {
     public function __construct(
-        private string $fileName,
-        private string $mimeType,
-        private int $fileSize,
-        private ?int $width = null,
-        private ?int $height = null,
-        private ?int $duration = null,
-        private ?string $artist = null,
-        private ?string $title = null,
-        private ?string $album = null,
+        private readonly string $fileName,
+        private readonly string $mimeType,
+        private readonly int $fileSize,
+        private readonly ?int $width = null,
+        private readonly ?int $height = null,
+        private readonly ?int $duration = null,
+        private readonly ?string $artist = null,
+        private readonly ?string $title = null,
+        private readonly ?string $album = null,
         private array $additionalMetadata = [],
     ) {
-        if (empty($this->fileName)) {
+        if ('' === $this->fileName || '0' === $this->fileName) {
             throw new \InvalidArgumentException('File name cannot be empty');
         }
 

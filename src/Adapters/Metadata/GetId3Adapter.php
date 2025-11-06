@@ -12,12 +12,12 @@ use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
-final class GetId3Adapter implements MetadataExtractorPort
+final readonly class GetId3Adapter implements MetadataExtractorPort
 {
     public function __construct(
-        private readonly MimeTypeDetectorInterface $mimeTypeDetector,
-        private readonly AudioVideoMetadataAnalyzerInterface $metadataAnalyzer,
-        private readonly FilesystemPort $filesystem,
+        private MimeTypeDetectorInterface $mimeTypeDetector,
+        private AudioVideoMetadataAnalyzerInterface $metadataAnalyzer,
+        private FilesystemPort $filesystem,
     ) {
     }
 
@@ -112,7 +112,7 @@ final class GetId3Adapter implements MetadataExtractorPort
         if (isset($fileInfo['tags']['id3v2']['TDRC'][0])) {
             $dateString = (string) $fileInfo['tags']['id3v2']['TDRC'][0];
             $date = $this->parseId3Date($dateString);
-            if (null !== $date) {
+            if ($date instanceof Carbon) {
                 return new MediaDate($date);
             }
         }
@@ -136,15 +136,12 @@ final class GetId3Adapter implements MetadataExtractorPort
             // Try various ID3 date formats
             $formats = ['Y-m-d', 'Y-m-d H:i:s', 'Y'];
             foreach ($formats as $format) {
-                $date = Carbon::createFromFormat($format, $dateString);
-                if (false !== $date) {
-                    return $date;
-                }
+                return Carbon::createFromFormat($format, $dateString);
             }
 
             // Try parsing as ISO 8601
             return Carbon::parse($dateString);
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return null;
         }
     }

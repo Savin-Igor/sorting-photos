@@ -10,11 +10,11 @@ use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 /**
  * Command to organize a file: apply policy, copy with metadata, verify hash, delete source.
  */
-final class OrganizeFileCommand
+final readonly class OrganizeFileCommand
 {
     public function __construct(
-        private readonly MediaAsset $asset,
-        private readonly FilePath $destinationBasePath,
+        private MediaAsset $asset,
+        private FilePath $destinationBasePath,
     ) {
     }
 
@@ -28,4 +28,3 @@ final class OrganizeFileCommand
         return $this->destinationBasePath;
     }
 }
-

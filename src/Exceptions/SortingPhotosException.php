@@ -6,12 +6,12 @@ namespace SortingPhotosByDate\Exceptions;
 
 final class SortingPhotosException extends \RuntimeException
 {
-    private const NO_SUCH_DIRECTORY = 'There %s is no such directory';
-    private const DIRECTORY_IS_EMPTY = 'The directory %s is empty';
-    private const FAILED_CREATE_FOLDER = 'Failed to create a folder %s';
-    private const FILE_EXISTS = 'The file %s already exists';
-    private const NOT_COPY_FILE = 'Couldn\'t copy the file %s';
-    private const FAILED_EXTRACT_METADATA = 'Failed to extract file %s metadata';
+    private const string NO_SUCH_DIRECTORY = 'There %s is no such directory';
+    private const string DIRECTORY_IS_EMPTY = 'The directory %s is empty';
+    private const string FAILED_CREATE_FOLDER = 'Failed to create a folder %s';
+    private const string FILE_EXISTS = 'The file %s already exists';
+    private const string NOT_COPY_FILE = 'Couldn\'t copy the file %s';
+    private const string FAILED_EXTRACT_METADATA = 'Failed to extract file %s metadata';
 
     public static function noSuchDirectory(string $dir): self
     {

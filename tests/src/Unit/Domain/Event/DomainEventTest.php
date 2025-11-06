@@ -99,4 +99,3 @@ final class DomainEventTest extends TestCase
         $this->assertNull($event->getException());
     }
 }
-

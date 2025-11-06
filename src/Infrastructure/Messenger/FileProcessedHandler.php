@@ -13,12 +13,12 @@ use Symfony\Component\Messenger\MessageBusInterface;
  * Event handler for FileProcessed event.
  * Dispatches OrganizeFileCommand to organize the processed file.
  */
-final class FileProcessedHandler
+final readonly class FileProcessedHandler
 {
     public function __construct(
-        private readonly MessageBusInterface $messageBus,
-        private readonly LoggerPort $logger,
-        private readonly string $destinationBasePath,
+        private MessageBusInterface $messageBus,
+        private LoggerPort $logger,
+        private string $destinationBasePath,
     ) {
     }
 

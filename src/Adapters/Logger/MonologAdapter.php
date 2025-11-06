@@ -7,10 +7,10 @@ namespace SortingPhotosByDate\Adapters\Logger;
 use SortingPhotosByDate\Ports\LoggerPort;
 use Psr\Log\LoggerInterface;
 
-final class MonologAdapter implements LoggerPort
+final readonly class MonologAdapter implements LoggerPort
 {
     public function __construct(
-        private readonly LoggerInterface $logger,
+        private LoggerInterface $logger,
     ) {
     }
 

@@ -19,9 +19,9 @@ use SortingPhotosByDate\Ports\LoggerPort;
 
 final class OrganizeFileHandlerTest extends TestCase
 {
-    private FilesystemPort $filesystem;
-    private OrganizerPolicy $policy;
-    private LoggerPort $logger;
+    private \PHPUnit\Framework\MockObject\MockObject $filesystem;
+    private \PHPUnit\Framework\MockObject\MockObject $policy;
+    private \PHPUnit\Framework\MockObject\MockObject $logger;
     private OrganizeFileHandler $handler;
 
     protected function setUp(): void
@@ -69,7 +69,7 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->filesystem
             ->expects($this->exactly(3))
             ->method('exists')
-            ->willReturnCallback(function (FilePath $path) use ($targetPath, $sourcePath, $targetTempFile) {
+            ->willReturnCallback(function (FilePath $path) use ($targetPath, $sourcePath, $targetTempFile): bool {
                 // First call: check target path (doesn't exist)
                 if ($path->getPath() === $targetPath->getPath()) {
                     return false;
@@ -83,7 +83,7 @@ final class OrganizeFileHandlerTest extends TestCase
             ->expects($this->once())
             ->method('copyWithMetadata')
             ->with($sourcePath, $targetPath)
-            ->willReturnCallback(function () use ($targetTempFile, $tempFile) {
+            ->willReturnCallback(function () use ($targetTempFile, $tempFile): true {
                 // Simulate copy by creating target file
                 copy($tempFile, $targetTempFile);
 
@@ -116,7 +116,7 @@ final class OrganizeFileHandlerTest extends TestCase
 
         $hash = FileHash::fromFile($tempFile);
         $shortHash = $hash->getShortHash(8);
-        $collisionPath = new FilePath("/destination/2025/11/images/file-{$shortHash}.jpg");
+        new FilePath("/destination/2025/11/images/file-{$shortHash}.jpg");
 
         $asset = new MediaAsset(
             $sourcePath,
@@ -140,7 +140,7 @@ final class OrganizeFileHandlerTest extends TestCase
         $callCount = 0;
         $this->filesystem
             ->method('exists')
-            ->willReturnCallback(function (FilePath $path) use ($targetPath, $sourcePath, $shortHash, $collisionTempFile, $tempFile, &$callCount) {
+            ->willReturnCallback(function (FilePath $path) use ($targetPath, $sourcePath, $shortHash, $collisionTempFile, $tempFile, &$callCount): bool {
                 ++$callCount;
                 // First call: check target path (exists) - in resolveCollision
                 if (1 === $callCount && $path->getPath() === $targetPath->getPath()) {
@@ -167,7 +167,7 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->filesystem
             ->expects($this->once())
             ->method('copyWithMetadata')
-            ->with($sourcePath, $this->callback(function (FilePath $path) use ($shortHash, $tempFile, $collisionTempFile) {
+            ->with($sourcePath, $this->callback(function (FilePath $path) use ($shortHash, $tempFile, $collisionTempFile): bool {
                 if (str_contains($path->getPath(), $shortHash)) {
                     // Create file at collision path location for hash verification
                     copy($tempFile, $collisionTempFile);

@@ -11,14 +11,14 @@ use SortingPhotosByDate\Domain\ValueObjects\FileType;
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
 
-final class MediaAsset
+final readonly class MediaAsset
 {
     public function __construct(
-        private readonly FilePath $sourcePath,
-        private readonly FileType $fileType,
-        private readonly MediaMeta $metadata,
-        private readonly MediaDate $date,
-        private readonly FileHash $hash,
+        private FilePath $sourcePath,
+        private FileType $fileType,
+        private MediaMeta $metadata,
+        private MediaDate $date,
+        private FileHash $hash,
     ) {
     }
 

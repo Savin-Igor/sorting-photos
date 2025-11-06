@@ -10,11 +10,11 @@ use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
-final class GenericAdapter implements MetadataExtractorPort
+final readonly class GenericAdapter implements MetadataExtractorPort
 {
     public function __construct(
-        private readonly MimeTypeDetectorInterface $mimeTypeDetector,
-        private readonly FilesystemPort $filesystem,
+        private MimeTypeDetectorInterface $mimeTypeDetector,
+        private FilesystemPort $filesystem,
     ) {
     }
 
@@ -57,7 +57,7 @@ final class GenericAdapter implements MetadataExtractorPort
             $mtime = $this->filesystem->getModificationTime($filePathObj);
 
             return MediaDate::fromTimestamp($mtime);
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             // Fallback to ctime if mtime fails (requires native PHP)
             $ctime = filectime($filePath);
             if (false !== $ctime) {

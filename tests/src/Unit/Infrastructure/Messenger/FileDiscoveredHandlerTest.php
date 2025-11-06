@@ -6,26 +6,16 @@ namespace SortingPhotosByDate\Tests\Unit\Infrastructure\Messenger;
 
 use PHPUnit\Framework\TestCase;
 use SortingPhotosByDate\Application\Command\IngestFileCommand;
-use SortingPhotosByDate\Application\Command\OrganizeFileCommand;
 use SortingPhotosByDate\Domain\Event\FileDiscovered;
-use SortingPhotosByDate\Domain\Event\FileError;
-use SortingPhotosByDate\Domain\Event\FileOrganized;
-use SortingPhotosByDate\Domain\Event\FileProcessed;
-use SortingPhotosByDate\Domain\MediaAsset;
-use SortingPhotosByDate\Domain\ValueObjects\FileHash;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
-use SortingPhotosByDate\Domain\ValueObjects\FileType;
-use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
-use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
 use SortingPhotosByDate\Infrastructure\Messenger\FileDiscoveredHandler;
-use SortingPhotosByDate\Infrastructure\Messenger\FileProcessedHandler;
 use SortingPhotosByDate\Ports\LoggerPort;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 final class FileDiscoveredHandlerTest extends TestCase
 {
-    private MessageBusInterface $messageBus;
-    private LoggerPort $logger;
+    private \PHPUnit\Framework\MockObject\MockObject $messageBus;
+    private \PHPUnit\Framework\MockObject\MockObject $logger;
     private FileDiscoveredHandler $handler;
 
     protected function setUp(): void
@@ -49,9 +39,7 @@ final class FileDiscoveredHandlerTest extends TestCase
             ->expects($this->once())
             ->method('dispatch')
             ->with($this->isInstanceOf(IngestFileCommand::class))
-            ->willReturnCallback(function ($command) {
-                return new \Symfony\Component\Messenger\Envelope($command);
-            });
+            ->willReturnCallback(fn ($command): \Symfony\Component\Messenger\Envelope => new \Symfony\Component\Messenger\Envelope($command));
 
         $this->logger
             ->expects($this->once())
@@ -64,4 +52,3 @@ final class FileDiscoveredHandlerTest extends TestCase
         $this->handler->__invoke($event);
     }
 }
-

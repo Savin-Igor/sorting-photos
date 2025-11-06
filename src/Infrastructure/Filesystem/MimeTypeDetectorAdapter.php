@@ -13,22 +13,17 @@ use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
  * Adapter wrapper for League MIME Type Detection library.
  * Implements MimeTypeDetectorInterface using vendor library.
  */
-final class MimeTypeDetectorAdapter implements MimeTypeDetectorInterface
+final readonly class MimeTypeDetectorAdapter implements MimeTypeDetectorInterface
 {
-    private readonly MimeTypeDetector $detector;
-
-    public function __construct(
-        ?MimeTypeDetector $detector = null,
-        private readonly ?FilesystemPort $filesystem = null,
-    ) {
-        $this->detector = $detector ?? new FinfoMimeTypeDetector();
+    public function __construct(private ?MimeTypeDetector $detector = new FinfoMimeTypeDetector(), private ?FilesystemPort $filesystem = null)
+    {
     }
 
     #[\Override]
     public function detectMimeType(string $filePath): string
     {
         // Use FilesystemPort if available, otherwise fallback to native check
-        if (null !== $this->filesystem) {
+        if ($this->filesystem instanceof FilesystemPort) {
             $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
             if (!$this->filesystem->exists($filePathObj)) {
                 return 'application/octet-stream';

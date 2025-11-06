@@ -6,7 +6,7 @@ namespace SortingPhotosByDate\Domain\ValueObjects;
 
 use Carbon\Carbon;
 
-final class MediaDate
+final readonly class MediaDate
 {
     public function __construct(
         private Carbon $dateTime,

@@ -13,11 +13,11 @@ use Symfony\Component\Messenger\MessageBusInterface;
  * Event handler for FileDiscovered event.
  * Dispatches IngestFileCommand to process the discovered file.
  */
-final class FileDiscoveredHandler
+final readonly class FileDiscoveredHandler
 {
     public function __construct(
-        private readonly MessageBusInterface $messageBus,
-        private readonly LoggerPort $logger,
+        private MessageBusInterface $messageBus,
+        private LoggerPort $logger,
     ) {
     }
 

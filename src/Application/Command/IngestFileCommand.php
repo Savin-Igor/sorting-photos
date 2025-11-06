@@ -9,10 +9,10 @@ use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 /**
  * Command to ingest a file: detect MIME type, extract metadata, calculate hash.
  */
-final class IngestFileCommand
+final readonly class IngestFileCommand
 {
     public function __construct(
-        private readonly FilePath $filePath,
+        private FilePath $filePath,
     ) {
     }
 
@@ -21,4 +21,3 @@ final class IngestFileCommand
         return $this->filePath;
     }
 }
-

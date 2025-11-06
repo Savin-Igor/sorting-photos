@@ -7,12 +7,12 @@ namespace SortingPhotosByDate\Domain\Policies;
 use SortingPhotosByDate\Domain\MediaAsset;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 
-final class TypeDatePolicy implements OrganizerPolicy
+final readonly class TypeDatePolicy implements OrganizerPolicy
 {
     public function __construct(
-        private readonly string $baseDirectory,
+        private string $baseDirectory,
     ) {
-        if (empty($this->baseDirectory)) {
+        if ('' === $this->baseDirectory || '0' === $this->baseDirectory) {
             throw new \InvalidArgumentException('Base directory cannot be empty');
         }
     }

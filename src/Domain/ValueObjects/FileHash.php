@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Domain\ValueObjects;
 
-final class FileHash
+final readonly class FileHash implements \Stringable
 {
-    private const MAX_HASH_LENGTH = 64;
-    private const DEFAULT_SHORT_HASH_LENGTH = 8;
+    private const int MAX_HASH_LENGTH = 64;
+    private const int DEFAULT_SHORT_HASH_LENGTH = 8;
 
     public function __construct(
-        private readonly string $hash,
+        private string $hash,
     ) {
-        if (empty($this->hash)) {
+        if ('' === $this->hash || '0' === $this->hash) {
             throw new \InvalidArgumentException('File hash cannot be empty');
         }
 

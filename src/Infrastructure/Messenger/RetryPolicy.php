@@ -10,17 +10,17 @@ use SortingPhotosByDate\Ports\RetryPolicyInterface;
  * Retry policy implementation using configuration.
  * Can be used with Symfony Messenger retry strategy.
  */
-final class RetryPolicy implements RetryPolicyInterface
+final readonly class RetryPolicy implements RetryPolicyInterface
 {
     /**
      * @param array<string> $nonRetryableExceptions List of exception class names that should not be retried
      */
     public function __construct(
-        private readonly int $maxRetries = 3,
-        private readonly int $delay = 1000,
-        private readonly float $multiplier = 2.0,
-        private readonly int $maxDelay = 60000,
-        private readonly array $nonRetryableExceptions = [
+        private int $maxRetries = 3,
+        private int $delay = 1000,
+        private float $multiplier = 2.0,
+        private int $maxDelay = 60000,
+        private array $nonRetryableExceptions = [
             \InvalidArgumentException::class,
             \TypeError::class,
         ],
@@ -69,14 +69,8 @@ final class RetryPolicy implements RetryPolicyInterface
     #[\Override]
     public function shouldRetry(\Throwable $exception): bool
     {
-        $exceptionClass = get_class($exception);
+        $exceptionClass = $exception::class;
 
-        foreach ($this->nonRetryableExceptions as $nonRetryableClass) {
-            if ($exception instanceof $nonRetryableClass || $exceptionClass === $nonRetryableClass) {
-                return false;
-            }
-        }
-
-        return true;
+        return array_all($this->nonRetryableExceptions, fn ($nonRetryableClass): bool => !$exception instanceof $nonRetryableClass && $exceptionClass !== $nonRetryableClass);
     }
 }

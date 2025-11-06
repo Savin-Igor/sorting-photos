@@ -17,13 +17,13 @@ use SortingPhotosByDate\Ports\MetadataRepositoryPort;
  * Handler for IngestFileCommand.
  * Detects MIME type, extracts metadata, calculates hash, and saves to repository.
  */
-final class IngestFileHandler
+final readonly class IngestFileHandler
 {
     public function __construct(
-        private readonly FilesystemPort $filesystem,
-        private readonly MetadataExtractorPort $metadataExtractor,
-        private readonly MetadataRepositoryPort $repository,
-        private readonly LoggerPort $logger,
+        private FilesystemPort $filesystem,
+        private MetadataExtractorPort $metadataExtractor,
+        private MetadataRepositoryPort $repository,
+        private LoggerPort $logger,
     ) {
     }
 

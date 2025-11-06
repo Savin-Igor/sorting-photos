@@ -14,12 +14,12 @@ use SortingPhotosByDate\Ports\LoggerPort;
  * Handler for OrganizeFileCommand.
  * Applies organizer policy, copies file with metadata preservation, verifies hash, and deletes source.
  */
-final class OrganizeFileHandler
+final readonly class OrganizeFileHandler
 {
     public function __construct(
-        private readonly FilesystemPort $filesystem,
-        private readonly OrganizerPolicy $policy,
-        private readonly LoggerPort $logger,
+        private FilesystemPort $filesystem,
+        private OrganizerPolicy $policy,
+        private LoggerPort $logger,
     ) {
     }
 
@@ -74,7 +74,7 @@ final class OrganizeFileHandler
         // File exists - create collision path with hash prefix
         $pathInfo = pathinfo($targetPath->getPath());
         $directory = $pathInfo['dirname'] ?? '.';
-        $filename = isset($pathInfo['filename']) ? $pathInfo['filename'] : '';
+        $filename = $pathInfo['filename'] ?? '';
         $extension = isset($pathInfo['extension']) ? '.'.$pathInfo['extension'] : '';
         $hashPrefix = $hash->getShortHash(8);
 

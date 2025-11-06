@@ -12,11 +12,10 @@ use SortingPhotosByDate\Ports\FilesystemPort;
  * Uses FilesystemPort (Flysystem) for all filesystem operations.
  * Extended attributes are handled separately since Flysystem doesn't support them.
  */
-final class MetadataPreservingCopier
+final readonly class MetadataPreservingCopier
 {
     public function __construct(
-        private readonly FilesystemPort $filesystem,
-        private readonly int $defaultDirectoryPermissions = 0755,
+        private FilesystemPort $filesystem,
     ) {
     }
 
@@ -105,7 +104,7 @@ final class MetadataPreservingCopier
                     xattr_set($destination, $attr, $value);
                 }
             }
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             // Extended attributes not supported or error occurred - ignore
         }
     }

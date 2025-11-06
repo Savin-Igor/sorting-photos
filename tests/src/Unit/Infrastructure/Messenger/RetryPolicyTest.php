@@ -109,4 +109,3 @@ final class RetryPolicyTest extends TestCase
         $this->assertEquals(60000, $policy->getMaxDelay());
     }
 }
-

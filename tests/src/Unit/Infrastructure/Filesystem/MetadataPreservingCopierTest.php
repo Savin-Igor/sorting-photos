@@ -4,43 +4,66 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Tests\Unit\Infrastructure\Filesystem;
 
+use League\Flysystem\Filesystem;
+use League\Flysystem\Local\LocalFilesystemAdapter as FlysystemLocalAdapter;
 use PHPUnit\Framework\TestCase;
+use SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 use SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier;
 
 final class MetadataPreservingCopierTest extends TestCase
 {
     private MetadataPreservingCopier $copier;
+    private LocalFilesystemAdapter $filesystemAdapter;
 
     protected function setUp(): void
     {
-        $this->copier = new MetadataPreservingCopier();
+        // Use real filesystem adapter for integration-style tests
+        $tempDir = sys_get_temp_dir();
+        $flysystemAdapter = new FlysystemLocalAdapter($tempDir);
+        $flysystem = new Filesystem($flysystemAdapter);
+
+        // Create a temporary MetadataPreservingCopier instance for the adapter
+        $tempCopier = new MetadataPreservingCopier(
+            $this->createMock(\SortingPhotosByDate\Ports\FilesystemPort::class)
+        );
+
+        $this->filesystemAdapter = new LocalFilesystemAdapter(
+            $tempCopier,
+            $flysystem,
+            0755
+        );
+
+        // Create copier with real filesystem adapter
+        $this->copier = new MetadataPreservingCopier($this->filesystemAdapter);
     }
 
     public function testCopyPreservesPermissions(): void
     {
         // Create temporary source file with specific permissions
-        $sourceFile = sys_get_temp_dir().'/test_source_'.uniqid().'.txt';
-        $destinationFile = sys_get_temp_dir().'/test_dest_'.uniqid().'.txt';
+        $tempDir = sys_get_temp_dir();
+        $sourceFile = $tempDir.'/test_source_'.uniqid().'.txt';
+        $destinationFile = $tempDir.'/test_dest_'.uniqid().'.txt';
 
         file_put_contents($sourceFile, 'test content');
         chmod($sourceFile, 0644);
 
-        $sourcePath = new FilePath($sourceFile);
-        $destinationPath = new FilePath($destinationFile);
+        // Use relative paths for Flysystem (relative to tempDir)
+        $sourcePath = new FilePath('test_source_'.basename($sourceFile));
+        $destinationPath = new FilePath('test_dest_'.basename($destinationFile));
 
         $result = $this->copier->copy($sourcePath, $destinationPath);
 
         $this->assertTrue($result);
-        $this->assertFileExists($destinationFile);
+        $this->assertFileExists($tempDir.'/test_dest_'.basename($destinationFile));
 
         $sourcePerms = fileperms($sourceFile) & 0777;
-        $destPerms = fileperms($destinationFile) & 0777;
+        $destPerms = fileperms($tempDir.'/test_dest_'.basename($destinationFile)) & 0777;
         $this->assertEquals($sourcePerms, $destPerms);
 
         // Cleanup
         @unlink($sourceFile);
-        @unlink($destinationFile);
+        @unlink($tempDir.'/test_dest_'.basename($destinationFile));
     }
 
     public function testCopyPreservesTimestamps(): void
@@ -98,9 +121,7 @@ final class MetadataPreservingCopierTest extends TestCase
         if (function_exists('xattr_get')) {
             $sourceAttr = xattr_get($sourceFile, 'user.test');
             $destAttr = xattr_get($destinationFile, 'user.test');
-            if (false !== $sourceAttr) {
-                $this->assertEquals($sourceAttr, $destAttr);
-            }
+            $this->assertEquals($sourceAttr, $destAttr);
         }
 
         // Cleanup

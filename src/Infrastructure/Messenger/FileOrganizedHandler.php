@@ -11,10 +11,10 @@ use SortingPhotosByDate\Ports\LoggerPort;
  * Event handler for FileOrganized event.
  * Logs successful file organization.
  */
-final class FileOrganizedHandler
+final readonly class FileOrganizedHandler
 {
     public function __construct(
-        private readonly LoggerPort $logger,
+        private LoggerPort $logger,
     ) {
     }
 

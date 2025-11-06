@@ -11,11 +11,11 @@ use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
-final class ExifAdapter implements MetadataExtractorPort
+final readonly class ExifAdapter implements MetadataExtractorPort
 {
     public function __construct(
-        private readonly MimeTypeDetectorInterface $mimeTypeDetector,
-        private readonly FilesystemPort $filesystem,
+        private MimeTypeDetectorInterface $mimeTypeDetector,
+        private FilesystemPort $filesystem,
     ) {
     }
 
@@ -81,14 +81,14 @@ final class ExifAdapter implements MetadataExtractorPort
         if (false !== $exifData) {
             if (isset($exifData['DateTimeOriginal']) && is_string($exifData['DateTimeOriginal'])) {
                 $date = $this->parseExifDate($exifData['DateTimeOriginal']);
-                if (null !== $date) {
+                if ($date instanceof Carbon) {
                     return new MediaDate($date);
                 }
             }
 
             if (isset($exifData['DateTime']) && is_string($exifData['DateTime'])) {
                 $date = $this->parseExifDate($exifData['DateTime']);
-                if (null !== $date) {
+                if ($date instanceof Carbon) {
                     return new MediaDate($date);
                 }
             }
@@ -107,7 +107,7 @@ final class ExifAdapter implements MetadataExtractorPort
             $dateString = str_replace(':', '-', substr($dateString, 0, 10)).' '.substr($dateString, 11);
 
             return Carbon::parse($dateString);
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return null;
         }
     }

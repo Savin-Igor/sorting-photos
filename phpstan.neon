@@ -10,5 +10,7 @@ parameters:
         - src/Entities
         - src/Services
     ignoreErrors:
-        - '#Access to undefined constant.*FileType::#'
-        - '#Access to undefined constant.*FileCategory::#'
+        - '#Instantiated class getID3 not found#'
+        - '#Parameter \$getId3.*has invalid type getID3#'
+        - '#Property.*has unknown class getID3#'
+        - '#Cannot call method analyze\(\) on getID3\|null#'

@@ -19,8 +19,8 @@ use Symfony\Component\Messenger\MessageBusInterface;
 
 final class FileProcessedHandlerTest extends TestCase
 {
-    private MessageBusInterface $messageBus;
-    private LoggerPort $logger;
+    private \PHPUnit\Framework\MockObject\MockObject $messageBus;
+    private \PHPUnit\Framework\MockObject\MockObject $logger;
     private string $destinationBasePath;
     private FileProcessedHandler $handler;
 
@@ -53,9 +53,7 @@ final class FileProcessedHandlerTest extends TestCase
             ->expects($this->once())
             ->method('dispatch')
             ->with($this->isInstanceOf(OrganizeFileCommand::class))
-            ->willReturnCallback(function ($command) {
-                return new \Symfony\Component\Messenger\Envelope($command);
-            });
+            ->willReturnCallback(fn ($command): \Symfony\Component\Messenger\Envelope => new \Symfony\Component\Messenger\Envelope($command));
 
         $this->logger
             ->expects($this->once())
@@ -68,4 +66,3 @@ final class FileProcessedHandlerTest extends TestCase
         $this->handler->__invoke($event);
     }
 }
-

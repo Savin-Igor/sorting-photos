@@ -19,10 +19,10 @@ use SortingPhotosByDate\Ports\MetadataRepositoryPort;
 
 final class IngestFileHandlerTest extends TestCase
 {
-    private FilesystemPort $filesystem;
-    private MetadataExtractorPort $metadataExtractor;
-    private MetadataRepositoryPort $repository;
-    private LoggerPort $logger;
+    private \PHPUnit\Framework\MockObject\MockObject $filesystem;
+    private \PHPUnit\Framework\MockObject\MockObject $metadataExtractor;
+    private \PHPUnit\Framework\MockObject\MockObject $repository;
+    private \PHPUnit\Framework\MockObject\MockObject $logger;
     private IngestFileHandler $handler;
 
     protected function setUp(): void

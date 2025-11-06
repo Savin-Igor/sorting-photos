@@ -8,10 +8,10 @@ use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 use SortingPhotosByDate\Ports\ScannerPort;
 use Symfony\Component\Finder\Finder;
 
-final class SymfonyFinderAdapter implements ScannerPort
+final readonly class SymfonyFinderAdapter implements ScannerPort
 {
     public function __construct(
-        private readonly Finder $finder,
+        private Finder $finder,
     ) {
     }
 
