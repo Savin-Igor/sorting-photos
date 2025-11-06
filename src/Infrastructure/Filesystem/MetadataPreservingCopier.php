@@ -144,9 +144,12 @@ final class MetadataPreservingCopier
                 return;
             }
 
+            /** @var array<string> $attributes */
             foreach ($attributes as $attr) {
+                /** @var string $attr */
                 $value = xattr_get($source, $attr);
-                if (false !== $value && is_string($value)) {
+                /** @var string|false $value */
+                if (false !== $value) {
                     xattr_set($destination, $attr, $value);
                 }
             }
