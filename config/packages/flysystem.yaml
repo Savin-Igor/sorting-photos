@@ -17,13 +17,14 @@ services:
         alias: SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorAdapter
     
     # Audio/Video Metadata Analyzer - wraps getID3
-    SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter:
-        arguments:
-            $getId3: null  # Will use JamesHeinrich\GetID3\GetID3() by default
+    # Note: This is configured in services.yaml with explicit GetID3 dependency
+    # SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter:
+    #     arguments:
+    #         $getId3: null  # Will use JamesHeinrich\GetID3\GetID3() by default
     
-    # Bind interface to implementation
-    SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface:
-        alias: SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter
+    # Bind interface to implementation (configured in services.yaml)
+    # SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface:
+    #     alias: SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter
     
     # ============================================
     # Filesystem Configuration
