@@ -42,36 +42,40 @@ final class MetadataPreservingCopierTest extends TestCase
     {
         // Create temporary source file with specific permissions
         $tempDir = sys_get_temp_dir();
-        $sourceFile = $tempDir.'/test_source_'.uniqid().'.txt';
-        $destinationFile = $tempDir.'/test_dest_'.uniqid().'.txt';
+        $sourceFileName = 'test_source_'.uniqid().'.txt';
+        $destFileName = 'test_dest_'.uniqid().'.txt';
+        $sourceFile = $tempDir.'/'.$sourceFileName;
+        $destinationFile = $tempDir.'/'.$destFileName;
 
         file_put_contents($sourceFile, 'test content');
         chmod($sourceFile, 0644);
 
         // Use relative paths for Flysystem (relative to tempDir)
-        $sourcePath = new FilePath('test_source_'.basename($sourceFile));
-        $destinationPath = new FilePath('test_dest_'.basename($destinationFile));
+        $sourcePath = new FilePath($sourceFileName);
+        $destinationPath = new FilePath($destFileName);
 
         $result = $this->copier->copy($sourcePath, $destinationPath);
 
         $this->assertTrue($result);
-        $this->assertFileExists($tempDir.'/test_dest_'.basename($destinationFile));
+        $this->assertFileExists($destinationFile);
 
         $sourcePerms = fileperms($sourceFile) & 0777;
-        $destPerms = fileperms($tempDir.'/test_dest_'.basename($destinationFile)) & 0777;
+        $destPerms = fileperms($destinationFile) & 0777;
         $this->assertEquals($sourcePerms, $destPerms);
 
         // Cleanup
         @unlink($sourceFile);
-        @unlink($tempDir.'/test_dest_'.basename($destinationFile));
+        @unlink($destinationFile);
     }
 
     public function testCopyPreservesTimestamps(): void
     {
         // Create temporary source file
         $tempDir = sys_get_temp_dir();
-        $sourceFile = $tempDir.'/test_source_'.uniqid().'.txt';
-        $destinationFile = $tempDir.'/test_dest_'.uniqid().'.txt';
+        $sourceFileName = 'test_source_'.uniqid().'.txt';
+        $destFileName = 'test_dest_'.uniqid().'.txt';
+        $sourceFile = $tempDir.'/'.$sourceFileName;
+        $destinationFile = $tempDir.'/'.$destFileName;
 
         file_put_contents($sourceFile, 'test content');
         $expectedMtime = 1234567890;
@@ -79,38 +83,39 @@ final class MetadataPreservingCopierTest extends TestCase
         touch($sourceFile, $expectedMtime, $expectedAtime);
 
         // Use relative paths for Flysystem (relative to tempDir)
-        $sourcePath = new FilePath('test_source_'.basename($sourceFile));
-        $destinationPath = new FilePath('test_dest_'.basename($destinationFile));
+        $sourcePath = new FilePath($sourceFileName);
+        $destinationPath = new FilePath($destFileName);
 
         $result = $this->copier->copy($sourcePath, $destinationPath);
 
         $this->assertTrue($result);
-        $destFile = $tempDir.'/test_dest_'.basename($destinationFile);
-        $this->assertFileExists($destFile);
+        $this->assertFileExists($destinationFile);
 
-        $destMtime = filemtime($destFile);
-        $destAtime = fileatime($destFile);
+        $destMtime = filemtime($destinationFile);
+        $destAtime = fileatime($destinationFile);
 
         $this->assertEquals($expectedMtime, $destMtime);
         $this->assertEquals($expectedAtime, $destAtime);
 
         // Cleanup
         @unlink($sourceFile);
-        @unlink($destFile);
+        @unlink($destinationFile);
     }
 
     public function testCopyPreservesExtendedAttributes(): void
     {
         // Create temporary source file
         $tempDir = sys_get_temp_dir();
-        $sourceFile = $tempDir.'/test_source_'.uniqid().'.txt';
-        $destinationFile = $tempDir.'/test_dest_'.uniqid().'.txt';
+        $sourceFileName = 'test_source_'.uniqid().'.txt';
+        $destFileName = 'test_dest_'.uniqid().'.txt';
+        $sourceFile = $tempDir.'/'.$sourceFileName;
+        $destinationFile = $tempDir.'/'.$destFileName;
 
         file_put_contents($sourceFile, 'test content');
 
         // Use relative paths for Flysystem (relative to tempDir)
-        $sourcePath = new FilePath('test_source_'.basename($sourceFile));
-        $destinationPath = new FilePath('test_dest_'.basename($destinationFile));
+        $sourcePath = new FilePath($sourceFileName);
+        $destinationPath = new FilePath($destFileName);
 
         // Set extended attribute if supported
         if (function_exists('xattr_set')) {
@@ -120,19 +125,18 @@ final class MetadataPreservingCopierTest extends TestCase
         $result = $this->copier->copy($sourcePath, $destinationPath);
 
         $this->assertTrue($result);
-        $destFile = $tempDir.'/test_dest_'.basename($destinationFile);
-        $this->assertFileExists($destFile);
+        $this->assertFileExists($destinationFile);
 
         // Verify extended attributes if supported
         if (function_exists('xattr_get')) {
             $sourceAttr = xattr_get($sourceFile, 'user.test');
-            $destAttr = xattr_get($destFile, 'user.test');
+            $destAttr = xattr_get($destinationFile, 'user.test');
             $this->assertEquals($sourceAttr, $destAttr);
         }
 
         // Cleanup
         @unlink($sourceFile);
-        @unlink($destFile);
+        @unlink($destinationFile);
     }
 
     public function testCopyCreatesDestinationDirectory(): void
@@ -177,34 +181,35 @@ final class MetadataPreservingCopierTest extends TestCase
     {
         // Create temporary source file
         $tempDir = sys_get_temp_dir();
-        $sourceFile = $tempDir.'/test_source_'.uniqid().'.txt';
-        $destinationFile = $tempDir.'/test_dest_'.uniqid().'.txt';
+        $sourceFileName = 'test_source_'.uniqid().'.txt';
+        $destFileName = 'test_dest_'.uniqid().'.txt';
+        $sourceFile = $tempDir.'/'.$sourceFileName;
+        $destinationFile = $tempDir.'/'.$destFileName;
 
         $content = 'test content for integrity check';
         file_put_contents($sourceFile, $content);
 
         // Use relative paths for Flysystem (relative to tempDir)
-        $sourcePath = new FilePath('test_source_'.basename($sourceFile));
-        $destinationPath = new FilePath('test_dest_'.basename($destinationFile));
+        $sourcePath = new FilePath($sourceFileName);
+        $destinationPath = new FilePath($destFileName);
 
         $result = $this->copier->copy($sourcePath, $destinationPath);
 
         $this->assertTrue($result);
-        $destFile = $tempDir.'/test_dest_'.basename($destinationFile);
-        $this->assertFileExists($destFile);
+        $this->assertFileExists($destinationFile);
 
         // Verify content matches
         $sourceContent = file_get_contents($sourceFile);
-        $destContent = file_get_contents($destFile);
+        $destContent = file_get_contents($destinationFile);
         $this->assertEquals($sourceContent, $destContent);
 
         // Verify hash matches
         $sourceHash = hash_file('sha256', $sourceFile);
-        $destHash = hash_file('sha256', $destFile);
+        $destHash = hash_file('sha256', $destinationFile);
         $this->assertEquals($sourceHash, $destHash);
 
         // Cleanup
         @unlink($sourceFile);
-        @unlink($destFile);
+        @unlink($destinationFile);
     }
 }
