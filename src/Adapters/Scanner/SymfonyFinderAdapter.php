@@ -10,18 +10,14 @@ use Symfony\Component\Finder\Finder;
 
 final readonly class SymfonyFinderAdapter implements ScannerPort
 {
-    public function __construct(
-        private Finder $finder,
-    ) {
-    }
-
     public function scan(string $directory): iterable
     {
         if (!is_dir($directory)) {
             throw new \InvalidArgumentException("Directory does not exist: {$directory}");
         }
 
-        $files = $this->finder
+        // Create a fresh Finder instance for each scan to avoid state issues
+        $files = Finder::create()
             ->files()
             ->in($directory)
             ->ignoreDotFiles(true)
@@ -38,7 +34,9 @@ final readonly class SymfonyFinderAdapter implements ScannerPort
             throw new \InvalidArgumentException("Directory does not exist: {$directory}");
         }
 
-        return $this->finder
+        // Create a fresh Finder instance for each count to avoid state issues
+        // Finder is recursive by default, so this will count all files in subdirectories
+        return Finder::create()
             ->files()
             ->in($directory)
             ->ignoreDotFiles(true)

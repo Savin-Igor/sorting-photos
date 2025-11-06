@@ -107,9 +107,7 @@ services:
         alias: SortingPhotosByDate\Adapters\Scanner\SymfonyFinderAdapter
         public: true
     
-    SortingPhotosByDate\Adapters\Scanner\SymfonyFinderAdapter:
-        arguments:
-            $finder: '@Symfony\Component\Finder\Finder'
+    SortingPhotosByDate\Adapters\Scanner\SymfonyFinderAdapter: ~
 
     # ============================================
     # Metadata Extractor Chain Configuration
