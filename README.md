@@ -207,6 +207,7 @@ sorting-photos/
 - `make run-dry-run` - Run in dry-run mode (no files moved)
 - `make scan` - Scan files and dispatch events
 - `make consume` - Start message consumer
+- `make metadata-clear` - Clear all metadata from database (reset processing locks)
 
 ### Testing & Quality
 

@@ -161,6 +161,18 @@ SQL;
         }
     }
 
+    #[\Override]
+    public function clearAll(): bool
+    {
+        try {
+            $this->connection->executeStatement('DELETE FROM '.self::TABLE_NAME);
+
+            return true;
+        } catch (\Exception) {
+            return false;
+        }
+    }
+
     /**
      * @param array<string, mixed> $row
      */

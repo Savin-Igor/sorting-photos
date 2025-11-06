@@ -80,6 +80,11 @@ scan: ## Scan files and dispatch events (without organizing)
 	${DOCKER_COMPOSE} exec app php bin/console scan:files /var/data/source
 .PHONY: scan
 
+metadata-clear: ## Clear all metadata from database (reset processing locks)
+	@echo "Clearing metadata database..."
+	${DOCKER_COMPOSE} exec app php bin/console metadata:clear --force
+.PHONY: metadata-clear
+
 consume: ## Consume messages from queue (run worker)
 	@echo "Starting message consumer..."
 	${DOCKER_COMPOSE} exec app php bin/console messenger:consume async -vv

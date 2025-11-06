@@ -61,4 +61,11 @@ interface MetadataRepositoryPort
      * @return bool True on success
      */
     public function delete(FilePath $filePath): bool;
+
+    /**
+     * Clear all metadata (delete all records).
+     *
+     * @return bool True on success
+     */
+    public function clearAll(): bool;
 }
