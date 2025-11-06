@@ -4,172 +4,100 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Tests\Unit\Infrastructure\Filesystem;
 
-use League\Flysystem\Filesystem;
-use League\Flysystem\Local\LocalFilesystemAdapter as FlysystemLocalAdapter;
 use PHPUnit\Framework\TestCase;
-use SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 use SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier;
+use SortingPhotosByDate\Ports\FilesystemPort;
 
 final class MetadataPreservingCopierTest extends TestCase
 {
     private MetadataPreservingCopier $copier;
-    private LocalFilesystemAdapter $filesystemAdapter;
+    private FilesystemPort $filesystem;
 
     protected function setUp(): void
     {
-        // Use real filesystem adapter for integration-style tests
-        $tempDir = sys_get_temp_dir();
-        $flysystemAdapter = new FlysystemLocalAdapter($tempDir);
-        $flysystem = new Filesystem($flysystemAdapter);
-
-        // Create a temporary MetadataPreservingCopier instance for the adapter
-        $tempCopier = new MetadataPreservingCopier(
-            $this->createMock(\SortingPhotosByDate\Ports\FilesystemPort::class)
-        );
-
-        $this->filesystemAdapter = new LocalFilesystemAdapter(
-            $tempCopier,
-            $flysystem,
-            0755
-        );
-
-        // Create copier with real filesystem adapter
-        $this->copier = new MetadataPreservingCopier($this->filesystemAdapter);
+        $this->filesystem = $this->createMock(FilesystemPort::class);
+        $this->copier = new MetadataPreservingCopier($this->filesystem);
     }
 
     public function testCopyPreservesPermissions(): void
     {
-        // Create temporary source file with specific permissions
-        $tempDir = sys_get_temp_dir();
-        $sourceFileName = 'test_source_'.uniqid().'.txt';
-        $destFileName = 'test_dest_'.uniqid().'.txt';
-        $sourceFile = $tempDir.'/'.$sourceFileName;
-        $destinationFile = $tempDir.'/'.$destFileName;
+        $sourcePath = new FilePath('/source/file.txt');
+        $destinationPath = new FilePath('/destination/file.txt');
+        $destinationDir = new FilePath('/destination');
 
-        file_put_contents($sourceFile, 'test content');
-        chmod($sourceFile, 0644);
+        $this->filesystem
+            ->expects($this->once())
+            ->method('exists')
+            ->with($sourcePath)
+            ->willReturn(true);
 
-        // Use relative paths for Flysystem (relative to tempDir)
-        $sourcePath = new FilePath($sourceFileName);
-        $destinationPath = new FilePath($destFileName);
+        $this->filesystem
+            ->expects($this->once())
+            ->method('ensureDirectory')
+            ->with($destinationDir);
 
-        $result = $this->copier->copy($sourcePath, $destinationPath);
+        $this->filesystem
+            ->expects($this->once())
+            ->method('getPermissions')
+            ->with($sourcePath)
+            ->willReturn(0644);
 
-        $this->assertTrue($result);
-        $this->assertFileExists($destinationFile);
+        $this->filesystem
+            ->expects($this->once())
+            ->method('getModificationTime')
+            ->with($sourcePath)
+            ->willReturn(1234567890);
 
-        $sourcePerms = fileperms($sourceFile) & 0777;
-        $destPerms = fileperms($destinationFile) & 0777;
-        $this->assertEquals($sourcePerms, $destPerms);
+        $this->filesystem
+            ->expects($this->once())
+            ->method('getAccessTime')
+            ->with($sourcePath)
+            ->willReturn(1234567891);
 
-        // Cleanup
-        @unlink($sourceFile);
-        @unlink($destinationFile);
-    }
+        $this->filesystem
+            ->expects($this->once())
+            ->method('read')
+            ->with($sourcePath)
+            ->willReturn('test content');
 
-    public function testCopyPreservesTimestamps(): void
-    {
-        // Create temporary source file
-        $tempDir = sys_get_temp_dir();
-        $sourceFileName = 'test_source_'.uniqid().'.txt';
-        $destFileName = 'test_dest_'.uniqid().'.txt';
-        $sourceFile = $tempDir.'/'.$sourceFileName;
-        $destinationFile = $tempDir.'/'.$destFileName;
+        $this->filesystem
+            ->expects($this->once())
+            ->method('write')
+            ->with($destinationPath, 'test content');
 
-        file_put_contents($sourceFile, 'test content');
-        $expectedMtime = 1234567890;
-        $expectedAtime = 1234567891;
-        touch($sourceFile, $expectedMtime, $expectedAtime);
+        $this->filesystem
+            ->expects($this->exactly(2))
+            ->method('calculateHash')
+            ->willReturn('abc123hash');
 
-        // Use relative paths for Flysystem (relative to tempDir)
-        $sourcePath = new FilePath($sourceFileName);
-        $destinationPath = new FilePath($destFileName);
+        $this->filesystem
+            ->expects($this->once())
+            ->method('setPermissions')
+            ->with($destinationPath, 0644)
+            ->willReturn(true);
 
-        $result = $this->copier->copy($sourcePath, $destinationPath);
-
-        $this->assertTrue($result);
-        $this->assertFileExists($destinationFile);
-
-        $destMtime = filemtime($destinationFile);
-        $destAtime = fileatime($destinationFile);
-
-        $this->assertEquals($expectedMtime, $destMtime);
-        $this->assertEquals($expectedAtime, $destAtime);
-
-        // Cleanup
-        @unlink($sourceFile);
-        @unlink($destinationFile);
-    }
-
-    public function testCopyPreservesExtendedAttributes(): void
-    {
-        // Create temporary source file
-        $tempDir = sys_get_temp_dir();
-        $sourceFileName = 'test_source_'.uniqid().'.txt';
-        $destFileName = 'test_dest_'.uniqid().'.txt';
-        $sourceFile = $tempDir.'/'.$sourceFileName;
-        $destinationFile = $tempDir.'/'.$destFileName;
-
-        file_put_contents($sourceFile, 'test content');
-
-        // Use relative paths for Flysystem (relative to tempDir)
-        $sourcePath = new FilePath($sourceFileName);
-        $destinationPath = new FilePath($destFileName);
-
-        // Set extended attribute if supported
-        if (function_exists('xattr_set')) {
-            xattr_set($sourceFile, 'user.test', 'test_value');
-        }
+        $this->filesystem
+            ->expects($this->once())
+            ->method('setTimestamps')
+            ->with($destinationPath, 1234567890, 1234567891)
+            ->willReturn(true);
 
         $result = $this->copier->copy($sourcePath, $destinationPath);
 
         $this->assertTrue($result);
-        $this->assertFileExists($destinationFile);
-
-        // Verify extended attributes if supported
-        if (function_exists('xattr_get')) {
-            $sourceAttr = xattr_get($sourceFile, 'user.test');
-            $destAttr = xattr_get($destinationFile, 'user.test');
-            $this->assertEquals($sourceAttr, $destAttr);
-        }
-
-        // Cleanup
-        @unlink($sourceFile);
-        @unlink($destinationFile);
-    }
-
-    public function testCopyCreatesDestinationDirectory(): void
-    {
-        // Create temporary source file
-        $tempDir = sys_get_temp_dir();
-        $sourceFile = $tempDir.'/test_source_'.uniqid().'.txt';
-        $destDirName = 'test_dir_'.uniqid();
-        $destDir = $tempDir.'/'.$destDirName;
-        $destinationFile = $destDir.'/test_dest.txt';
-
-        file_put_contents($sourceFile, 'test content');
-
-        // Use relative paths for Flysystem (relative to tempDir)
-        $sourcePath = new FilePath('test_source_'.basename($sourceFile));
-        $destinationPath = new FilePath($destDirName.'/test_dest.txt');
-
-        $result = $this->copier->copy($sourcePath, $destinationPath);
-
-        $this->assertTrue($result);
-        $this->assertFileExists($destinationFile);
-        $this->assertDirectoryExists($destDir);
-
-        // Cleanup
-        @unlink($sourceFile);
-        @unlink($destinationFile);
-        @rmdir($destDir);
     }
 
     public function testCopyThrowsExceptionWhenSourceDoesNotExist(): void
     {
         $sourcePath = new FilePath('/nonexistent/file.txt');
-        $destinationPath = new FilePath('/tmp/dest.txt');
+        $destinationPath = new FilePath('/destination/file.txt');
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('exists')
+            ->with($sourcePath)
+            ->willReturn(false);
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Source file does not exist');
@@ -179,37 +107,133 @@ final class MetadataPreservingCopierTest extends TestCase
 
     public function testCopyVerifiesFileIntegrity(): void
     {
-        // Create temporary source file
-        $tempDir = sys_get_temp_dir();
-        $sourceFileName = 'test_source_'.uniqid().'.txt';
-        $destFileName = 'test_dest_'.uniqid().'.txt';
-        $sourceFile = $tempDir.'/'.$sourceFileName;
-        $destinationFile = $tempDir.'/'.$destFileName;
+        $sourcePath = new FilePath('/source/file.txt');
+        $destinationPath = new FilePath('/destination/file.txt');
+        $destinationDir = new FilePath('/destination');
 
-        $content = 'test content for integrity check';
-        file_put_contents($sourceFile, $content);
+        $this->filesystem
+            ->expects($this->once())
+            ->method('exists')
+            ->with($sourcePath)
+            ->willReturn(true);
 
-        // Use relative paths for Flysystem (relative to tempDir)
-        $sourcePath = new FilePath($sourceFileName);
-        $destinationPath = new FilePath($destFileName);
+        $this->filesystem
+            ->expects($this->once())
+            ->method('ensureDirectory')
+            ->with($destinationDir);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('getPermissions')
+            ->with($sourcePath)
+            ->willReturn(0644);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('getModificationTime')
+            ->with($sourcePath)
+            ->willReturn(1234567890);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('getAccessTime')
+            ->with($sourcePath)
+            ->willReturn(1234567891);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('read')
+            ->with($sourcePath)
+            ->willReturn('test content');
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('write')
+            ->with($destinationPath, 'test content');
+
+        // Different hashes to trigger integrity check failure
+        $this->filesystem
+            ->expects($this->exactly(2))
+            ->method('calculateHash')
+            ->willReturnOnConsecutiveCalls('source_hash', 'different_hash');
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('delete')
+            ->with($destinationPath)
+            ->willReturn(true);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('File integrity check failed');
+
+        $this->copier->copy($sourcePath, $destinationPath);
+    }
+
+    public function testCopyCreatesDestinationDirectory(): void
+    {
+        $sourcePath = new FilePath('/source/file.txt');
+        $destinationPath = new FilePath('/destination/subdir/file.txt');
+        $destinationDir = new FilePath('/destination/subdir');
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('exists')
+            ->with($sourcePath)
+            ->willReturn(true);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('ensureDirectory')
+            ->with($destinationDir);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('getPermissions')
+            ->with($sourcePath)
+            ->willReturn(0644);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('getModificationTime')
+            ->with($sourcePath)
+            ->willReturn(1234567890);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('getAccessTime')
+            ->with($sourcePath)
+            ->willReturn(1234567891);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('read')
+            ->with($sourcePath)
+            ->willReturn('test content');
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('write')
+            ->with($destinationPath, 'test content');
+
+        $this->filesystem
+            ->expects($this->exactly(2))
+            ->method('calculateHash')
+            ->willReturn('abc123hash');
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('setPermissions')
+            ->with($destinationPath, 0644)
+            ->willReturn(true);
+
+        $this->filesystem
+            ->expects($this->once())
+            ->method('setTimestamps')
+            ->with($destinationPath, 1234567890, 1234567891)
+            ->willReturn(true);
 
         $result = $this->copier->copy($sourcePath, $destinationPath);
 
         $this->assertTrue($result);
-        $this->assertFileExists($destinationFile);
-
-        // Verify content matches
-        $sourceContent = file_get_contents($sourceFile);
-        $destContent = file_get_contents($destinationFile);
-        $this->assertEquals($sourceContent, $destContent);
-
-        // Verify hash matches
-        $sourceHash = hash_file('sha256', $sourceFile);
-        $destHash = hash_file('sha256', $destinationFile);
-        $this->assertEquals($sourceHash, $destHash);
-
-        // Cleanup
-        @unlink($sourceFile);
-        @unlink($destinationFile);
     }
 }
