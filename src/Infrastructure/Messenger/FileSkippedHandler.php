@@ -5,31 +5,31 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Infrastructure\Messenger;
 
 use SortingPhotosByDate\Domain\Event\FileSkipped;
+use SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService;
 use SortingPhotosByDate\Ports\LoggerPort;
 
 /**
  * Event handler for FileSkipped event.
- * Tracks skipped files for statistics.
+ * Tracks skipped files for statistics using Redis.
  */
-final class FileSkippedHandler
+final readonly class FileSkippedHandler
 {
-    private static int $skippedCount = 0;
-    private static int $duplicateCount = 0;
-    private static int $alreadyProcessedCount = 0;
-
     public function __construct(
-        private readonly LoggerPort $logger,
+        private LoggerPort $logger,
+        private ?RedisStatisticsService $statistics = null,
     ) {
     }
 
     public function __invoke(FileSkipped $event): void
     {
-        ++self::$skippedCount;
+        if ($this->statistics instanceof RedisStatisticsService) {
+            $this->statistics->incrementSkipped();
 
-        if ('duplicate' === $event->getReason()) {
-            ++self::$duplicateCount;
-        } elseif ('already_processed' === $event->getReason()) {
-            ++self::$alreadyProcessedCount;
+            if ('duplicate' === $event->getReason()) {
+                $this->statistics->incrementDuplicates();
+            } elseif ('already_processed' === $event->getReason()) {
+                $this->statistics->incrementAlreadyProcessed();
+            }
         }
 
         $this->logger->debug('File skipped', [
@@ -37,29 +37,5 @@ final class FileSkippedHandler
             'reason' => $event->getReason(),
             'existing_file_path' => $event->getExistingFilePath(),
         ]);
-    }
-
-    /**
-     * Get statistics about skipped files.
-     *
-     * @return array{total: int, duplicates: int, already_processed: int}
-     */
-    public static function getStats(): array
-    {
-        return [
-            'total' => self::$skippedCount,
-            'duplicates' => self::$duplicateCount,
-            'already_processed' => self::$alreadyProcessedCount,
-        ];
-    }
-
-    /**
-     * Reset statistics (useful for testing).
-     */
-    public static function resetStats(): void
-    {
-        self::$skippedCount = 0;
-        self::$duplicateCount = 0;
-        self::$alreadyProcessedCount = 0;
     }
 }

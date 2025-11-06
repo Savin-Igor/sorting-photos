@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Command;
 
 use SortingPhotosByDate\Domain\Event\FileDiscovered;
 use SortingPhotosByDate\Infrastructure\Helper\ProgressTracker;
+use SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\ScannerPort;
@@ -30,6 +31,7 @@ final class ScanFilesCommand extends Command
         private readonly MessageBusInterface $messageBus,
         private readonly FilesystemPort $filesystem,
         private readonly LoggerPort $logger,
+        private readonly ?RedisStatisticsService $statistics = null,
     ) {
         parent::__construct();
     }
@@ -78,6 +80,11 @@ final class ScanFilesCommand extends Command
             $totalFiles = $this->scanner->count($sourceDirectory);
             $output->writeln(\sprintf('<info>%d files found</info>', $totalFiles));
             $output->writeln('');
+
+            // Set total in Redis for statistics tracking
+            if ($this->statistics instanceof RedisStatisticsService) {
+                $this->statistics->setTotal($totalFiles);
+            }
 
             if (0 === $totalFiles) {
                 $io->warning('No files found in directory');

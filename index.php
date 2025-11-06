@@ -103,11 +103,6 @@ try {
         $destinationDirectoryHost = explode(':', (string) $destinationDirectoryHost)[0];
     }
 
-    // Reset skipped files statistics for this run
-    if (class_exists(SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::class)) {
-        SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::resetStats();
-    }
-
     // Log startup information (console: important, file: detailed)
     $logger->info('=== File Sorting Application Started ===');
     $logger->debug('Source Directory (host): '.($sourceDirectoryHost ?? 'N/A'));
@@ -197,41 +192,15 @@ try {
     $asyncMode = getenv('ASYNC_MODE') ?: ($_ENV['ASYNC_MODE'] ?? 'false');
     $asyncMode = filter_var($asyncMode, FILTER_VALIDATE_BOOLEAN);
 
-    // In async mode, process messages synchronously to collect statistics
-    // This ensures skipped files are tracked even without workers running
-    if ($asyncMode && $messageBus instanceof SortingPhotosByDate\Infrastructure\Messenger\AsyncMessageBus) {
-        $output->write('Processing messages from queue to collect statistics... ');
-        $logger->debug('Processing messages from queue synchronously to collect statistics');
-
-        try {
-            $receiver = $messageBus->getReceiver();
-            $processingBus = $container->get(SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus::class);
-
-            $processedCount = 0;
-            while (true) {
-                $envelopes = $receiver->get();
-                if (empty($envelopes)) {
-                    break;
-                }
-
-                foreach ($envelopes as $envelope) {
-                    $message = $envelope->getMessage();
-                    $processingBus->dispatch($message);
-                    $receiver->ack($envelope);
-                    ++$processedCount;
-                }
-            }
-
-            $output->writeln(\sprintf('<info>Done (%d messages processed)</info>', $processedCount));
-            $logger->debug('Messages processed synchronously', ['count' => $processedCount]);
-        } catch (Throwable $e) {
-            $output->writeln('<comment>Warning: Could not process messages from queue</comment>');
-            $logger->warning('Could not process messages from queue', ['error' => $e->getMessage()]);
-        }
+    // Initialize Redis statistics service if available
+    $statisticsService = null;
+    if ($container->has(SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService::class)) {
+        $statisticsService = $container->get(SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService::class);
+        $statisticsService->reset();
     }
 
     // For synchronous processing, messages are processed immediately by SynchronousMessageBus
-    // No need to consume separately
+    // For async processing, messages are queued and processed by workers
 
     // Calculate directory sizes after processing
     $output->write('Calculating directory sizes after processing... ');
@@ -250,10 +219,19 @@ try {
     // Get updated duplicate statistics
     $finalDuplicateStats = $repository->getDuplicateStats();
 
-    // Get skipped files statistics
-    $skippedStats = [];
-    if ($container->has(SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::class)) {
-        $skippedStats = SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::getStats();
+    // Get skipped files statistics from Redis
+    $skippedStats = [
+        'total' => 0,
+        'duplicates' => 0,
+        'already_processed' => 0,
+    ];
+    if (null !== $statisticsService) {
+        $stats = $statisticsService->getStats();
+        $skippedStats = [
+            'total' => $stats['skipped'],
+            'duplicates' => $stats['duplicates'],
+            'already_processed' => $stats['already_processed'],
+        ];
     }
 
     // Display results
@@ -262,7 +240,7 @@ try {
     $output->writeln(\sprintf('Size remaining in source: <info>%s</info>', $byteFormatter->format($remainingSize)));
 
     // Display skipped files statistics
-    if ([] !== $skippedStats && $skippedStats['total'] > 0) {
+    if ($skippedStats['total'] > 0) {
         $output->writeln('');
         $output->writeln(\sprintf(
             'Files skipped: <comment>%d</comment>',

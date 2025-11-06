@@ -8,6 +8,7 @@ use SortingPhotosByDate\Application\Command\OrganizeFileCommand;
 use SortingPhotosByDate\Domain\Event\FileOrganized;
 use SortingPhotosByDate\Domain\Policies\OrganizerPolicy;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\MetadataRepositoryPort;
@@ -26,6 +27,7 @@ final readonly class OrganizeFileHandler
         private MetadataRepositoryPort $repository,
         private LoggerPort $logger,
         private MessageBusInterface $messageBus,
+        private ?RedisStatisticsService $statistics = null,
     ) {
     }
 
@@ -83,6 +85,11 @@ final readonly class OrganizeFileHandler
             'target_path' => $finalTargetPath->getPath(),
             'hash' => $asset->getHash()->getHash(),
         ]);
+
+        // Increment processed counter
+        if ($this->statistics instanceof RedisStatisticsService) {
+            $this->statistics->incrementProcessed();
+        }
 
         // Dispatch FileOrganized event
         $event = new FileOrganized($asset, $sourcePath, $finalTargetPath);

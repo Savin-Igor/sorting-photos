@@ -104,6 +104,24 @@ services:
     Symfony\Component\Finder\Finder:
         factory: ['Symfony\Component\Finder\Finder', 'create']
     
+    # ============================================
+    # Redis Configuration
+    # ============================================
+    
+    # Redis client for statistics
+    Predis\ClientInterface:
+        class: Predis\Client
+        arguments:
+            $parameters:
+                - 'tcp://redis:6379'
+        public: true
+    
+    # Redis Statistics Service
+    SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService:
+        arguments:
+            $redis: '@Predis\ClientInterface'
+        public: true
+    
     # Bind ScannerPort interface to SymfonyFinderAdapter
     SortingPhotosByDate\Ports\ScannerPort:
         alias: SortingPhotosByDate\Adapters\Scanner\SymfonyFinderAdapter
