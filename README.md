@@ -128,6 +128,12 @@ sorting-photos/
 │   │       └── DatabaseMetadataRepository.php
 │   │
 │   ├── Infrastructure/
+│   │   ├── Config/
+│   │   │   ├── ContainerFactory.php      # Container setup factory
+│   │   │   └── ParameterResolver.php    # Environment parameter resolver
+│   │   ├── Helper/
+│   │   │   ├── ByteFormatter.php        # Byte size formatter
+│   │   │   └── DirectorySizeCalculator.php  # Directory size calculator
 │   │   ├── Messenger/
 │   │   │   ├── FileDiscoveredHandler.php
 │   │   │   ├── FileProcessedHandler.php
@@ -149,6 +155,7 @@ sorting-photos/
 │   ├── packages/
 │   │   ├── messenger.yaml          # Queue configuration
 │   │   └── flysystem.yaml          # Filesystem configuration
+│   ├── parameters.yaml             # Application parameters
 │   └── services.yaml                # DI container
 │
 ├── tests/                            # Test suite
@@ -231,6 +238,13 @@ Key variables:
 - `MESSENGER_TRANSPORT_DSN` - Messenger transport:
   - Redis: `redis://redis:6379/messages`
   - RabbitMQ: `amqp://guest:guest@rabbitmq:5672/%2f/messages`
+
+### Configuration Files
+
+- `config/parameters.yaml` - Application parameters (can be overridden by environment variables)
+- `config/services.yaml` - Dependency Injection container configuration
+- `config/packages/messenger.yaml` - Symfony Messenger queue configuration
+- `config/packages/flysystem.yaml` - Filesystem adapter configuration
 
 ### Organization Policies
 

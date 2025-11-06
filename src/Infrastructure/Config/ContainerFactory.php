@@ -150,7 +150,7 @@ final readonly class ContainerFactory
      */
     private function setupMessageBus(ContainerBuilder $container): void
     {
-        // Create SynchronousMessageBus manually after compilation to avoid circular dependency
+        // Replace the temporary placeholder with actual SynchronousMessageBus instance
         // (handlers depend on MessageBusInterface, which is SynchronousMessageBus)
         $messageBus = new SynchronousMessageBus($container);
 

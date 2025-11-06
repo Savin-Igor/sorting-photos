@@ -19,7 +19,7 @@ services:
     # Audio/Video Metadata Analyzer - wraps getID3
     SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter:
         arguments:
-            $getId3: null  # Will use \getID3() by default
+            $getId3: null  # Will use JamesHeinrich\GetID3\GetID3() by default
     
     # Bind interface to implementation
     SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface:

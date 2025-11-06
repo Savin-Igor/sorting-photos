@@ -3,41 +3,20 @@
 
 declare(strict_types=1);
 
-use SortingPhotosByDate\Command\ScanFilesCommand;
-use SortingPhotosByDate\Ports\FilesystemPort;
-use SortingPhotosByDate\Ports\LoggerPort;
-use SortingPhotosByDate\Ports\ScannerPort;
+use SortingPhotosByDate\Infrastructure\Config\ContainerFactory;
 use Symfony\Component\Console\Application;
-use Symfony\Component\DependencyInjection\ContainerBuilder;
-use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
-use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 require_once __DIR__.'/../vendor/autoload.php';
 
-// Load DI container
-$container = new ContainerBuilder();
+// Build and configure DI container using ContainerFactory
+$containerFactory = new ContainerFactory(dirname(__DIR__));
+$container = $containerFactory->build();
 
-// Set kernel.project_dir parameter
-$container->setParameter('kernel.project_dir', dirname(__DIR__));
-
-$loader = new YamlFileLoader($container, new FileLocator(__DIR__.'/../config'));
-$loader->load('services.yaml');
-
-// Load flysystem configuration
-if (file_exists(__DIR__.'/../config/packages/flysystem.yaml')) {
-    $loader->load('packages/flysystem.yaml');
+// Set default destination directory if not set
+if (!$container->hasParameter('app.destination_directory')) {
+    $container->setParameter('app.destination_directory', getenv('DESTINATION_DIRECTORY') ?: '/var/data/destination');
 }
-
-// Set application parameters
-$container->setParameter('app.destination_directory', getenv('DESTINATION_DIRECTORY') ?: '/var/data/destination');
-
-// Compile container
-$container->compile();
-
-// Create SynchronousMessageBus manually after compilation
-$messageBus = new \SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus($container);
-$container->set(MessageBusInterface::class, $messageBus);
 
 // Create console application
 $application = new Application('File Sorter', '1.0.0');

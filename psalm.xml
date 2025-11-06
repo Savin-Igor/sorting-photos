@@ -16,8 +16,6 @@
             <directory name="bin" />
             <directory name="config" />
             <directory name="var" />
-            <directory name="src/Entities" />
-            <directory name="src/Services" />
         </ignoreFiles>
     </projectFiles>
     <issueHandlers>

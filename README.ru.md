@@ -128,6 +128,12 @@ sorting-photos/
 │   │       └── DatabaseMetadataRepository.php
 │   │
 │   ├── Infrastructure/
+│   │   ├── Config/
+│   │   │   ├── ContainerFactory.php      # Фабрика настройки контейнера
+│   │   │   └── ParameterResolver.php    # Резолвер параметров из окружения
+│   │   ├── Helper/
+│   │   │   ├── ByteFormatter.php        # Форматирование размера файлов
+│   │   │   └── DirectorySizeCalculator.php  # Расчет размера директории
 │   │   ├── Messenger/
 │   │   │   ├── FileDiscoveredHandler.php
 │   │   │   ├── FileProcessedHandler.php
@@ -149,6 +155,7 @@ sorting-photos/
 │   ├── packages/
 │   │   ├── messenger.yaml          # Конфигурация очередей
 │   │   └── flysystem.yaml          # Конфигурация файловой системы
+│   ├── parameters.yaml             # Параметры приложения
 │   └── services.yaml                # DI контейнер
 │
 ├── tests/                            # Набор тестов

@@ -37,6 +37,7 @@ final class ScanFilesCommand extends Command
     protected function configure(): void
     {
         $this
+            ->setName('scan:files')
             ->setDescription('Scan directory and publish FileDiscovered events to queue')
             ->addArgument(
                 'source-directory',
