@@ -199,32 +199,84 @@ try {
     $output->writeln('');
     $logger->debug('Scan command completed successfully');
 
-    // In async mode, wait a bit for messages to be processed
-    if ($asyncMode) {
-        $output->write('Waiting for async processing to complete... ');
-        $logger->debug('Waiting for async processing to complete');
-        // Wait up to 30 seconds for processing to complete
-        $maxWait = 30;
-        $waited = 0;
-        while ($waited < $maxWait) {
-            if (null !== $statisticsService) {
-                $stats = $statisticsService->getStats();
-                $total = $stats['total'];
-                $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
-                // If all files are processed, break
-                if ($total > 0 && $current >= $total) {
-                    break;
-                }
-            }
-            sleep(1);
-            ++$waited;
-        }
-        $output->writeln('<info>Done</info>');
-        $logger->debug('Async processing wait completed', ['waited_seconds' => $waited]);
-    }
+    // Process messages and show progress
+    if (null !== $statisticsService) {
+        $stats = $statisticsService->getStats();
+        $totalFiles = $stats['total'];
 
-    // For synchronous processing, messages are processed immediately by SynchronousMessageBus
-    // For async processing, messages are queued and processed by workers
+        if ($totalFiles > 0) {
+            // Create Redis-based progress tracker
+            $redisProgressTracker = new SortingPhotosByDate\Infrastructure\Helper\RedisProgressTracker(
+                $output,
+                $statisticsService,
+                $output->isVerbose()
+            );
+            $redisProgressTracker->initialize($totalFiles);
+
+            $output->writeln('');
+            $output->writeln('<info>Processing files...</info>');
+
+            // In async mode, wait for workers to process
+            // In sync mode, messages are processed immediately
+            if ($asyncMode) {
+                // Wait for async processing with progress updates
+                $maxWait = 300; // 5 minutes max
+                $waited = 0;
+                $lastUpdate = 0;
+
+                while ($waited < $maxWait) {
+                    $stats = $statisticsService->getStats();
+                    $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
+
+                    // Update progress bar every 0.5 seconds
+                    if (($waited - $lastUpdate) >= 0.5) {
+                        $redisProgressTracker->update();
+                        $lastUpdate = $waited;
+                    }
+
+                    // If all files are processed, break
+                    if ($current >= $totalFiles) {
+                        break;
+                    }
+
+                    usleep(500000); // 0.5 seconds
+                    $waited += 0.5;
+                }
+
+                $redisProgressTracker->update();
+                $redisProgressTracker->finish();
+            } else {
+                // In sync mode, process messages and update progress
+                // Messages are processed immediately by SynchronousMessageBus
+                // Just wait a bit and update progress bar
+                $maxWait = 60; // 1 minute max for sync processing
+                $waited = 0;
+                $lastUpdate = 0;
+
+                while ($waited < $maxWait) {
+                    $stats = $statisticsService->getStats();
+                    $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
+
+                    // Update progress bar every 0.1 seconds
+                    if (($waited - $lastUpdate) >= 0.1) {
+                        $redisProgressTracker->update();
+                        $lastUpdate = $waited;
+                    }
+
+                    // If all files are processed, break
+                    if ($current >= $totalFiles) {
+                        break;
+                    }
+
+                    usleep(100000); // 0.1 seconds
+                    $waited += 0.1;
+                }
+
+                $redisProgressTracker->update();
+                $redisProgressTracker->finish();
+            }
+        }
+    }
 
     // Calculate directory sizes after processing
     $output->write('Calculating directory sizes after processing... ');
