@@ -18,9 +18,11 @@ services:
     SortingPhotosByDate\Adapters\:
         resource: '../src/Adapters/*'
 
-    # Infrastructure
+    # Infrastructure (exclude GetId3Adapter - it's configured explicitly below)
     SortingPhotosByDate\Infrastructure\:
         resource: '../src/Infrastructure/*'
+        exclude:
+            - '../src/Infrastructure/Metadata/GetId3Adapter.php'
 
     # Event Handlers
     SortingPhotosByDate\Infrastructure\Messenger\:
