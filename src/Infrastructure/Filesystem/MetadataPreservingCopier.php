@@ -28,7 +28,7 @@ final class MetadataPreservingCopier
      * @return bool True on success
      *
      * @throws \InvalidArgumentException If source file does not exist
-     * @throws \RuntimeException If copy fails
+     * @throws \RuntimeException         If copy fails
      */
     public function copy(FilePath $source, FilePath $destination): bool
     {
@@ -156,4 +156,3 @@ final class MetadataPreservingCopier
         }
     }
 }
-

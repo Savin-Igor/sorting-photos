@@ -96,5 +96,4 @@ final class LocalFilesystemAdapter implements FilesystemPort
     {
         return touch($filePath->getPath(), $timestamp);
     }
-
 }

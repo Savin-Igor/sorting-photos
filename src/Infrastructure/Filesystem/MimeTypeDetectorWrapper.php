@@ -52,4 +52,3 @@ final class MimeTypeDetectorWrapper
         return $mimeType ?? 'application/octet-stream';
     }
 }
-
