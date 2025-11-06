@@ -13,12 +13,11 @@ return RectorConfig::configure()
     ])
     ->withSkip([
         __DIR__.'/vendor',
-        __DIR__.'/bin',
         __DIR__.'/config',
         __DIR__.'/var',
-        __DIR__.'/src/Entities',
-        __DIR__.'/src/Services',
-        __DIR__.'/index.php',
+        // Skip test directories that may have legacy code
+        __DIR__.'/tests/src/Entities',
+        __DIR__.'/tests/src/Services',
     ])
     ->withSets([
         LevelSetList::UP_TO_PHP_84,

@@ -74,10 +74,10 @@ RUN if [ "$USER_ID" != "0" ] && [ "$GROUP_ID" != "0" ]; then \
     adduser -u $USER_ID -G appuser -D -s /bin/bash appuser 2>/dev/null || true; \
     fi
 
-# Create necessary directories
-RUN mkdir -p var/log var/cache var/database var/coverage \
-    && chmod -R 777 var/log \
-    && chmod -R 755 var
+# Create necessary directories with proper permissions
+# Use 777 for var directory to allow write access from host user
+RUN mkdir -p var/log var/cache var/database var/coverage var/messenger \
+    && chmod -R 777 var
 
 # Create data directories
 RUN mkdir -p /var/data/source /var/data/destination \
@@ -97,6 +97,11 @@ RUN if id appuser >/dev/null 2>&1; then \
     else \
     echo "Using www-data (UID: 33)"; \
     fi
+
+# Set umask to allow group and others write access (for volume mounts)
+# This ensures files created in container are accessible from host
+ENV UMASK=0002
+
 # Use numeric UID - Docker will use the user with this UID
 USER ${USER_ID:-33}
 

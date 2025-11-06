@@ -112,11 +112,13 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
         // This is a workaround - Flysystem doesn't expose root directly
         $reflection = new \ReflectionClass($this->filesystem);
         $adapterProperty = $reflection->getProperty('adapter');
+        /** @var mixed $adapter */
         $adapter = $adapterProperty->getValue($this->filesystem);
 
         if ($adapter instanceof \League\Flysystem\Local\LocalFilesystemAdapter) {
             $adapterReflection = new \ReflectionClass($adapter);
             $pathProperty = $adapterReflection->getProperty('rootLocation');
+            /** @var mixed $rootLocation */
             $rootLocation = $pathProperty->getValue($adapter);
 
             if (is_string($rootLocation)) {

@@ -14,8 +14,6 @@ final readonly class AsyncMessageBusFactory
 {
     /**
      * @param array<string, string> $messageRouting
-     *
-     * @return AsyncMessageBus
      */
     public static function create(
         ContainerInterface $container,

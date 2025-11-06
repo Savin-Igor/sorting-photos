@@ -46,14 +46,18 @@ final readonly class ExifAdapter implements MetadataExtractorPort
 
         $width = null;
         $height = null;
-        if (false !== $exifData && is_array($exifData) && isset($exifData['COMPUTED']) && isset($exifData['COMPUTED']['Width'], $exifData['COMPUTED']['Height'])) {
+        /** @var array<string, mixed>|false $exifData */
+        if (false !== $exifData && isset($exifData['COMPUTED']) && isset($exifData['COMPUTED']['Width'], $exifData['COMPUTED']['Height'])) {
             /** @var array<string, mixed> $exifDataArray */
             $exifDataArray = $exifData;
+            /** @var mixed $computed */
             $computed = $exifDataArray['COMPUTED'];
             if (is_array($computed)) {
                 /** @var array<string, mixed> $computedArray */
                 $computedArray = $computed;
+                /** @var mixed $computedWidth */
                 $computedWidth = $computedArray['Width'] ?? null;
+                /** @var mixed $computedHeight */
                 $computedHeight = $computedArray['Height'] ?? null;
                 if (is_numeric($computedWidth) && is_numeric($computedHeight)) {
                     $width = (int) $computedWidth;
@@ -64,9 +68,11 @@ final readonly class ExifAdapter implements MetadataExtractorPort
 
         /** @var array<string, mixed> $additionalMetadata */
         $additionalMetadata = [];
-        if (false !== $exifData && is_array($exifData)) {
+        /** @var array<string, mixed>|false $exifDataForMetadata */
+        $exifDataForMetadata = $exifData;
+        if (false !== $exifDataForMetadata) {
             /** @var array<string, mixed> $exifDataArray */
-            $exifDataArray = $exifData;
+            $exifDataArray = $exifDataForMetadata;
             $additionalMetadata = $this->sanitizeExifData($exifDataArray);
         }
 
@@ -151,6 +157,10 @@ final readonly class ExifAdapter implements MetadataExtractorPort
     {
         /** @var array<string, mixed> $sanitized */
         $sanitized = [];
+        /**
+         * @var string $key
+         * @var mixed  $value
+         */
         foreach ($exifData as $key => $value) {
             if (is_string($value) || is_numeric($value)) {
                 $sanitized[$key] = $value;

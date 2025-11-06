@@ -9,6 +9,7 @@ use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Messenger\Middleware\SendMessageMiddleware;
 use Symfony\Component\Messenger\Transport\TransportInterface;
+use Symfony\Component\Messenger\Transport\Receiver\ReceiverInterface;
 use Symfony\Component\Messenger\Transport\Serialization\PhpSerializer;
 use Symfony\Component\Messenger\Transport\TransportFactoryInterface;
 
@@ -143,5 +144,14 @@ final readonly class AsyncMessageBus implements MessageBusInterface
         // For messages not routed to async, process synchronously
         // This shouldn't happen in async mode, but provides fallback
         return $this->bus->dispatch($envelope);
+    }
+
+    /**
+     * Get transport receiver for consuming messages.
+     * Used by ConsumeMessagesCommand to consume messages from queue.
+     */
+    public function getReceiver(): ReceiverInterface
+    {
+        return $this->transport;
     }
 }
