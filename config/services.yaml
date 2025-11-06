@@ -1,0 +1,35 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # Commands
+    SortingPhotosByDate\Command\:
+        resource: '../src/Command/*'
+        tags: ['console.command']
+
+    # Application Handlers
+    SortingPhotosByDate\Application\Handler\:
+        resource: '../src/Application/Handler/*'
+
+    # Adapters
+    SortingPhotosByDate\Adapters\:
+        resource: '../src/Adapters/*'
+
+    # Infrastructure
+    SortingPhotosByDate\Infrastructure\:
+        resource: '../src/Infrastructure/*'
+
+    # Event Handlers
+    SortingPhotosByDate\Infrastructure\Messenger\:
+        resource: '../src/Infrastructure/Messenger/*'
+        tags: ['messenger.message_handler']
+
+    # Parameters
+    parameters:
+        kernel.project_dir: '%kernel.project_dir%'
+        app.source_directory: '%env(SOURCE_DIRECTORY)%'
+        app.destination_directory: '%env(DESTINATION_DIRECTORY)%'
+        app.organizer_policy: '%env(ORGANIZER_POLICY)%'
+        app.dry_run: '%env(bool:DRY_RUN)%'
+

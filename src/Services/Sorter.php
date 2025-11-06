@@ -52,7 +52,7 @@ final class Sorter
                 continue;
             }
 
-            $filePath = $directory.'/'.$fileName;
+            $filePath = $directory . '/' . $fileName;
 
             if (is_dir($filePath)) {
                 $this->processDirectory($filePath);
@@ -113,7 +113,8 @@ final class Sorter
 
         $newFile = sprintf('%s/%s', $copyToDir, $file->getName());
         if (file_exists($newFile)) {
-            throw SortingPhotosException::fileExists($newFile);
+            echo 'File is exist' . PHP_EOL;
+            // throw SortingPhotosException::fileExists($newFile);
         }
 
         if (!copy($sourceFile, $newFile)) {

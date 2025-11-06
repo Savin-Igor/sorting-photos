@@ -1,0 +1,9 @@
+# Flysystem configuration
+# Note: This is a basic configuration. You can extend it with S3, FTP, etc.
+
+services:
+    # Local filesystem adapter
+    SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter:
+        arguments:
+            $root: '%env(FILESYSTEM_LOCAL_ROOT)%'
+

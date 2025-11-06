@@ -12,8 +12,12 @@ ini_set('display_errors', '1');
 ini_set('memory_limit', '550M');
 ini_set('display_startup_errors', '1');
 
-$unsortedPhotosDir = '/home/media';
-$copyToDir = '/home/MY-MEDIA';
+// $unsortedPhotosDir = '/run/user/1000/gvfs/mtp:host=Xiaomi_Mi_9T_Pro_8f997d4e/Внутренний общий накопитель/DCIM';
+$unsortedPhotosDir = '/run/user/1000/gvfs/mtp:host=Xiaomi_Mi_9T_Pro_8f997d4e/Внутренний общий накопитель/Pictures';
+// $unsortedPhotosDir = '/run/user/1000/gvfs/mtp:host=Xiaomi_Mi_9T_Pro_8f997d4e/Внутренний общий накопитель/Android/media/com.whatsapp/WhatsApp/Media';
+// $unsortedPhotosDir = '/media/isavins/KINGSTON/video-s-telefona';
+// $copyToDir = '/media/isavins/T7 Shield/MY-MEDIA_2025';
+$copyToDir = '/media/isavins/ADATA SH14/2025';
 
 try {
     $logger = new SimpleLogger();
