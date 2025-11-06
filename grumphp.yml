@@ -42,18 +42,19 @@ grumphp:
             min_lines: 5
             min_tokens: 70
             triggered_by: ['php']
-        phpmnd:
-            directory: 'src'
-            whitelist_patterns: []
-            exclude: ['vendor', 'tests', 'bin', 'config']
-            exclude_name: []
-            extensions: []
-            hint: false
-            ignore_funcs: []
-            ignore_numbers: []
-            ignore_strings: ['tests/*']
-            strings: false
-            triggered_by: ['php']
+        # phpmnd removed due to Symfony 7 compatibility issues
+        # phpmnd:
+        #     directory: 'src'
+        #     whitelist_patterns: []
+        #     exclude: ['vendor', 'tests', 'bin', 'config']
+        #     exclude_name: []
+        #     extensions: []
+        #     hint: false
+        #     ignore_funcs: []
+        #     ignore_numbers: []
+        #     ignore_strings: ['tests/*']
+        #     strings: false
+        #     triggered_by: ['php']
         # Psalm temporarily disabled due to PHP 8.4 compatibility issues with vendor dependencies (amphp/amp)
         # The error occurs in vendor code, not in our code. Once dependencies are updated, Psalm can be re-enabled.
         # psalm:
