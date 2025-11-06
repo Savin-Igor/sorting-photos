@@ -6,10 +6,16 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
+use SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
 final class GenericAdapter implements MetadataExtractorPort
 {
+    public function __construct(
+        private readonly MimeTypeDetectorWrapper $mimeTypeDetector,
+    ) {
+    }
+
     #[\Override]
     public function supports(string $mimeType): bool
     {
@@ -25,8 +31,7 @@ final class GenericAdapter implements MetadataExtractorPort
         }
 
         $fileInfo = new \SplFileInfo($filePath);
-        $mimeTypeResult = mime_content_type($filePath);
-        $mimeType = (false !== $mimeTypeResult) ? $mimeTypeResult : 'application/octet-stream';
+        $mimeType = $this->mimeTypeDetector->detectMimeType($filePath);
 
         return new MediaMeta(
             $fileInfo->getFilename(),

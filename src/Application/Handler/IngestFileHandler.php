@@ -58,7 +58,7 @@ final class IngestFileHandler
 
         // Check if already processed (idempotency)
         if ($this->repository->isProcessed($filePath, $fileSize, $fileHash)) {
-            $this->logger->info('File already processed, skipping', [
+            $this->logger->info("File already processed, skipping", [
                 'file_path' => $filePath->getPath(),
                 'hash' => $fileHash->getHash(),
             ]);
@@ -83,7 +83,7 @@ final class IngestFileHandler
             throw new \RuntimeException("Failed to save asset to repository: {$filePath->getPath()}");
         }
 
-        $this->logger->info('File ingested successfully', [
+        $this->logger->info("File ingested successfully", [
             'file_path' => $filePath->getPath(),
             'file_type' => $fileType->value,
             'hash' => $fileHash->getHash(),
@@ -92,3 +92,4 @@ final class IngestFileHandler
         return $asset;
     }
 }
+

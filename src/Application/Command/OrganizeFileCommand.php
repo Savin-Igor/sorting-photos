@@ -28,3 +28,4 @@ final class OrganizeFileCommand
         return $this->destinationBasePath;
     }
 }
+

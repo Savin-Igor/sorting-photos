@@ -7,10 +7,16 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 use Carbon\Carbon;
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
+use SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
 final class ExifAdapter implements MetadataExtractorPort
 {
+    public function __construct(
+        private readonly MimeTypeDetectorWrapper $mimeTypeDetector,
+    ) {
+    }
+
     #[\Override]
     public function supports(string $mimeType): bool
     {
@@ -30,8 +36,7 @@ final class ExifAdapter implements MetadataExtractorPort
 
         $exifData = @exif_read_data($filePath);
         $fileInfo = new \SplFileInfo($filePath);
-        $mimeTypeResult = mime_content_type($filePath);
-        $mimeType = (false !== $mimeTypeResult) ? $mimeTypeResult : 'application/octet-stream';
+        $mimeType = $this->mimeTypeDetector->detectMimeType($filePath);
 
         $width = null;
         $height = null;

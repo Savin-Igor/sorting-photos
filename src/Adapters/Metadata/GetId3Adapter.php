@@ -7,6 +7,7 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 use Carbon\Carbon;
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
+use SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
 final class GetId3Adapter implements MetadataExtractorPort
@@ -14,8 +15,10 @@ final class GetId3Adapter implements MetadataExtractorPort
     /** @var \getID3 */
     private $getId3;
 
-    public function __construct(?\getID3 $getId3 = null)
-    {
+    public function __construct(
+        private readonly MimeTypeDetectorWrapper $mimeTypeDetector,
+        ?\getID3 $getId3 = null,
+    ) {
         $this->getId3 = $getId3 ?? new \getID3();
     }
 
@@ -35,8 +38,7 @@ final class GetId3Adapter implements MetadataExtractorPort
         /** @var array<string, mixed> $fileInfo */
         $fileInfo = $this->getId3->analyze($filePath);
         $fileInfoObj = new \SplFileInfo($filePath);
-        $mimeTypeResult = mime_content_type($filePath);
-        $mimeType = (false !== $mimeTypeResult) ? $mimeTypeResult : 'application/octet-stream';
+        $mimeType = $this->mimeTypeDetector->detectMimeType($filePath);
 
         $width = null;
         $height = null;

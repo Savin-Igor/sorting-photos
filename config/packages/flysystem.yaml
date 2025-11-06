@@ -2,8 +2,31 @@
 # Note: This is a basic configuration. You can extend it with S3, FTP, etc.
 
 services:
-    # Local filesystem adapter
+    # MetadataPreservingCopier - handles file copying with metadata preservation
+    SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier:
+        arguments:
+            $filesystem: null  # Optional: can inject Flysystem FilesystemOperator if needed
+
+    # MimeTypeDetectorWrapper - wrapper around League MIME Type Detection
+    SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper:
+        arguments:
+            $detector: null  # Optional: can inject custom MimeTypeDetector if needed
+
+    # Local filesystem adapter - uses MetadataPreservingCopier
     SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter:
         arguments:
-            $root: '%env(FILESYSTEM_LOCAL_ROOT)%'
+            $copier: '@SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier'
+
+    # Metadata extractors - use MimeTypeDetectorWrapper
+    SortingPhotosByDate\Adapters\Metadata\GenericAdapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper'
+
+    SortingPhotosByDate\Adapters\Metadata\ExifAdapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper'
+
+    SortingPhotosByDate\Adapters\Metadata\GetId3Adapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper'
 

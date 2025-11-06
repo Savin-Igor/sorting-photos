@@ -21,3 +21,4 @@ final class IngestFileCommand
         return $this->filePath;
     }
 }
+
