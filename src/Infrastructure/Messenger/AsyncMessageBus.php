@@ -15,16 +15,21 @@ use Symfony\Component\Messenger\Transport\TransportFactoryInterface;
 /**
  * Async MessageBus implementation that sends messages to Redis queue.
  * Messages are routed to async transport based on message type.
+ *
+ * @param array<string, string> $messageRouting Map of message class names to transport names
  */
 final readonly class AsyncMessageBus implements MessageBusInterface
 {
     private MessageBusInterface $bus;
     private TransportInterface $transport;
 
+    /**
+     * @param array<string, string> $messageRouting Map of message class names to transport names
+     */
     public function __construct(
         private ContainerInterface $container,
         private string $transportDsn,
-        private array $messageRouting = []
+        private array $messageRouting = [],
     ) {
         $this->transport = $this->createTransport();
         $this->bus = $this->createMessageBus();
@@ -36,25 +41,24 @@ final readonly class AsyncMessageBus implements MessageBusInterface
     private function createTransport(): TransportInterface
     {
         $serializer = new PhpSerializer();
-        
+
         // Try to get Redis transport factory
         // Symfony Messenger Bridge Redis provides RedisTransportFactory
         if (class_exists(\Symfony\Component\Messenger\Bridge\Redis\Transport\RedisTransportFactory::class)) {
             $factory = new \Symfony\Component\Messenger\Bridge\Redis\Transport\RedisTransportFactory();
+
             return $factory->createTransport($this->transportDsn, [], $serializer);
         }
-        
+
         // Fallback: try to use container if factory is registered
         if ($this->container->has('messenger.transport_factory.redis')) {
-            /** @var TransportFactoryInterface $factory */
+            /** @var TransportFactoryInterface<TransportInterface> $factory */
             $factory = $this->container->get('messenger.transport_factory.redis');
+
             return $factory->createTransport($this->transportDsn, [], $serializer);
         }
-        
-        throw new \RuntimeException(
-            'Redis transport factory not found. ' .
-            'Please ensure symfony/redis-messenger is installed and RedisTransportFactory is available.'
-        );
+
+        throw new \RuntimeException('Redis transport factory not found. Please ensure symfony/redis-messenger is installed and RedisTransportFactory is available.');
     }
 
     /**
@@ -63,10 +67,14 @@ final readonly class AsyncMessageBus implements MessageBusInterface
     private function createMessageBus(): MessageBusInterface
     {
         // Create sender that routes messages to async transport
-        $sender = new class($this->transport, $this->messageRouting) implements \Symfony\Component\Messenger\Transport\Sender\SenderInterface {
+        $sender = new class ($this->transport, $this->messageRouting) implements \Symfony\Component\Messenger\Transport\Sender\SenderInterface {
+            /**
+             * @param array<string, string> $routing Map of message class names to transport names
+             */
             public function __construct(
                 private readonly TransportInterface $transport,
-                private array $routing
+                /** @var array<string, string> */
+                private array $routing,
             ) {
             }
 
@@ -77,16 +85,16 @@ final readonly class AsyncMessageBus implements MessageBusInterface
                 if (isset($this->routing[$messageClass]) && 'async' === $this->routing[$messageClass]) {
                     $this->transport->send($envelope);
                 }
-                
+
                 return $envelope;
             }
         };
 
         // Create SendersLocator that maps message types to senders
-        // SendersLocator expects: ContainerInterface $sendersContainer, array $sendersMap
-        $sendersContainer = new readonly class($sender) implements \Psr\Container\ContainerInterface {
+        // SendersLocator expects: ContainerInterface $sendersContainer, array<string, list<string>> $sendersMap
+        $sendersContainer = new readonly class ($sender) implements ContainerInterface {
             public function __construct(
-                private \Symfony\Component\Messenger\Transport\Sender\SenderInterface $sender
+                private \Symfony\Component\Messenger\Transport\Sender\SenderInterface $sender,
             ) {
             }
 
@@ -101,13 +109,20 @@ final readonly class AsyncMessageBus implements MessageBusInterface
             }
         };
 
+        // Convert array<string, string> to array<string, list<string>> format expected by SendersLocator
+        /** @var array<string, list<string>> $sendersMap */
+        $sendersMap = [];
+        foreach ($this->messageRouting as $messageClass => $transport) {
+            $sendersMap[$messageClass] = [$transport];
+        }
+
         $sendersLocator = new \Symfony\Component\Messenger\Transport\Sender\SendersLocator(
-            $this->messageRouting,
+            $sendersMap,
             $sendersContainer
         );
 
         $middleware = new SendMessageMiddleware($sendersLocator);
-        
+
         return new \Symfony\Component\Messenger\MessageBus([$middleware]);
     }
 
@@ -115,18 +130,18 @@ final readonly class AsyncMessageBus implements MessageBusInterface
     public function dispatch(object $message, array $stamps = []): Envelope
     {
         $envelope = Envelope::wrap($message, $stamps);
-        
+
         // Check routing - if message should go to async transport, send it there
         $messageClass = $message::class;
         if (isset($this->messageRouting[$messageClass]) && 'async' === $this->messageRouting[$messageClass]) {
             // Send to async transport (Redis queue)
             $this->transport->send($envelope);
+
             return $envelope;
         }
-        
+
         // For messages not routed to async, process synchronously
         // This shouldn't happen in async mode, but provides fallback
         return $this->bus->dispatch($envelope);
     }
 }
-

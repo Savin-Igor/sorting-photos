@@ -19,10 +19,12 @@ services:
         resource: '../src/Adapters/*'
 
     # Infrastructure (exclude GetId3Adapter - it's configured explicitly below)
+    # Also exclude AsyncMessageBus - it's created via factory
     SortingPhotosByDate\Infrastructure\:
         resource: '../src/Infrastructure/*'
         exclude:
             - '../src/Infrastructure/Metadata/GetId3Adapter.php'
+            - '../src/Infrastructure/Messenger/AsyncMessageBus.php'
 
     # Event Handlers
     SortingPhotosByDate\Infrastructure\Messenger\:
@@ -224,12 +226,19 @@ services:
     Psr\Container\ContainerInterface:
         alias: service_container
     
+    # Explicitly exclude AsyncMessageBus from autowiring
+    SortingPhotosByDate\Infrastructure\Messenger\AsyncMessageBus:
+        autowire: false
+        autoconfigure: false
+    
     # Temporary placeholder for MessageBusInterface (will be replaced after compilation)
     # This is needed to satisfy autowiring during container compilation
+    # If ASYNC_MODE=true, this will be replaced with AsyncMessageBus in ContainerFactory
     Symfony\Component\Messenger\MessageBusInterface:
         class: SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus
         public: true
+        autowire: false
         arguments:
             $container: '@service_container'
-        # This will be replaced with actual instance after compilation in ContainerFactory::setupMessageBus()
+        # This will be replaced with AsyncMessageBus if ASYNC_MODE=true in ContainerFactory::setupMessageBus()
 
