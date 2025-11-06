@@ -207,6 +207,7 @@ services:
     
     # Database Metadata Repository
     SortingPhotosByDate\Adapters\Repository\DatabaseMetadataRepository:
+        public: true
         arguments:
             $connection: '@Doctrine\DBAL\Connection'
         calls:
@@ -215,6 +216,7 @@ services:
     # Bind MetadataRepositoryPort interface to implementation
     SortingPhotosByDate\Ports\MetadataRepositoryPort:
         alias: SortingPhotosByDate\Adapters\Repository\DatabaseMetadataRepository
+        public: true
 
     # ============================================
     # Messenger Configuration
