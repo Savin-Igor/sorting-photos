@@ -9,3 +9,6 @@ parameters:
         - config
     checkMissingIterableValueType: false
     checkGenericClassInNonGenericObjectType: false
+    ignoreErrors:
+        - '#Access to undefined constant.*FileType::#'
+        - '#Access to undefined constant.*FileCategory::#'
