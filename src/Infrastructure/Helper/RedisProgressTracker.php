@@ -30,6 +30,7 @@ final class RedisProgressTracker
         $this->progressBar = new ProgressBar($this->output, $totalFiles);
         $this->progressBar->setFormat(' %current%/%max% [%bar%] %percent:3s%% %elapsed:6s%/%estimated:-6s% %memory:6s% | %message%');
         $this->progressBar->setMessage('Starting...');
+        $this->progressBar->setOverwrite(true);
         $this->progressBar->start();
     }
 
@@ -57,7 +58,7 @@ final class RedisProgressTracker
         );
         $this->progressBar->setMessage($message);
 
-        // Force display update
+        // Force display update (overwrite previous line)
         $this->progressBar->display();
     }
 

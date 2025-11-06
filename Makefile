@@ -24,6 +24,18 @@ up: ## Start up application with Redis (default)
 	@echo "To expose Redis port externally, edit docker-compose.yml and uncomment ports section."
 .PHONY: up
 
+up-with-workers: ## Start up application with Redis and workers (usage: make up-with-workers WORKERS=8)
+	@echo "Starting application with Redis and $${WORKERS:-8} workers..."
+	@if [ -z "$$USER_ID" ] || [ -z "$$GROUP_ID" ]; then \
+		echo "Warning: USER_ID and GROUP_ID not set. Using defaults (1000:1000)."; \
+		echo "To avoid permission issues, set them in .env file or export: export USER_ID=$$(id -u) GROUP_ID=$$(id -g)"; \
+	fi
+	${DOCKER_COMPOSE} up -d --remove-orphans
+	@sleep 2
+	@${MAKE} consume-workers WORKERS=$${WORKERS:-8}
+	@echo "Application with $${WORKERS:-8} workers is running."
+.PHONY: up-with-workers
+
 up-rabbitmq: ## Start up application with RabbitMQ instead of Redis
 	@echo "Starting application with RabbitMQ..."
 	${DOCKER_COMPOSE} --profile rabbitmq up -d --remove-orphans
@@ -80,6 +92,19 @@ run: ## Run the application (sort files)
 	${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$${SOURCE_DIRECTORY_HOST:-}" -e DESTINATION_DIRECTORY_HOST="$${DESTINATION_DIRECTORY_HOST:-}" app php index.php
 .PHONY: run
 
+run-with-workers: ## Run the application with workers (usage: make run-with-workers WORKERS=8)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up-with-workers WORKERS=$${WORKERS:-8}; \
+	fi
+	@echo "Running file sorting application with $${WORKERS:-8} workers..."
+	@echo ""
+	@echo "Using SOURCE_DIRECTORY_HOST: $${SOURCE_DIRECTORY_HOST:-./var/data/source}"
+	@echo "Using DESTINATION_DIRECTORY_HOST: $${DESTINATION_DIRECTORY_HOST:-./var/data/destination}"
+	@echo ""
+	${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$${SOURCE_DIRECTORY_HOST:-}" -e DESTINATION_DIRECTORY_HOST="$${DESTINATION_DIRECTORY_HOST:-}" app php index.php
+.PHONY: run-with-workers
+
 run-dry-run: ## Run the application in dry-run mode (no files moved)
 	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
 		echo "Containers are not running. Starting them..."; \
@@ -107,8 +132,18 @@ consume: ## Consume messages from queue (run worker)
 		${MAKE} up; \
 	fi
 	@echo "Starting message consumer..."
+	@echo "Note: Worker runs in infinite loop. Press Ctrl+C to stop."
 	${DOCKER_COMPOSE} exec app php bin/console messenger:consume -vv
 .PHONY: consume
+
+consume-test: ## Test worker with timeout (1 minute max)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Testing worker (1 minute timeout)..."
+	@timeout 60 ${DOCKER_COMPOSE} exec app php bin/console messenger:consume -vv --time-limit=10 --limit=1 2>&1 || echo "Test completed or timeout"
+.PHONY: consume-test
 
 consume-workers: ## Start multiple workers for parallel processing (usage: make consume-workers WORKERS=4)
 	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
@@ -121,7 +156,30 @@ consume-workers: ## Start multiple workers for parallel processing (usage: make 
 		${DOCKER_COMPOSE} exec -d app php bin/console messenger:consume -vv --time-limit=3600 || true; \
 	done
 	@echo "Started $${WORKERS:-4} workers. Use 'docker compose logs -f app' to monitor."
+	@echo "Use 'make workers-status' to check worker status."
+	@echo "Use 'make workers-stop' to stop all workers."
 .PHONY: consume-workers
+
+workers-status: ## Check status of running workers
+	@echo "Checking worker status..."
+	@${DOCKER_COMPOSE} exec app ps aux | grep "messenger:consume" | grep -v grep || echo "No workers running"
+.PHONY: workers-status
+
+workers-stop: ## Stop all running workers
+	@echo "Stopping all workers..."
+	@${DOCKER_COMPOSE} exec app pkill -f "messenger:consume" || echo "No workers to stop"
+	@echo "Workers stopped."
+.PHONY: workers-stop
+
+workers-logs: ## Show workers logs (usage: make workers-logs WORKER=1)
+	@if [ -z "$$WORKER" ]; then \
+		echo "Showing logs for all workers..."; \
+		${DOCKER_COMPOSE} logs app | grep -i "worker\|messenger:consume" | tail -50; \
+	else \
+		echo "Showing logs for worker $$WORKER..."; \
+		${DOCKER_COMPOSE} logs app | grep -i "worker.*$$WORKER\|messenger:consume" | tail -50; \
+	fi
+.PHONY: workers-logs
 
 ##@ Testing commands
 

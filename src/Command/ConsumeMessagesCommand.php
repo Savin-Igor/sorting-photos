@@ -77,16 +77,6 @@ final class ConsumeMessagesCommand extends Command
         // This bus will process messages through handlers without routing to async transport
         $processingBus = $this->createProcessingMessageBus();
 
-        $io->info('Starting message consumer...');
-        $this->logger->debug('Message consumer started');
-
-        // Create worker - it will get messages from receiver and dispatch them to processingBus
-        $worker = new Worker(
-            ['async' => $receiver],
-            $processingBus,
-            new \Symfony\Component\EventDispatcher\EventDispatcher()
-        );
-
         // Set limits
         $limitOption = $input->getOption('limit');
         /** @var int|null $limit */
@@ -98,7 +88,29 @@ final class ConsumeMessagesCommand extends Command
         /** @var int|null $memoryLimit */
         $memoryLimit = null !== $memoryLimitOption && '' !== $memoryLimitOption && is_numeric($memoryLimitOption) ? (int) $memoryLimitOption : null;
 
+        $io->info('Starting message consumer...');
+        $this->logger->info('Message consumer starting', [
+            'worker_id' => getmypid(),
+            'limit' => $limit,
+            'time_limit' => $timeLimit,
+            'memory_limit' => $memoryLimit,
+        ]);
+
+        // Create worker - it will get messages from receiver and dispatch them to processingBus
+        $worker = new Worker(
+            ['async' => $receiver],
+            $processingBus,
+            new \Symfony\Component\EventDispatcher\EventDispatcher()
+        );
+
+        $this->logger->info('Worker limits set', [
+            'limit' => $limit,
+            'time_limit' => $timeLimit,
+            'memory_limit' => $memoryLimit,
+        ]);
+
         try {
+            $this->logger->info('Worker starting message processing loop');
             $worker->run([
                 'limit' => $limit,
                 'time-limit' => $timeLimit,
@@ -106,12 +118,19 @@ final class ConsumeMessagesCommand extends Command
             ]);
 
             $io->success('Message consumer stopped');
-            $this->logger->debug('Message consumer stopped');
+            $this->logger->info('Message consumer stopped normally', [
+                'worker_id' => getmypid(),
+            ]);
 
             return Command::SUCCESS;
         } catch (\Throwable $e) {
             $io->error('Error consuming messages: '.$e->getMessage());
-            $this->logger->error('Error consuming messages: '.$e->getMessage(), ['exception' => $e]);
+            $this->logger->error('Error consuming messages', [
+                'error' => $e->getMessage(),
+                'exception' => $e,
+                'worker_id' => getmypid(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
             return Command::FAILURE;
         }
@@ -123,6 +142,8 @@ final class ConsumeMessagesCommand extends Command
      */
     private function createProcessingMessageBus(): MessageBusInterface
     {
+        $this->logger->debug('Creating processing message bus');
+
         // Get all message handlers from container
         $handlersMap = [];
 
@@ -130,6 +151,9 @@ final class ConsumeMessagesCommand extends Command
         if ($this->container->has(\SortingPhotosByDate\Application\Handler\IngestFileHandler::class)) {
             $handlersMap[\SortingPhotosByDate\Application\Command\IngestFileCommand::class] = [
                 function (\SortingPhotosByDate\Application\Command\IngestFileCommand $command) {
+                    $this->logger->debug('Processing IngestFileCommand', [
+                        'file_path' => $command->getFilePath()->getPath(),
+                    ]);
                     /** @var \SortingPhotosByDate\Application\Handler\IngestFileHandler $handler */
                     $handler = $this->container->get(\SortingPhotosByDate\Application\Handler\IngestFileHandler::class);
 
@@ -141,10 +165,26 @@ final class ConsumeMessagesCommand extends Command
         if ($this->container->has(\SortingPhotosByDate\Application\Handler\OrganizeFileHandler::class)) {
             $handlersMap[\SortingPhotosByDate\Application\Command\OrganizeFileCommand::class] = [
                 function (\SortingPhotosByDate\Application\Command\OrganizeFileCommand $command) {
+                    $this->logger->debug('Processing OrganizeFileCommand', [
+                        'file_path' => $command->getAsset()->getSourcePath()->getPath(),
+                    ]);
                     /** @var \SortingPhotosByDate\Application\Handler\OrganizeFileHandler $handler */
                     $handler = $this->container->get(\SortingPhotosByDate\Application\Handler\OrganizeFileHandler::class);
+                    try {
+                        $result = $handler->handle($command);
+                        $this->logger->debug('OrganizeFileCommand processed successfully', [
+                            'result_path' => $result->getPath(),
+                        ]);
 
-                    return $handler->handle($command);
+                        return $result;
+                    } catch (\Throwable $e) {
+                        $this->logger->error('Error processing OrganizeFileCommand', [
+                            'error' => $e->getMessage(),
+                            'exception' => $e,
+                            'file_path' => $command->getAsset()->getSourcePath()->getPath(),
+                        ]);
+                        throw $e;
+                    }
                 },
             ];
         }
@@ -153,6 +193,9 @@ final class ConsumeMessagesCommand extends Command
         if ($this->container->has(\SortingPhotosByDate\Infrastructure\Messenger\FileDiscoveredHandler::class)) {
             $handlersMap[\SortingPhotosByDate\Domain\Event\FileDiscovered::class] = [
                 function (\SortingPhotosByDate\Domain\Event\FileDiscovered $event): void {
+                    $this->logger->debug('Processing FileDiscovered event', [
+                        'file_path' => $event->getFilePath()->getPath(),
+                    ]);
                     /** @var \SortingPhotosByDate\Infrastructure\Messenger\FileDiscoveredHandler $handler */
                     $handler = $this->container->get(\SortingPhotosByDate\Infrastructure\Messenger\FileDiscoveredHandler::class);
                     $handler->__invoke($event);
@@ -163,6 +206,9 @@ final class ConsumeMessagesCommand extends Command
         if ($this->container->has(\SortingPhotosByDate\Infrastructure\Messenger\FileProcessedHandler::class)) {
             $handlersMap[\SortingPhotosByDate\Domain\Event\FileProcessed::class] = [
                 function (\SortingPhotosByDate\Domain\Event\FileProcessed $event): void {
+                    $this->logger->debug('Processing FileProcessed event', [
+                        'file_path' => $event->getAsset()->getSourcePath()->getPath(),
+                    ]);
                     /** @var \SortingPhotosByDate\Infrastructure\Messenger\FileProcessedHandler $handler */
                     $handler = $this->container->get(\SortingPhotosByDate\Infrastructure\Messenger\FileProcessedHandler::class);
                     $handler->__invoke($event);
@@ -173,6 +219,10 @@ final class ConsumeMessagesCommand extends Command
         if ($this->container->has(\SortingPhotosByDate\Infrastructure\Messenger\FileOrganizedHandler::class)) {
             $handlersMap[\SortingPhotosByDate\Domain\Event\FileOrganized::class] = [
                 function (\SortingPhotosByDate\Domain\Event\FileOrganized $event): void {
+                    $this->logger->debug('Processing FileOrganized event', [
+                        'source_path' => $event->getSourcePath()->getPath(),
+                        'target_path' => $event->getTargetPath()->getPath(),
+                    ]);
                     /** @var \SortingPhotosByDate\Infrastructure\Messenger\FileOrganizedHandler $handler */
                     $handler = $this->container->get(\SortingPhotosByDate\Infrastructure\Messenger\FileOrganizedHandler::class);
                     $handler->__invoke($event);
@@ -183,6 +233,10 @@ final class ConsumeMessagesCommand extends Command
         if ($this->container->has(\SortingPhotosByDate\Infrastructure\Messenger\FileErrorHandler::class)) {
             $handlersMap[\SortingPhotosByDate\Domain\Event\FileError::class] = [
                 function (\SortingPhotosByDate\Domain\Event\FileError $event): void {
+                    $this->logger->debug('Processing FileError event', [
+                        'file_path' => $event->getFilePath()->getPath(),
+                        'error' => $event->getErrorMessage(),
+                    ]);
                     /** @var \SortingPhotosByDate\Infrastructure\Messenger\FileErrorHandler $handler */
                     $handler = $this->container->get(\SortingPhotosByDate\Infrastructure\Messenger\FileErrorHandler::class);
                     $handler->__invoke($event);
@@ -193,12 +247,20 @@ final class ConsumeMessagesCommand extends Command
         if ($this->container->has(\SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::class)) {
             $handlersMap[\SortingPhotosByDate\Domain\Event\FileSkipped::class] = [
                 function (\SortingPhotosByDate\Domain\Event\FileSkipped $event): void {
+                    $this->logger->debug('Processing FileSkipped event', [
+                        'file_path' => $event->getFilePath()->getPath(),
+                        'reason' => $event->getReason(),
+                    ]);
                     /** @var \SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler $handler */
                     $handler = $this->container->get(\SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::class);
                     $handler->__invoke($event);
                 },
             ];
         }
+
+        $this->logger->debug('Processing message bus created', [
+            'handlers_count' => count($handlersMap),
+        ]);
 
         $handlersLocator = new HandlersLocator($handlersMap);
         $middleware = new HandleMessageMiddleware($handlersLocator);

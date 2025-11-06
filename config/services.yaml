@@ -13,6 +13,9 @@ services:
     SortingPhotosByDate\Application\Handler\:
         resource: '../src/Application/Handler/*'
         public: true
+        # Explicitly bind RedisStatisticsService for handlers that need it
+        bind:
+            $statistics: '@SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService'
 
     # Adapters
     SortingPhotosByDate\Adapters\:
@@ -31,6 +34,9 @@ services:
         resource: '../src/Infrastructure/Messenger/*'
         tags: ['messenger.message_handler']
         public: true
+        # Explicitly bind RedisStatisticsService for handlers that need it
+        bind:
+            $statistics: '@SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService'
     
     # FileProcessedHandler needs destinationBasePath
     SortingPhotosByDate\Infrastructure\Messenger\FileProcessedHandler:

@@ -20,6 +20,7 @@ RUN apk add --no-cache \
     bash \
     shadow \
     linux-headers \
+    supervisor \
     && rm -rf /var/cache/apk/*
 
 # Install PHP extensions
@@ -104,6 +105,12 @@ ENV UMASK=0002
 
 # Use numeric UID - Docker will use the user with this UID
 USER ${USER_ID:-33}
+
+# Create supervisor directory
+RUN mkdir -p /etc/supervisor/conf.d /var/log/supervisor
+
+# Copy supervisor config
+COPY docker/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
 
 # Default command - keep container running for exec commands
 # Use: docker compose exec app php index.php to run the application

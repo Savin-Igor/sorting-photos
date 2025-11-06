@@ -226,15 +226,12 @@ try {
                 $stalledCount = 0;
                 $lastProcessed = 0;
 
-                $output->writeln('<comment>Waiting for workers to process files...</comment>');
-                $output->writeln('');
-
                 while ($waited < $maxWait) {
                     $stats = $statisticsService->getStats();
                     $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
 
-                    // Update progress bar every 0.2 seconds
-                    if (($waited - $lastUpdate) >= 0.2) {
+                    // Update progress bar every 0.1 seconds for smoother updates
+                    if (($waited - $lastUpdate) >= 0.1) {
                         $redisProgressTracker->update();
                         $lastUpdate = $waited;
                     }
@@ -243,7 +240,7 @@ try {
                     if ($current === $lastProcessed && $current > 0) {
                         ++$stalledCount;
                         // If stalled for more than 5 seconds, check if workers are running
-                        if ($stalledCount > 25) { // 25 * 0.2 = 5 seconds
+                        if ($stalledCount > 50) { // 50 * 0.1 = 5 seconds
                             $output->writeln('');
                             $output->writeln('<comment>Processing seems stalled. Make sure workers are running:</comment>');
                             $output->writeln('<comment>  make consume-workers WORKERS=8</comment>');
@@ -260,8 +257,8 @@ try {
                         break;
                     }
 
-                    usleep(200000); // 0.2 seconds
-                    $waited += 0.2;
+                    usleep(100000); // 0.1 seconds
+                    $waited += 0.1;
                 }
 
                 $redisProgressTracker->update();
