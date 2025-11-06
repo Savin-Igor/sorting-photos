@@ -139,6 +139,7 @@ services:
             $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
     
     SortingPhotosByDate\Adapters\Metadata\GetId3Adapter:
+        public: true
         arguments:
             $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
             $metadataAnalyzer: '@SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface'
