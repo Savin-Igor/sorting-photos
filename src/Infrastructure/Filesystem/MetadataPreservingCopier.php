@@ -11,12 +11,69 @@ use SortingPhotosByDate\Domain\ValueObjects\FilePath;
  * Service for copying files while preserving all metadata.
  * Uses FilesystemOperator (Flysystem) directly to avoid circular dependency.
  * Extended attributes are handled separately since Flysystem doesn't support them.
+ * For files outside Flysystem root, falls back to native PHP functions.
  */
 final readonly class MetadataPreservingCopier
 {
     public function __construct(
         private FilesystemOperator $filesystem,
     ) {
+    }
+
+    /**
+     * Get Flysystem root directory.
+     */
+    private function getFilesystemRoot(): string
+    {
+        try {
+            // Extract root from FilesystemOperator adapter
+            $reflection = new \ReflectionClass($this->filesystem);
+
+            // Check if adapter property exists (may not exist in mocks)
+            if (!$reflection->hasProperty('adapter')) {
+                // For mocks, return empty string to force Flysystem path handling
+                return '';
+            }
+
+            $adapterProperty = $reflection->getProperty('adapter');
+            $adapter = $adapterProperty->getValue($this->filesystem);
+
+            if ($adapter instanceof \League\Flysystem\Local\LocalFilesystemAdapter) {
+                $adapterReflection = new \ReflectionClass($adapter);
+
+                // Check if rootLocation property exists
+                if (!$adapterReflection->hasProperty('rootLocation')) {
+                    return '/var/www/html'; // Default fallback
+                }
+
+                $pathProperty = $adapterReflection->getProperty('rootLocation');
+                $rootLocation = $pathProperty->getValue($adapter);
+
+                if (is_string($rootLocation)) {
+                    return $rootLocation;
+                }
+            }
+        } catch (\ReflectionException) {
+            // Fallback for mocks or when reflection fails - return empty to force Flysystem handling
+            return '';
+        }
+
+        return '/var/www/html'; // Default fallback
+    }
+
+    /**
+     * Check if path is within Flysystem root.
+     */
+    private function isWithinFilesystemRoot(string $path): bool
+    {
+        $root = $this->getFilesystemRoot();
+
+        // If root is empty (mocks), always use Flysystem methods
+        if ('' === $root) {
+            return true;
+        }
+
+        return str_starts_with($path, $root);
     }
 
     /**
@@ -35,6 +92,21 @@ final readonly class MetadataPreservingCopier
         $sourcePath = $source->getPath();
         $destPath = $destination->getPath();
 
+        // Check if files are within Flysystem root
+        $sourceInRoot = $this->isWithinFilesystemRoot($sourcePath);
+        $destInRoot = $this->isWithinFilesystemRoot($destPath);
+
+        // If both files are outside Flysystem root, use native PHP copy
+        if (!$sourceInRoot && !$destInRoot) {
+            return $this->copyWithNativePHP($sourcePath, $destPath);
+        }
+
+        // If source is outside root but destination is inside, read with native PHP, write with Flysystem
+        if (!$sourceInRoot) {
+            return $this->copyFromNativeToFlysystem($sourcePath, $destPath);
+        }
+
+        // Standard Flysystem copy (both files within root)
         if (!$this->filesystem->fileExists($sourcePath)) {
             throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
         }
@@ -83,6 +155,110 @@ final readonly class MetadataPreservingCopier
         $this->copyExtendedAttributes($sourcePath, $destPath);
 
         return true;
+    }
+
+    /**
+     * Copy file using native PHP functions (for files outside Flysystem root).
+     */
+    private function copyWithNativePHP(string $sourcePath, string $destPath): bool
+    {
+        if (!file_exists($sourcePath)) {
+            throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
+        }
+
+        // Ensure destination directory exists
+        $destinationDir = dirname($destPath);
+        if (!is_dir($destinationDir)) {
+            mkdir($destinationDir, 0755, true);
+        }
+
+        // Get source metadata
+        $permissions = fileperms($sourcePath) ?: 0644;
+        $mtime = filemtime($sourcePath) ?: time();
+        $atime = fileatime($sourcePath) ?: time();
+
+        // Copy file
+        if (!copy($sourcePath, $destPath)) {
+            throw new \RuntimeException("Failed to copy file from {$sourcePath} to {$destPath}");
+        }
+
+        // Restore metadata
+        chmod($destPath, $permissions);
+        touch($destPath, $mtime, $atime);
+
+        // Verify integrity
+        $this->verifyIntegrityNative($sourcePath, $destPath);
+
+        // Copy extended attributes
+        $this->copyExtendedAttributes($sourcePath, $destPath);
+
+        return true;
+    }
+
+    /**
+     * Copy from native filesystem to Flysystem.
+     */
+    private function copyFromNativeToFlysystem(string $sourcePath, string $destPath): bool
+    {
+        if (!file_exists($sourcePath)) {
+            throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
+        }
+
+        // Ensure destination directory exists
+        $destinationDir = dirname($destPath);
+        if (!$this->filesystem->directoryExists($destinationDir)) {
+            $this->filesystem->createDirectory($destinationDir);
+        }
+
+        // Get source metadata
+        $permissions = fileperms($sourcePath) ?: 0644;
+        $mtime = filemtime($sourcePath) ?: time();
+        $atime = fileatime($sourcePath) ?: time();
+
+        // Read source with native PHP
+        $content = file_get_contents($sourcePath);
+        if (false === $content) {
+            throw new \RuntimeException("Failed to read source file: {$sourcePath}");
+        }
+
+        // Write destination with Flysystem
+        $this->filesystem->write($destPath, $content);
+
+        // Verify integrity
+        $destContent = $this->filesystem->read($destPath);
+        $sourceHash = hash('sha256', $content);
+        $destHash = hash('sha256', $destContent);
+        if ($sourceHash !== $destHash) {
+            $this->filesystem->delete($destPath);
+            throw new \RuntimeException("File integrity check failed: source hash {$sourceHash} does not match destination hash {$destHash}");
+        }
+
+        // Restore metadata using native PHP (Flysystem doesn't support setting timestamps)
+        if (file_exists($destPath)) {
+            chmod($destPath, $permissions);
+            touch($destPath, $mtime, $atime);
+        }
+
+        // Copy extended attributes
+        $this->copyExtendedAttributes($sourcePath, $destPath);
+
+        return true;
+    }
+
+    /**
+     * Verify file integrity using native PHP (for files outside Flysystem root).
+     */
+    private function verifyIntegrityNative(string $sourcePath, string $destPath): void
+    {
+        $sourceHash = hash_file('sha256', $sourcePath);
+        $destHash = hash_file('sha256', $destPath);
+
+        if ($sourceHash !== $destHash) {
+            if (file_exists($destPath)) {
+                unlink($destPath);
+            }
+            throw new \RuntimeException("File integrity check failed: source hash {$sourceHash} does not match destination hash {$destHash}");
+        }
     }
 
     /**

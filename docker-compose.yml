@@ -3,10 +3,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
     container_name: sorting-photos-app
     volumes:
       - ./:/var/www/html
-      - ./var/data/source:/var/data/source:ro
+      # Mount source directory from host if SOURCE_DIRECTORY_HOST is set, otherwise use default
+      - ${SOURCE_DIRECTORY_HOST:-./var/data/source}:/var/data/source:ro
       - ./var/data/destination:/var/data/destination
       - ./var:/var/www/html/var
     environment:
@@ -73,6 +77,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
     container_name: sorting-photos-worker
     volumes:
       - ./:/var/www/html

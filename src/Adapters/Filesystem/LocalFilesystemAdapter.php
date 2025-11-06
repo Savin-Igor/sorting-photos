@@ -56,6 +56,15 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
         $path = $filePath->getPath();
 
         try {
+            // If path is outside Flysystem root, use native PHP
+            if (str_starts_with($path, '/') && !str_starts_with($path, $this->getFilesystemRoot())) {
+                if (!file_exists($path)) {
+                    return false;
+                }
+
+                return unlink($path);
+            }
+
             if (!$this->filesystem->fileExists($path)) {
                 return false;
             }
@@ -64,6 +73,11 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
 
             return true;
         } catch (\Exception) {
+            // Fallback to native PHP if Flysystem fails
+            if (file_exists($path)) {
+                return unlink($path);
+            }
+
             return false;
         }
     }
@@ -74,10 +88,41 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
         $path = $filePath->getPath();
 
         try {
+            // Flysystem works relative to its root, but we might get absolute paths
+            // If path is absolute and outside Flysystem root, use native PHP check
+            if (str_starts_with($path, '/') && !str_starts_with($path, $this->getFilesystemRoot())) {
+                return file_exists($path);
+            }
+
             return $this->filesystem->fileExists($path);
         } catch (\Exception) {
-            return false;
+            // Fallback to native PHP if Flysystem fails
+            return file_exists($path);
         }
+    }
+
+    /**
+     * Get Flysystem root directory.
+     */
+    private function getFilesystemRoot(): string
+    {
+        // Extract root from FilesystemOperator adapter
+        // This is a workaround - Flysystem doesn't expose root directly
+        $reflection = new \ReflectionClass($this->filesystem);
+        $adapterProperty = $reflection->getProperty('adapter');
+        $adapter = $adapterProperty->getValue($this->filesystem);
+
+        if ($adapter instanceof \League\Flysystem\Local\LocalFilesystemAdapter) {
+            $adapterReflection = new \ReflectionClass($adapter);
+            $pathProperty = $adapterReflection->getProperty('rootLocation');
+            $rootLocation = $pathProperty->getValue($adapter);
+
+            if (is_string($rootLocation)) {
+                return $rootLocation;
+            }
+        }
+
+        return '/var/www/html'; // Default fallback
     }
 
     #[\Override]
@@ -86,11 +131,25 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
         $path = $filePath->getPath();
 
         try {
-            $attributes = $this->filesystem->visibility($path);
+            // If path is outside Flysystem root, use native PHP
+            if (str_starts_with($path, '/') && !str_starts_with($path, $this->getFilesystemRoot())) {
+                $size = filesize($path);
+                if (false === $size) {
+                    throw new \RuntimeException("Failed to get file size: {$path}");
+                }
+
+                return $size;
+            }
 
             return $this->filesystem->fileSize($path);
         } catch (\Exception $e) {
-            throw new \RuntimeException("Failed to get file size: {$path}", 0, $e);
+            // Fallback to native PHP if Flysystem fails
+            $size = filesize($path);
+            if (false === $size) {
+                throw new \RuntimeException("Failed to get file size: {$path}", 0, $e);
+            }
+
+            return $size;
         }
     }
 
@@ -200,9 +259,25 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
         $path = $filePath->getPath();
 
         try {
+            // If path is outside Flysystem root, use native PHP
+            if (str_starts_with($path, '/') && !str_starts_with($path, $this->getFilesystemRoot())) {
+                $content = file_get_contents($path);
+                if (false === $content) {
+                    throw new \RuntimeException("Failed to read file: {$path}");
+                }
+
+                return $content;
+            }
+
             return $this->filesystem->read($path);
         } catch (\Exception $e) {
-            throw new \RuntimeException("Failed to read file: {$path}", 0, $e);
+            // Fallback to native PHP if Flysystem fails
+            $content = file_get_contents($path);
+            if (false === $content) {
+                throw new \RuntimeException("Failed to read file: {$path}", 0, $e);
+            }
+
+            return $content;
         }
     }
 
@@ -212,11 +287,27 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
         $path = $filePath->getPath();
 
         try {
+            // If path is outside Flysystem root, use native PHP
+            if (str_starts_with($path, '/') && !str_starts_with($path, $this->getFilesystemRoot())) {
+                $hash = hash_file('sha256', $path);
+                if (false === $hash) {
+                    throw new \RuntimeException("Failed to calculate hash for file: {$path}");
+                }
+
+                return $hash;
+            }
+
             $content = $this->filesystem->read($path);
 
             return hash('sha256', $content);
         } catch (\Exception $e) {
-            throw new \RuntimeException("Failed to calculate hash for file: {$path}", 0, $e);
+            // Fallback to native PHP if Flysystem fails
+            $hash = hash_file('sha256', $path);
+            if (false === $hash) {
+                throw new \RuntimeException("Failed to calculate hash for file: {$path}", 0, $e);
+            }
+
+            return $hash;
         }
     }
 

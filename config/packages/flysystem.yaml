@@ -69,14 +69,17 @@ services:
         arguments:
             $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
             $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
     
     SortingPhotosByDate\Adapters\Metadata\ExifAdapter:
         arguments:
             $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
             $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
     
     SortingPhotosByDate\Adapters\Metadata\GetId3Adapter:
         arguments:
             $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
             $metadataAnalyzer: '@SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface'
             $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'

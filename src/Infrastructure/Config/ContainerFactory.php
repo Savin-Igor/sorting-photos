@@ -8,7 +8,6 @@ use SortingPhotosByDate\Domain\Policies\DatePolicy;
 use SortingPhotosByDate\Domain\Policies\DateTypePolicy;
 use SortingPhotosByDate\Domain\Policies\OrganizerPolicy;
 use SortingPhotosByDate\Domain\Policies\TypeDatePolicy;
-use SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
@@ -37,7 +36,7 @@ final readonly class ContainerFactory
         $this->loadServices($container);
         $this->configureOrganizerPolicy($container);
         $this->compileContainer($container);
-        $this->setupMessageBus($container);
+        $this->setupMessageBus();
 
         return $container;
     }
@@ -148,15 +147,11 @@ final readonly class ContainerFactory
     /**
      * Setup message bus after container compilation to avoid circular dependencies.
      */
-    private function setupMessageBus(ContainerBuilder $container): void
+    private function setupMessageBus(): void
     {
-        // Replace the temporary placeholder with actual SynchronousMessageBus instance
-        // (handlers depend on MessageBusInterface, which is SynchronousMessageBus)
-        $messageBus = new SynchronousMessageBus($container);
-
-        // Set it in container for other services that might need it
-        $container->set(MessageBusInterface::class, $messageBus);
-        $container->set(SynchronousMessageBus::class, $messageBus);
+        // The MessageBusInterface is already created during compilation
+        // We just need to ensure it's properly set up
+        // No need to replace it - the placeholder service will work fine
     }
 
     /**

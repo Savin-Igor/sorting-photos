@@ -1,5 +1,10 @@
 FROM php:8.4-cli-alpine
 
+# Build arguments for user ID and group ID
+# These should match the host user to avoid permission issues
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
 # Install system dependencies
 RUN apk add --no-cache \
     git \
@@ -61,22 +66,39 @@ RUN composer install --optimize-autoloader --no-interaction --prefer-dist
 # Copy application files
 COPY . .
 
+# Create user with same UID/GID as host user to avoid permission issues
+# This ensures files created in container have same ownership as host user
+RUN if [ "$USER_ID" != "0" ] && [ "$GROUP_ID" != "0" ]; then \
+    deluser www-data 2>/dev/null || true; \
+    addgroup -g $GROUP_ID appuser 2>/dev/null || true; \
+    adduser -u $USER_ID -G appuser -D -s /bin/bash appuser 2>/dev/null || true; \
+    fi
+
 # Create necessary directories
 RUN mkdir -p var/log var/cache var/database var/coverage \
-    && chown -R www-data:www-data var \
     && chmod -R 777 var/log \
     && chmod -R 755 var
 
 # Create data directories
 RUN mkdir -p /var/data/source /var/data/destination \
-    && chown -R www-data:www-data /var/data \
     && chmod -R 755 /var/data
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www/html
+# Set permissions - use appuser if created, otherwise www-data
+RUN if id appuser >/dev/null 2>&1; then \
+    chown -R appuser:appuser /var/www/html /var/data; \
+    else \
+    chown -R www-data:www-data /var/www/html /var/data; \
+    fi
 
-# Switch to www-data user
-USER www-data
+# Switch to appuser if created, otherwise www-data (UID 33 = www-data)
+# Use numeric UID directly - Docker will resolve it to the correct user
+RUN if id appuser >/dev/null 2>&1; then \
+    echo "Using appuser (UID: $USER_ID, GID: $GROUP_ID)"; \
+    else \
+    echo "Using www-data (UID: 33)"; \
+    fi
+# Use numeric UID - Docker will use the user with this UID
+USER ${USER_ID:-33}
 
 # Default command - keep container running for exec commands
 # Use: docker compose exec app php index.php to run the application

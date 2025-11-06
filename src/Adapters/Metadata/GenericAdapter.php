@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
+use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
@@ -15,6 +16,7 @@ final readonly class GenericAdapter implements MetadataExtractorPort
     public function __construct(
         private MimeTypeDetectorInterface $mimeTypeDetector,
         private FilesystemPort $filesystem,
+        private FilenameDateExtractor $filenameDateExtractor,
     ) {
     }
 
@@ -52,7 +54,13 @@ final readonly class GenericAdapter implements MetadataExtractorPort
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
-        // Priority: mtime > ctime (using FilesystemPort)
+        // Priority 1: Extract from filename (most reliable for files without metadata)
+        $filenameDate = $this->filenameDateExtractor->extract($filePath);
+        if ($filenameDate instanceof \Carbon\Carbon) {
+            return new MediaDate($filenameDate);
+        }
+
+        // Priority 2: mtime > ctime (using FilesystemPort)
         try {
             $mtime = $this->filesystem->getModificationTime($filePathObj);
 

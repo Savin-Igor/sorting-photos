@@ -7,6 +7,7 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 use Carbon\Carbon;
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
+use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
@@ -18,6 +19,7 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
         private MimeTypeDetectorInterface $mimeTypeDetector,
         private AudioVideoMetadataAnalyzerInterface $metadataAnalyzer,
         private FilesystemPort $filesystem,
+        private FilenameDateExtractor $filenameDateExtractor,
     ) {
     }
 
@@ -113,11 +115,11 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
         /** @var array<string, mixed> $fileInfo */
         $fileInfo = $this->metadataAnalyzer->analyze($filePath);
 
-        // Priority: ID3 TDRC > ID3 TYER > mtime
+        // Priority 1: ID3 TDRC > ID3 TYER
         if (isset($fileInfo['tags']) && is_array($fileInfo['tags']) && isset($fileInfo['tags']['id3v2']) && is_array($fileInfo['tags']['id3v2']) && isset($fileInfo['tags']['id3v2']['TDRC']) && is_array($fileInfo['tags']['id3v2']['TDRC']) && isset($fileInfo['tags']['id3v2']['TDRC'][0])) {
             $dateString = (string) $fileInfo['tags']['id3v2']['TDRC'][0];
             $date = $this->parseId3Date($dateString);
-            if ($date instanceof Carbon) {
+            if ($date instanceof Carbon && $this->isValidDate($date)) {
                 return new MediaDate($date);
             }
         }
@@ -129,10 +131,24 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
             }
         }
 
-        // Fallback to file modification time using FilesystemPort
+        // Priority 2: Extract from filename (more reliable than mtime)
+        $filenameDate = $this->filenameDateExtractor->extract($filePath);
+        if ($filenameDate instanceof Carbon) {
+            return new MediaDate($filenameDate);
+        }
+
+        // Priority 3: Fallback to file modification time
         $mtime = $this->filesystem->getModificationTime($filePathObj);
 
         return MediaDate::fromTimestamp($mtime);
+    }
+
+    private function isValidDate(Carbon $date): bool
+    {
+        $year = $date->year;
+
+        // Accept dates between 1900 and 2100
+        return $year >= 1900 && $year <= 2100;
     }
 
     private function parseId3Date(string $dateString): ?Carbon

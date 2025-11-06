@@ -7,6 +7,7 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 use Carbon\Carbon;
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
+use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
@@ -16,6 +17,7 @@ final readonly class ExifAdapter implements MetadataExtractorPort
     public function __construct(
         private MimeTypeDetectorInterface $mimeTypeDetector,
         private FilesystemPort $filesystem,
+        private FilenameDateExtractor $filenameDateExtractor,
     ) {
     }
 
@@ -90,28 +92,42 @@ final readonly class ExifAdapter implements MetadataExtractorPort
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
-        // Priority: EXIF DateTimeOriginal > EXIF DateTime > mtime
+        // Priority 1: EXIF DateTimeOriginal > EXIF DateTime
         $exifData = @exif_read_data($filePath);
         if (false !== $exifData) {
             if (isset($exifData['DateTimeOriginal']) && is_string($exifData['DateTimeOriginal'])) {
                 $date = $this->parseExifDate($exifData['DateTimeOriginal']);
-                if ($date instanceof Carbon) {
+                if ($date instanceof Carbon && $this->isValidDate($date)) {
                     return new MediaDate($date);
                 }
             }
 
             if (isset($exifData['DateTime']) && is_string($exifData['DateTime'])) {
                 $date = $this->parseExifDate($exifData['DateTime']);
-                if ($date instanceof Carbon) {
+                if ($date instanceof Carbon && $this->isValidDate($date)) {
                     return new MediaDate($date);
                 }
             }
         }
 
-        // Fallback to file modification time using FilesystemPort
+        // Priority 2: Extract from filename (more reliable than mtime)
+        $filenameDate = $this->filenameDateExtractor->extract($filePath);
+        if ($filenameDate instanceof Carbon) {
+            return new MediaDate($filenameDate);
+        }
+
+        // Priority 3: Fallback to file modification time
         $mtime = $this->filesystem->getModificationTime($filePathObj);
 
         return MediaDate::fromTimestamp($mtime);
+    }
+
+    private function isValidDate(Carbon $date): bool
+    {
+        $year = $date->year;
+
+        // Accept dates between 1900 and 2100
+        return $year >= 1900 && $year <= 2100;
     }
 
     private function parseExifDate(string $dateString): ?Carbon

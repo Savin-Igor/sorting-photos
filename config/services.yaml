@@ -12,6 +12,7 @@ services:
     # Application Handlers
     SortingPhotosByDate\Application\Handler\:
         resource: '../src/Application/Handler/*'
+        public: true
 
     # Adapters
     SortingPhotosByDate\Adapters\:
@@ -25,9 +26,11 @@ services:
     SortingPhotosByDate\Infrastructure\Messenger\:
         resource: '../src/Infrastructure/Messenger/*'
         tags: ['messenger.message_handler']
+        public: true
     
     # FileProcessedHandler needs destinationBasePath
     SortingPhotosByDate\Infrastructure\Messenger\FileProcessedHandler:
+        public: true
         arguments:
             $destinationBasePath: '%app.destination_directory%'
 
@@ -86,6 +89,9 @@ services:
     # Metadata Extractor Chain Configuration
     # ============================================
     
+    # Filename Date Extractor (shared service)
+    SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor: ~
+    
     # Chain of extractors (tries ExifAdapter, GetId3Adapter, then GenericAdapter)
     SortingPhotosByDate\Infrastructure\Metadata\MetadataExtractorChain:
         arguments:
@@ -98,6 +104,29 @@ services:
     # Bind MetadataExtractorPort interface to chain
     SortingPhotosByDate\Ports\MetadataExtractorPort:
         alias: SortingPhotosByDate\Infrastructure\Metadata\MetadataExtractorChain
+    
+    # ============================================
+    # Metadata Extractors
+    # ============================================
+    
+    SortingPhotosByDate\Adapters\Metadata\GenericAdapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+    
+    SortingPhotosByDate\Adapters\Metadata\ExifAdapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+    
+    SortingPhotosByDate\Adapters\Metadata\GetId3Adapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $metadataAnalyzer: '@SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
 
     # ============================================
     # Organizer Policy Configuration
@@ -148,11 +177,15 @@ services:
     # Messenger Configuration
     # ============================================
     
+    # Alias ContainerInterface to service_container for SynchronousMessageBus
+    Psr\Container\ContainerInterface:
+        alias: service_container
+    
     # Temporary placeholder for MessageBusInterface (will be replaced after compilation)
     # This is needed to satisfy autowiring during container compilation
     Symfony\Component\Messenger\MessageBusInterface:
         class: SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus
-        public: false
+        public: true
         arguments:
             $container: '@service_container'
         # This will be replaced with actual instance after compilation in ContainerFactory::setupMessageBus()

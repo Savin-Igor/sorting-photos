@@ -9,6 +9,10 @@ DOCKER_COMPOSE:=${DOCKER} compose
 
 up: ## Start up application with Redis (default)
 	@echo "Starting application with Redis..."
+	@if [ -z "$$USER_ID" ] || [ -z "$$GROUP_ID" ]; then \
+		echo "Warning: USER_ID and GROUP_ID not set. Using defaults (1000:1000)."; \
+		echo "To avoid permission issues, set them in .env file or export: export USER_ID=$$(id -u) GROUP_ID=$$(id -g)"; \
+	fi
 	${DOCKER_COMPOSE} up -d --remove-orphans
 	@echo "Application is running. Redis is accessible within Docker network."
 	@echo "To expose Redis port externally, edit docker-compose.yml and uncomment ports section."
@@ -33,7 +37,11 @@ down: ## Stop all containers
 
 build: ## Rebuild Docker images
 	@echo "Building Docker images..."
-	${DOCKER_COMPOSE} build --no-cache
+	@if [ -z "$$USER_ID" ] || [ -z "$$GROUP_ID" ]; then \
+		echo "Warning: USER_ID and GROUP_ID not set. Using defaults (1000:1000)."; \
+		echo "To avoid permission issues, set them: export USER_ID=$$(id -u) GROUP_ID=$$(id -g)"; \
+	fi
+	USER_ID=$${USER_ID:-$$(id -u)} GROUP_ID=$${GROUP_ID:-$$(id -g)} ${DOCKER_COMPOSE} build --no-cache
 	@echo "Build complete"
 .PHONY: build
 
@@ -126,14 +134,16 @@ qa: ## Run all code quality checks
 
 ##@ Data management
 
-data-init: ## Initialize data directories
+data-init: ## Initialize data directories with correct permissions
 	@echo "Creating data directories..."
 	@mkdir -p var/data/source var/data/destination
 	@touch var/data/.gitkeep var/data/source/.gitkeep var/data/destination/.gitkeep
-	@echo "Data directories created:"
+	@chmod 755 var/data/source var/data/destination
+	@echo "Data directories created with correct permissions:"
 	@echo "  - Source: $(PWD)/var/data/source"
 	@echo "  - Destination: $(PWD)/var/data/destination"
 	@echo "Put your files to sort in var/data/source/"
+	@echo "Note: If directories were created by Docker as root, run: sudo chown -R $$(id -u):$$(id -g) var/data"
 .PHONY: data-init
 
 data-clean: ## Clean destination directory (WARNING: removes all organized files)
