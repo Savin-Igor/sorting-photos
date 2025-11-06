@@ -92,7 +92,13 @@ final readonly class ExifAdapter implements MetadataExtractorPort
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
-        // Priority 1: EXIF DateTimeOriginal > EXIF DateTime
+        // Priority 1: Extract from filename (most reliable - filename changes less often than metadata)
+        $filenameDate = $this->filenameDateExtractor->extract($filePath);
+        if ($filenameDate instanceof Carbon) {
+            return new MediaDate($filenameDate);
+        }
+
+        // Priority 2: EXIF DateTimeOriginal > EXIF DateTime
         $exifData = @exif_read_data($filePath);
         if (false !== $exifData) {
             if (isset($exifData['DateTimeOriginal']) && is_string($exifData['DateTimeOriginal'])) {
@@ -108,12 +114,6 @@ final readonly class ExifAdapter implements MetadataExtractorPort
                     return new MediaDate($date);
                 }
             }
-        }
-
-        // Priority 2: Extract from filename (more reliable than mtime)
-        $filenameDate = $this->filenameDateExtractor->extract($filePath);
-        if ($filenameDate instanceof Carbon) {
-            return new MediaDate($filenameDate);
         }
 
         // Priority 3: Fallback to file modification time

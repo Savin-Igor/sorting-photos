@@ -112,10 +112,16 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
+        // Priority 1: Extract from filename (most reliable - filename changes less often than metadata)
+        $filenameDate = $this->filenameDateExtractor->extract($filePath);
+        if ($filenameDate instanceof Carbon) {
+            return new MediaDate($filenameDate);
+        }
+
         /** @var array<string, mixed> $fileInfo */
         $fileInfo = $this->metadataAnalyzer->analyze($filePath);
 
-        // Priority 1: ID3 TDRC > ID3 TYER
+        // Priority 2: ID3 TDRC > ID3 TYER
         if (isset($fileInfo['tags']) && is_array($fileInfo['tags']) && isset($fileInfo['tags']['id3v2']) && is_array($fileInfo['tags']['id3v2']) && isset($fileInfo['tags']['id3v2']['TDRC']) && is_array($fileInfo['tags']['id3v2']['TDRC']) && isset($fileInfo['tags']['id3v2']['TDRC'][0])) {
             $dateString = (string) $fileInfo['tags']['id3v2']['TDRC'][0];
             $date = $this->parseId3Date($dateString);
@@ -129,12 +135,6 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
             if (is_numeric($year) && $year >= 1900 && $year <= 2100) {
                 return new MediaDate(Carbon::createFromDate((int) $year, 1, 1));
             }
-        }
-
-        // Priority 2: Extract from filename (more reliable than mtime)
-        $filenameDate = $this->filenameDateExtractor->extract($filePath);
-        if ($filenameDate instanceof Carbon) {
-            return new MediaDate($filenameDate);
         }
 
         // Priority 3: Fallback to file modification time
