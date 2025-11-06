@@ -223,11 +223,13 @@ sorting-photos/
 
 ### Переменные окружения
 
-Создайте файл `.env` из `.env.docker.example`:
+Создайте файл `.env` из `.env.example`:
 
 ```bash
-cp .env.docker.example .env
+cp .env.example .env
 ```
+
+**Примечание:** Файл `.env.example` содержит значения по умолчанию для Docker. Для локальной разработки настройте пути и DSN Messenger по необходимости.
 
 Ключевые переменные:
 

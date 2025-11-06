@@ -223,11 +223,13 @@ sorting-photos/
 
 ### Environment Variables
 
-Create `.env` file from `.env.docker.example`:
+Create `.env` file from `.env.example`:
 
 ```bash
-cp .env.docker.example .env
+cp .env.example .env
 ```
+
+**Note:** The `.env.example` file contains default values for Docker. For local development, adjust paths and Messenger DSN as needed.
 
 Key variables:
 
