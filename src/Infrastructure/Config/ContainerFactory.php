@@ -116,6 +116,7 @@ final readonly class ContainerFactory
                 \SortingPhotosByDate\Domain\Event\FileProcessed::class => 'async',
                 \SortingPhotosByDate\Domain\Event\FileOrganized::class => 'async',
                 \SortingPhotosByDate\Domain\Event\FileError::class => 'async',
+                \SortingPhotosByDate\Domain\Event\FileSkipped::class => 'async',
                 \SortingPhotosByDate\Application\Command\IngestFileCommand::class => 'async',
                 \SortingPhotosByDate\Application\Command\OrganizeFileCommand::class => 'async',
             ];

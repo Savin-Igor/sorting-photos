@@ -20,7 +20,7 @@ require_once __DIR__.'/vendor/autoload.php';
 
 // Load environment variables
 if (file_exists(__DIR__.'/.env')) {
-    (new Dotenv())->load(__DIR__.'/.env');
+    new Dotenv()->load(__DIR__.'/.env');
 }
 
 // Error reporting
@@ -96,11 +96,11 @@ try {
     $destinationDirectoryHost = getenv('DESTINATION_DIRECTORY_HOST') ?: ($_ENV['DESTINATION_DIRECTORY_HOST'] ?? null);
 
     // Extract host path from SOURCE_DIRECTORY_HOST if it contains colon (docker volume format)
-    if ($sourceDirectoryHost && str_contains($sourceDirectoryHost, ':')) {
-        $sourceDirectoryHost = explode(':', $sourceDirectoryHost)[0];
+    if ($sourceDirectoryHost && str_contains((string) $sourceDirectoryHost, ':')) {
+        $sourceDirectoryHost = explode(':', (string) $sourceDirectoryHost)[0];
     }
-    if ($destinationDirectoryHost && str_contains($destinationDirectoryHost, ':')) {
-        $destinationDirectoryHost = explode(':', $destinationDirectoryHost)[0];
+    if ($destinationDirectoryHost && str_contains((string) $destinationDirectoryHost, ':')) {
+        $destinationDirectoryHost = explode(':', (string) $destinationDirectoryHost)[0];
     }
 
     // Log startup information (console: important, file: detailed)
@@ -208,10 +208,37 @@ try {
     // Get updated duplicate statistics
     $finalDuplicateStats = $repository->getDuplicateStats();
 
+    // Get skipped files statistics
+    $skippedStats = [];
+    if ($container->has(SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::class)) {
+        $skippedStats = SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::getStats();
+    }
+
     // Display results
     $output->writeln('<info>=== Processing Results ===</info>');
     $output->writeln(\sprintf('Size moved to destination: <info>%s</info>', $byteFormatter->format($movedSize)));
     $output->writeln(\sprintf('Size remaining in source: <info>%s</info>', $byteFormatter->format($remainingSize)));
+
+    // Display skipped files statistics
+    if ([] !== $skippedStats && $skippedStats['total'] > 0) {
+        $output->writeln('');
+        $output->writeln(\sprintf(
+            'Files skipped: <comment>%d</comment>',
+            $skippedStats['total']
+        ));
+        if ($skippedStats['duplicates'] > 0) {
+            $output->writeln(\sprintf(
+                '  - Duplicates (same content, different path): <comment>%d</comment>',
+                $skippedStats['duplicates']
+            ));
+        }
+        if ($skippedStats['already_processed'] > 0) {
+            $output->writeln(\sprintf(
+                '  - Already processed: <comment>%d</comment>',
+                $skippedStats['already_processed']
+            ));
+        }
+    }
 
     if ($finalDuplicateStats['duplicate_files'] > 0) {
         $output->writeln(\sprintf(

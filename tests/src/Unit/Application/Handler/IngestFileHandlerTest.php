@@ -205,6 +205,14 @@ final class IngestFileHandlerTest extends TestCase
             ->expects($this->never())
             ->method('save');
 
+        // Message bus should dispatch FileSkipped event for already processed files
+        $this->messageBus
+            ->expects($this->once())
+            ->method('dispatch')
+            ->with($this->callback(fn($event): bool => $event instanceof \SortingPhotosByDate\Domain\Event\FileSkipped
+                && 'already_processed' === $event->getReason()))
+            ->willReturn(new Envelope(new \SortingPhotosByDate\Domain\Event\FileSkipped($filePath, 'already_processed')));
+
         $result = $this->handler->handle($command);
 
         $this->assertNull($result);
@@ -301,10 +309,13 @@ final class IngestFileHandlerTest extends TestCase
             ->expects($this->never())
             ->method('save');
 
-        // Message bus should not be called for duplicates
+        // Message bus should dispatch FileSkipped event for duplicates
         $this->messageBus
-            ->expects($this->never())
-            ->method('dispatch');
+            ->expects($this->once())
+            ->method('dispatch')
+            ->with($this->callback(fn($event): bool => $event instanceof \SortingPhotosByDate\Domain\Event\FileSkipped
+                && 'duplicate' === $event->getReason()))
+            ->willReturn(new Envelope(new \SortingPhotosByDate\Domain\Event\FileSkipped($filePath, 'duplicate', $existingPath->getPath())));
 
         $result = $this->handler->handle($command);
 

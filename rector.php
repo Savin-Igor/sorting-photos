@@ -11,14 +11,16 @@ return RectorConfig::configure()
         __DIR__.'/src',
         __DIR__.'/tests',
     ])
-    ->withSkip([
-        __DIR__.'/vendor',
-        __DIR__.'/config',
-        __DIR__.'/var',
-        // Skip test directories that may have legacy code
-        __DIR__.'/tests/src/Entities',
-        __DIR__.'/tests/src/Services',
-    ])
+           ->withSkip([
+               __DIR__.'/vendor',
+               __DIR__.'/config',
+               __DIR__.'/var',
+               // Skip test directories that may have legacy code
+               __DIR__.'/tests/src/Entities',
+               __DIR__.'/tests/src/Services',
+               // Skip ContainerFactory.php - first-class callable conflicts with PHPStan
+               __DIR__.'/src/Infrastructure/Config/ContainerFactory.php',
+           ])
     ->withSets([
         LevelSetList::UP_TO_PHP_84,
         SetList::CODE_QUALITY,

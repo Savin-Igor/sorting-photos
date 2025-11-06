@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Application\Handler;
 
 use SortingPhotosByDate\Application\Command\IngestFileCommand;
 use SortingPhotosByDate\Domain\Event\FileProcessed;
+use SortingPhotosByDate\Domain\Event\FileSkipped;
 use SortingPhotosByDate\Domain\MediaAsset;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
 use SortingPhotosByDate\Domain\ValueObjects\FileType;
@@ -76,6 +77,10 @@ final readonly class IngestFileHandler
                     'existing_file_size' => $existingAsset->getFileSize(),
                 ]);
 
+                // Dispatch FileSkipped event
+                $skippedEvent = new FileSkipped($filePath, 'duplicate', $existingPath->getPath());
+                $this->messageBus->dispatch($skippedEvent);
+
                 return null;
             }
             // Same path and hash - already processed, will be caught by isProcessed() check below
@@ -89,6 +94,10 @@ final readonly class IngestFileHandler
                 'file_path' => $filePath->getPath(),
                 'hash' => $fileHash->getHash(),
             ]);
+
+            // Dispatch FileSkipped event
+            $skippedEvent = new FileSkipped($filePath, 'already_processed');
+            $this->messageBus->dispatch($skippedEvent);
 
             return null;
         }

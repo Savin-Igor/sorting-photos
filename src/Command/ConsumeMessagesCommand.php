@@ -190,6 +190,16 @@ final class ConsumeMessagesCommand extends Command
             ];
         }
 
+        if ($this->container->has(\SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::class)) {
+            $handlersMap[\SortingPhotosByDate\Domain\Event\FileSkipped::class] = [
+                function (\SortingPhotosByDate\Domain\Event\FileSkipped $event): void {
+                    /** @var \SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler $handler */
+                    $handler = $this->container->get(\SortingPhotosByDate\Infrastructure\Messenger\FileSkippedHandler::class);
+                    $handler->__invoke($event);
+                },
+            ];
+        }
+
         $handlersLocator = new HandlersLocator($handlersMap);
         $middleware = new HandleMessageMiddleware($handlersLocator);
 
