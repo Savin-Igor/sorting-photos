@@ -167,8 +167,19 @@ try {
     }
     $logger->debug('Expected Final Size: '.$byteFormatter->format($expectedFinalSize));
 
+    // Initialize Redis statistics service if available and reset counters
+    $statisticsService = null;
+    if ($container->has(SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService::class)) {
+        $statisticsService = $container->get(SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService::class);
+        $statisticsService->reset();
+    }
+
+    // Check if async mode is enabled
+    $asyncMode = getenv('ASYNC_MODE') ?: ($_ENV['ASYNC_MODE'] ?? 'false');
+    $asyncMode = filter_var($asyncMode, FILTER_VALIDATE_BOOLEAN);
+
     // Create and execute ScanFilesCommand
-    $scanCommand = new ScanFilesCommand($scanner, $messageBus, $filesystem, $logger);
+    $scanCommand = new ScanFilesCommand($scanner, $messageBus, $filesystem, $logger, $statisticsService);
     $input = new ArrayInput([
         'source-directory' => $sourceDirectory,
         '--dry-run' => $dryRun,
@@ -188,15 +199,28 @@ try {
     $output->writeln('');
     $logger->debug('Scan command completed successfully');
 
-    // Check if async mode is enabled
-    $asyncMode = getenv('ASYNC_MODE') ?: ($_ENV['ASYNC_MODE'] ?? 'false');
-    $asyncMode = filter_var($asyncMode, FILTER_VALIDATE_BOOLEAN);
-
-    // Initialize Redis statistics service if available
-    $statisticsService = null;
-    if ($container->has(SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService::class)) {
-        $statisticsService = $container->get(SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService::class);
-        $statisticsService->reset();
+    // In async mode, wait a bit for messages to be processed
+    if ($asyncMode) {
+        $output->write('Waiting for async processing to complete... ');
+        $logger->debug('Waiting for async processing to complete');
+        // Wait up to 30 seconds for processing to complete
+        $maxWait = 30;
+        $waited = 0;
+        while ($waited < $maxWait) {
+            if (null !== $statisticsService) {
+                $stats = $statisticsService->getStats();
+                $total = $stats['total'];
+                $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
+                // If all files are processed, break
+                if ($total > 0 && $current >= $total) {
+                    break;
+                }
+            }
+            sleep(1);
+            ++$waited;
+        }
+        $output->writeln('<info>Done</info>');
+        $logger->debug('Async processing wait completed', ['waited_seconds' => $waited]);
     }
 
     // For synchronous processing, messages are processed immediately by SynchronousMessageBus
@@ -239,11 +263,27 @@ try {
     $output->writeln(\sprintf('Size moved to destination: <info>%s</info>', $byteFormatter->format($movedSize)));
     $output->writeln(\sprintf('Size remaining in source: <info>%s</info>', $byteFormatter->format($remainingSize)));
 
+    // Display processing statistics
+    if (null !== $statisticsService) {
+        $allStats = $statisticsService->getStats();
+        $output->writeln('');
+        $output->writeln('<info>=== Processing Statistics ===</info>');
+        $output->writeln(\sprintf('Total files: <info>%d</info>', $allStats['total']));
+        $output->writeln(\sprintf('Processed: <info>%d</info>', $allStats['processed']));
+        if ($allStats['skipped'] > 0) {
+            $output->writeln(\sprintf('Skipped: <comment>%d</comment>', $allStats['skipped']));
+        }
+        if ($allStats['errors'] > 0) {
+            $output->writeln(\sprintf('Errors: <error>%d</error>', $allStats['errors']));
+        }
+    }
+
     // Display skipped files statistics
     if ($skippedStats['total'] > 0) {
         $output->writeln('');
+        $output->writeln('<info>=== Skipped Files Details ===</info>');
         $output->writeln(\sprintf(
-            'Files skipped: <comment>%d</comment>',
+            'Total skipped: <comment>%d</comment>',
             $skippedStats['total']
         ));
         if ($skippedStats['duplicates'] > 0) {
@@ -258,6 +298,10 @@ try {
                 $skippedStats['already_processed']
             ));
         }
+    } elseif (null !== $statisticsService) {
+        // Show that no files were skipped
+        $output->writeln('');
+        $output->writeln('<info>No files were skipped</info>');
     }
 
     if ($finalDuplicateStats['duplicate_files'] > 0) {
