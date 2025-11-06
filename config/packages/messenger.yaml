@@ -10,10 +10,10 @@ framework:
                 # dsn: 'amqp://guest:guest@localhost:5672/%2f/messages'
                 dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
                 retry_strategy:
-                    max_retries: 3
-                    delay: 1000
-                    multiplier: 2.0
-                    max_delay: 60000
+                    max_retries: '%env(int:MESSENGER_MAX_RETRIES)%'
+                    delay: '%env(int:MESSENGER_RETRY_DELAY)%'
+                    multiplier: '%env(float:MESSENGER_RETRY_MULTIPLIER)%'
+                    max_delay: '%env(int:MESSENGER_RETRY_MAX_DELAY)%'
                     service: null
 
             failed:
@@ -21,11 +21,11 @@ framework:
                 dsn: 'doctrine://default?queue_name=failed'
 
         routing:
-            # Route events to async transport
-            SortingPhotosByDate\Event\FileDiscovered: async
-            SortingPhotosByDate\Event\FileProcessed: async
-            SortingPhotosByDate\Event\FileOrganized: async
-            SortingPhotosByDate\Event\FileError: async
+            # Route domain events to async transport
+            SortingPhotosByDate\Domain\Event\FileDiscovered: async
+            SortingPhotosByDate\Domain\Event\FileProcessed: async
+            SortingPhotosByDate\Domain\Event\FileOrganized: async
+            SortingPhotosByDate\Domain\Event\FileError: async
 
             # Route commands to async transport
             SortingPhotosByDate\Application\Command\IngestFileCommand: async

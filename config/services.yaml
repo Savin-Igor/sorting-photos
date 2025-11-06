@@ -24,6 +24,8 @@ services:
     SortingPhotosByDate\Infrastructure\Messenger\:
         resource: '../src/Infrastructure/Messenger/*'
         tags: ['messenger.message_handler']
+        arguments:
+            $destinationBasePath: '%app.destination_directory%'
 
     # Parameters
     parameters:
