@@ -20,7 +20,7 @@ final readonly class FileOrganizedHandler
 
     public function __invoke(FileOrganized $event): void
     {
-        $this->logger->info('File organized successfully', [
+        $this->logger->debug('File organized successfully', [
             'source_path' => $event->getSourcePath()->getPath(),
             'target_path' => $event->getTargetPath()->getPath(),
             'file_type' => $event->getAsset()->getFileType()->value,

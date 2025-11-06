@@ -71,7 +71,7 @@ final readonly class OrganizeFileHandler
 
         // Delete source file only after successful copy and verification
         if (!$this->filesystem->delete($sourcePath)) {
-            $this->logger->warning('Failed to delete source file after copy', [
+            $this->logger->debug('Failed to delete source file after copy', [
                 'source_path' => $sourcePath->getPath(),
                 'target_path' => $finalTargetPath->getPath(),
             ]);
@@ -110,7 +110,7 @@ final readonly class OrganizeFileHandler
 
         $collisionPath = new FilePath("{$directory}/{$filename}-{$hashPrefix}{$extension}");
 
-        $this->logger->info('File collision detected, using hash prefix', [
+        $this->logger->debug('File collision detected, using hash prefix', [
             'original_path' => $targetPath->getPath(),
             'collision_path' => $collisionPath->getPath(),
         ]);

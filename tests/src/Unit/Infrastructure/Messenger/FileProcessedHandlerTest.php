@@ -57,7 +57,7 @@ final class FileProcessedHandlerTest extends TestCase
 
         $this->logger
             ->expects($this->once())
-            ->method('info')
+            ->method('debug')
             ->with(
                 $this->stringContains('File processed'),
                 $this->arrayHasKey('file_path')

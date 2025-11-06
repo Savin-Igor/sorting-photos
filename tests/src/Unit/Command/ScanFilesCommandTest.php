@@ -45,6 +45,12 @@ final class ScanFilesCommandTest extends TestCase
 
         $this->scanner
             ->expects($this->once())
+            ->method('count')
+            ->with($sourceDir)
+            ->willReturn(2);
+
+        $this->scanner
+            ->expects($this->once())
             ->method('scan')
             ->with($sourceDir)
             ->willReturnCallback(function () use ($filePath1, $filePath2) {
@@ -89,6 +95,12 @@ final class ScanFilesCommandTest extends TestCase
     {
         $sourceDir = '/test/source';
         $filePath = new FilePath('/test/source/file.jpg');
+
+        $this->scanner
+            ->expects($this->once())
+            ->method('count')
+            ->with($sourceDir)
+            ->willReturn(1);
 
         $this->scanner
             ->expects($this->once())
@@ -143,13 +155,9 @@ final class ScanFilesCommandTest extends TestCase
 
         $this->scanner
             ->expects($this->once())
-            ->method('scan')
+            ->method('count')
             ->with($sourceDir)
-            ->willReturnCallback(function () {
-                if (false) {
-                    yield; // Empty generator
-                }
-            });
+            ->willReturn(0);
 
         $this->messageBus
             ->expects($this->never())
@@ -178,7 +186,7 @@ final class ScanFilesCommandTest extends TestCase
 
         $this->scanner
             ->expects($this->once())
-            ->method('scan')
+            ->method('count')
             ->with($sourceDir)
             ->willThrowException(new \RuntimeException('Scanner error'));
 
@@ -200,6 +208,12 @@ final class ScanFilesCommandTest extends TestCase
         $sourceDir = '/test/source';
         $filePath1 = new FilePath('/test/source/file1.jpg');
         $filePath2 = new FilePath('/test/source/file2.mp4');
+
+        $this->scanner
+            ->expects($this->once())
+            ->method('count')
+            ->with($sourceDir)
+            ->willReturn(2);
 
         $this->scanner
             ->expects($this->once())

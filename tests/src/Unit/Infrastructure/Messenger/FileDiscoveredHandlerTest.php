@@ -43,7 +43,7 @@ final class FileDiscoveredHandlerTest extends TestCase
 
         $this->logger
             ->expects($this->once())
-            ->method('info')
+            ->method('debug')
             ->with(
                 $this->stringContains('File discovered'),
                 $this->arrayHasKey('file_path')

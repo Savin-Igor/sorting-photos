@@ -15,7 +15,6 @@ final readonly class SymfonyFinderAdapter implements ScannerPort
     ) {
     }
 
-    #[\Override]
     public function scan(string $directory): iterable
     {
         if (!is_dir($directory)) {
@@ -31,5 +30,19 @@ final readonly class SymfonyFinderAdapter implements ScannerPort
         foreach ($files as $file) {
             yield new FilePath($file->getRealPath() ?: $file->getPathname());
         }
+    }
+
+    public function count(string $directory): int
+    {
+        if (!is_dir($directory)) {
+            throw new \InvalidArgumentException("Directory does not exist: {$directory}");
+        }
+
+        return $this->finder
+            ->files()
+            ->in($directory)
+            ->ignoreDotFiles(true)
+            ->ignoreVCS(true)
+            ->count();
     }
 }

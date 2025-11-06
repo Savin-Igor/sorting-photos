@@ -23,7 +23,7 @@ final readonly class FileDiscoveredHandler
 
     public function __invoke(FileDiscovered $event): void
     {
-        $this->logger->info('File discovered, dispatching ingest command', [
+        $this->logger->debug('File discovered, dispatching ingest command', [
             'file_path' => $event->getFilePath()->getPath(),
             'file_size' => $event->getFileSize(),
         ]);

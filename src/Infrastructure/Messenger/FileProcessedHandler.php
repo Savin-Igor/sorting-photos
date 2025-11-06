@@ -26,7 +26,7 @@ final readonly class FileProcessedHandler
     {
         $asset = $event->getAsset();
 
-        $this->logger->info('File processed, dispatching organize command', [
+        $this->logger->debug('File processed, dispatching organize command', [
             'file_path' => $asset->getSourcePath()->getPath(),
             'file_type' => $asset->getFileType()->value,
             'hash' => $asset->getHash()->getHash(),

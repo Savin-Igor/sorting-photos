@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Command;
 
 use SortingPhotosByDate\Domain\Event\FileDiscovered;
+use SortingPhotosByDate\Infrastructure\Helper\ProgressTracker;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\ScannerPort;
@@ -72,6 +73,25 @@ final class ScanFilesCommand extends Command
         }
 
         try {
+            // Count total files first for progress bar
+            $output->write('Counting files... ');
+            $totalFiles = $this->scanner->count($sourceDirectory);
+            $output->writeln(\sprintf('<info>%d files found</info>', $totalFiles));
+            $output->writeln('');
+
+            if (0 === $totalFiles) {
+                $io->warning('No files found in directory');
+                $this->logger->info('No files found in directory', [
+                    'source_directory' => $sourceDirectory,
+                ]);
+
+                return Command::SUCCESS;
+            }
+
+            // Initialize progress bar
+            $progressTracker = new ProgressTracker($output, $output->isVerbose());
+            $progressTracker->initialize($totalFiles);
+
             $files = $this->scanner->scan($sourceDirectory);
             $fileCount = 0;
             $discoveredCount = 0;
@@ -85,7 +105,9 @@ final class ScanFilesCommand extends Command
                     $this->logger->warning('File does not exist, skipping', [
                         'file_path' => $filePath->getPath(),
                     ]);
+                    $progressTracker->incrementSkipped();
                     ++$skippedCount;
+                    $progressTracker->advance('Skipped: '.basename((string) $filePath->getPath()));
                     continue;
                 }
 
@@ -97,6 +119,7 @@ final class ScanFilesCommand extends Command
                 $this->messageBus->dispatch($event);
 
                 ++$discoveredCount;
+                $progressTracker->advance('Processing: '.basename((string) $filePath->getPath()));
 
                 if (0 === $fileCount % 100) {
                     $this->logger->debug('Scanned files', [
@@ -107,14 +130,7 @@ final class ScanFilesCommand extends Command
                 }
             }
 
-            if (0 === $fileCount) {
-                $io->warning('No files found in directory');
-                $this->logger->info('No files found in directory', [
-                    'source_directory' => $sourceDirectory,
-                ]);
-
-                return Command::SUCCESS;
-            }
+            $progressTracker->finish();
 
             $io->success(\sprintf(
                 'Scan completed: %d files found, %d events published, %d skipped',
