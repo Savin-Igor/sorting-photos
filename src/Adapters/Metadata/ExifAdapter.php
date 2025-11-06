@@ -7,13 +7,15 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 use Carbon\Carbon;
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
-use SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper;
+use SortingPhotosByDate\Ports\FilesystemPort;
+use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
 final class ExifAdapter implements MetadataExtractorPort
 {
     public function __construct(
-        private readonly MimeTypeDetectorWrapper $mimeTypeDetector,
+        private readonly MimeTypeDetectorInterface $mimeTypeDetector,
+        private readonly FilesystemPort $filesystem,
     ) {
     }
 
@@ -30,13 +32,15 @@ final class ExifAdapter implements MetadataExtractorPort
             throw new \RuntimeException('EXIF extension is not available');
         }
 
-        if (!file_exists($filePath)) {
+        $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
+        if (!$this->filesystem->exists($filePathObj)) {
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
         $exifData = @exif_read_data($filePath);
         $fileInfo = new \SplFileInfo($filePath);
         $mimeType = $this->mimeTypeDetector->detectMimeType($filePath);
+        $fileSize = $this->filesystem->getSize($filePathObj);
 
         $width = null;
         $height = null;
@@ -53,7 +57,7 @@ final class ExifAdapter implements MetadataExtractorPort
         return new MediaMeta(
             $fileInfo->getFilename(),
             $mimeType,
-            $fileInfo->getSize(),
+            $fileSize,
             $width,
             $height,
             null,
@@ -67,7 +71,8 @@ final class ExifAdapter implements MetadataExtractorPort
     #[\Override]
     public function extractDate(string $filePath): MediaDate
     {
-        if (!file_exists($filePath)) {
+        $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
+        if (!$this->filesystem->exists($filePathObj)) {
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
@@ -89,11 +94,8 @@ final class ExifAdapter implements MetadataExtractorPort
             }
         }
 
-        // Fallback to file modification time
-        $mtime = filemtime($filePath);
-        if (false === $mtime) {
-            throw new \RuntimeException("Failed to get file modification time: {$filePath}");
-        }
+        // Fallback to file modification time using FilesystemPort
+        $mtime = $this->filesystem->getModificationTime($filePathObj);
 
         return MediaDate::fromTimestamp($mtime);
     }

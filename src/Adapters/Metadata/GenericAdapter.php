@@ -6,13 +6,15 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
-use SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper;
+use SortingPhotosByDate\Ports\FilesystemPort;
+use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
 final class GenericAdapter implements MetadataExtractorPort
 {
     public function __construct(
-        private readonly MimeTypeDetectorWrapper $mimeTypeDetector,
+        private readonly MimeTypeDetectorInterface $mimeTypeDetector,
+        private readonly FilesystemPort $filesystem,
     ) {
     }
 
@@ -26,36 +28,41 @@ final class GenericAdapter implements MetadataExtractorPort
     #[\Override]
     public function extract(string $filePath): MediaMeta
     {
-        if (!file_exists($filePath)) {
+        $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
+        if (!$this->filesystem->exists($filePathObj)) {
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
         $fileInfo = new \SplFileInfo($filePath);
         $mimeType = $this->mimeTypeDetector->detectMimeType($filePath);
+        $fileSize = $this->filesystem->getSize($filePathObj);
 
         return new MediaMeta(
             $fileInfo->getFilename(),
             $mimeType,
-            $fileInfo->getSize()
+            $fileSize
         );
     }
 
     #[\Override]
     public function extractDate(string $filePath): MediaDate
     {
-        if (!file_exists($filePath)) {
+        $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
+        if (!$this->filesystem->exists($filePathObj)) {
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
-        // Priority: mtime > ctime
-        $mtime = filemtime($filePath);
-        if (false !== $mtime) {
-            return MediaDate::fromTimestamp($mtime);
-        }
+        // Priority: mtime > ctime (using FilesystemPort)
+        try {
+            $mtime = $this->filesystem->getModificationTime($filePathObj);
 
-        $ctime = filectime($filePath);
-        if (false !== $ctime) {
-            return MediaDate::fromTimestamp($ctime);
+            return MediaDate::fromTimestamp($mtime);
+        } catch (\Exception $e) {
+            // Fallback to ctime if mtime fails (requires native PHP)
+            $ctime = filectime($filePath);
+            if (false !== $ctime) {
+                return MediaDate::fromTimestamp($ctime);
+            }
         }
 
         throw new \RuntimeException("Failed to get file timestamp: {$filePath}");

@@ -7,19 +7,18 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 use Carbon\Carbon;
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
-use SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper;
+use SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface;
+use SortingPhotosByDate\Ports\FilesystemPort;
+use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
 final class GetId3Adapter implements MetadataExtractorPort
 {
-    /** @var \getID3 */
-    private $getId3;
-
     public function __construct(
-        private readonly MimeTypeDetectorWrapper $mimeTypeDetector,
-        ?\getID3 $getId3 = null,
+        private readonly MimeTypeDetectorInterface $mimeTypeDetector,
+        private readonly AudioVideoMetadataAnalyzerInterface $metadataAnalyzer,
+        private readonly FilesystemPort $filesystem,
     ) {
-        $this->getId3 = $getId3 ?? new \getID3();
     }
 
     #[\Override]
@@ -31,12 +30,13 @@ final class GetId3Adapter implements MetadataExtractorPort
     #[\Override]
     public function extract(string $filePath): MediaMeta
     {
-        if (!file_exists($filePath)) {
+        $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
+        if (!$this->filesystem->exists($filePathObj)) {
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
         /** @var array<string, mixed> $fileInfo */
-        $fileInfo = $this->getId3->analyze($filePath);
+        $fileInfo = $this->metadataAnalyzer->analyze($filePath);
         $fileInfoObj = new \SplFileInfo($filePath);
         $mimeType = $this->mimeTypeDetector->detectMimeType($filePath);
 
@@ -100,12 +100,13 @@ final class GetId3Adapter implements MetadataExtractorPort
     #[\Override]
     public function extractDate(string $filePath): MediaDate
     {
-        if (!file_exists($filePath)) {
+        $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
+        if (!$this->filesystem->exists($filePathObj)) {
             throw new \InvalidArgumentException("File does not exist: {$filePath}");
         }
 
         /** @var array<string, mixed> $fileInfo */
-        $fileInfo = $this->getId3->analyze($filePath);
+        $fileInfo = $this->metadataAnalyzer->analyze($filePath);
 
         // Priority: ID3 TDRC > ID3 TYER > mtime
         if (isset($fileInfo['tags']['id3v2']['TDRC'][0])) {
@@ -123,11 +124,8 @@ final class GetId3Adapter implements MetadataExtractorPort
             }
         }
 
-        // Fallback to file modification time
-        $mtime = filemtime($filePath);
-        if (false === $mtime) {
-            throw new \RuntimeException("Failed to get file modification time: {$filePath}");
-        }
+        // Fallback to file modification time using FilesystemPort
+        $mtime = $this->filesystem->getModificationTime($filePathObj);
 
         return MediaDate::fromTimestamp($mtime);
     }

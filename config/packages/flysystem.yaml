@@ -1,32 +1,83 @@
-# Flysystem configuration
-# Note: This is a basic configuration. You can extend it with S3, FTP, etc.
+# Flysystem and vendor library configuration
+# All vendor dependencies are abstracted through interfaces
 
 services:
-    # MetadataPreservingCopier - handles file copying with metadata preservation
+    # ============================================
+    # Vendor Library Adapters (Infrastructure Layer)
+    # ============================================
+    
+    # MIME Type Detector - wraps League MIME Type Detection
+    SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorAdapter:
+        arguments:
+            $detector: null  # Will use FinfoMimeTypeDetector by default
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+    
+    # Bind interface to implementation
+    SortingPhotosByDate\Ports\MimeTypeDetectorInterface:
+        alias: SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorAdapter
+    
+    # Audio/Video Metadata Analyzer - wraps getID3
+    SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter:
+        arguments:
+            $getId3: null  # Will use \getID3() by default
+    
+    # Bind interface to implementation
+    SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface:
+        alias: SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter
+    
+    # ============================================
+    # Filesystem Configuration
+    # ============================================
+    
+    # Flysystem Local Adapter (vendor class)
+    League\Flysystem\Local\LocalFilesystemAdapter:
+        arguments:
+            $location: '%env(FILESYSTEM_LOCAL_ROOT)%'
+            $writeFlags: 0
+            $linkHandling: 0
+            $mimeTypeDetector: null
+            $visibilityConverter: null
+            $directoryVisibility: null
+    
+    # Flysystem Filesystem (vendor class)
+    League\Flysystem\Filesystem:
+        arguments:
+            $adapter: '@League\Flysystem\Local\LocalFilesystemAdapter'
+            $config: []
+    
+    # MetadataPreservingCopier - uses FilesystemPort
     SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier:
         arguments:
-            $filesystem: null  # Optional: can inject Flysystem FilesystemOperator if needed
-
-    # MimeTypeDetectorWrapper - wrapper around League MIME Type Detection
-    SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper:
-        arguments:
-            $detector: null  # Optional: can inject custom MimeTypeDetector if needed
-
-    # Local filesystem adapter - uses MetadataPreservingCopier
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $defaultDirectoryPermissions: '%env(int:FILESYSTEM_DEFAULT_DIR_PERMISSIONS)%'
+    
+    # LocalFilesystemAdapter - implements FilesystemPort using Flysystem
     SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter:
         arguments:
             $copier: '@SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier'
-
-    # Metadata extractors - use MimeTypeDetectorWrapper
+            $filesystem: '@League\Flysystem\Filesystem'
+            $defaultDirectoryPermissions: '%env(int:FILESYSTEM_DEFAULT_DIR_PERMISSIONS)%'
+    
+    # Bind FilesystemPort interface to implementation
+    SortingPhotosByDate\Ports\FilesystemPort:
+        alias: SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter
+    
+    # ============================================
+    # Metadata Extractors
+    # ============================================
+    
     SortingPhotosByDate\Adapters\Metadata\GenericAdapter:
         arguments:
-            $mimeTypeDetector: '@SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper'
-
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+    
     SortingPhotosByDate\Adapters\Metadata\ExifAdapter:
         arguments:
-            $mimeTypeDetector: '@SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper'
-
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+    
     SortingPhotosByDate\Adapters\Metadata\GetId3Adapter:
         arguments:
-            $mimeTypeDetector: '@SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorWrapper'
-
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $metadataAnalyzer: '@SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'

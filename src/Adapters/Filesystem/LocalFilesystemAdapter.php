@@ -13,6 +13,7 @@ use SortingPhotosByDate\Ports\FilesystemPort;
 /**
  * Local filesystem adapter using Flysystem.
  * All filesystem operations go through Flysystem instead of native PHP functions.
+ * Implements FilesystemPort interface.
  */
 final class LocalFilesystemAdapter implements FilesystemPort
 {
@@ -20,16 +21,10 @@ final class LocalFilesystemAdapter implements FilesystemPort
 
     public function __construct(
         private readonly MetadataPreservingCopier $copier,
-        ?FilesystemOperator $filesystem = null,
+        FilesystemOperator $filesystem,
         private readonly int $defaultDirectoryPermissions = 0755,
     ) {
-        // Create Flysystem instance if not provided
-        if (null === $filesystem) {
-            $adapter = new FlysystemLocalAdapter('/');
-            $this->filesystem = new \League\Flysystem\Filesystem($adapter);
-        } else {
-            $this->filesystem = $filesystem;
-        }
+        $this->filesystem = $filesystem;
     }
 
     #[\Override]
