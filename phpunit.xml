@@ -7,7 +7,8 @@
          convertNoticesToExceptions="true"
          convertWarningsToExceptions="true"
          processIsolation="false"
-         stopOnFailure="false">
+         stopOnFailure="false"
+         cacheResultFile="./var/.phpunit.result.cache">
 <testsuites>
     <testsuite name="Unit Tests">
         <directory suffix="Test.php">./tests/src/Unit</directory>

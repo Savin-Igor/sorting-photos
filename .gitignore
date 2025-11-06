@@ -41,6 +41,7 @@ vendor/
 ### PHP-CS-Fixer ###
 /.php-cs-fixer.cache
 .php-cs-fixer.cache
+/var/.php-cs-fixer.cache
 
 ### Psalm ###
 /.psalm/cache
@@ -50,6 +51,7 @@ vendor/
 /.phpunit.cache
 .phpunit.cache
 .phpunit.result.cache
+/var/.phpunit.result.cache
 /var/cache/
 
 ### PHPStan ###

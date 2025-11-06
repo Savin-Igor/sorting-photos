@@ -29,4 +29,4 @@ return $config->setRules(
         'phpdoc_to_comment' => false,
         'array_syntax' => ['syntax' => 'short'],
     ]
-)->setFinder($finder);
+)->setFinder($finder)->setCacheFile(__DIR__.'/var/.php-cs-fixer.cache');

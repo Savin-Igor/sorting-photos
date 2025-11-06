@@ -5,7 +5,7 @@ grumphp:
     tasks:
         phpcsfixer:
             allow_risky: true
-            cache_file: './.php-cs-fixer.cache'
+            cache_file: './var/.php-cs-fixer.cache'
             config: './.php-cs-fixer.php'
 #            rules: [
 #                    '@Symfony',
