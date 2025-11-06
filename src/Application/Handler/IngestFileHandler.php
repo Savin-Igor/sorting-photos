@@ -69,7 +69,7 @@ final readonly class IngestFileHandler
             $existingPath = $existingAsset->getSourcePath();
             if ($existingPath->getPath() !== $filePath->getPath()) {
                 // Different path, same hash - this is a duplicate
-                $this->logger->info('Duplicate file detected (same hash, different path), skipping ingestion', [
+                $this->logger->debug('Duplicate file detected (same hash, different path), skipping ingestion', [
                     'file_path' => $filePath->getPath(),
                     'file_size' => $fileSize,
                     'hash' => $fileHash->getHash(),
@@ -90,7 +90,7 @@ final readonly class IngestFileHandler
         // This check prevents reprocessing, but in async mode there's still a race condition
         // The save() method uses INSERT OR IGNORE to handle concurrent access atomically
         if ($this->repository->isProcessed($filePath, $fileSize, $fileHash)) {
-            $this->logger->info('File already processed, skipping', [
+            $this->logger->debug('File already processed, skipping', [
                 'file_path' => $filePath->getPath(),
                 'hash' => $fileHash->getHash(),
             ]);

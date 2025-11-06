@@ -10,6 +10,7 @@ use SortingPhotosByDate\Domain\Event\FileDiscovered;
 use SortingPhotosByDate\Domain\Event\FileError;
 use SortingPhotosByDate\Domain\Event\FileOrganized;
 use SortingPhotosByDate\Domain\Event\FileProcessed;
+use SortingPhotosByDate\Domain\Event\FileSkipped;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -70,6 +71,13 @@ final readonly class SynchronousMessageBus implements MessageBusInterface
                 function (FileError $event): void {
                     /** @var FileErrorHandler $handler */
                     $handler = $this->container->get(FileErrorHandler::class);
+                    $handler->__invoke($event);
+                },
+            ],
+            FileSkipped::class => [
+                function (FileSkipped $event): void {
+                    /** @var FileSkippedHandler $handler */
+                    $handler = $this->container->get(FileSkippedHandler::class);
                     $handler->__invoke($event);
                 },
             ],

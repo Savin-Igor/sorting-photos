@@ -282,7 +282,7 @@ final class OrganizeFileHandlerTest extends TestCase
 
         $this->logger
             ->expects($this->once())
-            ->method('info')
+            ->method('debug')
             ->with('Duplicate file detected, skipping organization', $this->callback(fn(array $context): bool => $context['source_path'] === $sourcePath->getPath()
                 && $context['existing_file_path'] === $existingPath->getPath()
                 && $context['hash'] === $hash->getHash()));

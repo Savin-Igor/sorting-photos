@@ -188,6 +188,43 @@ try {
     $output->writeln('');
     $logger->info('Scan command completed successfully');
 
+    // Check if async mode is enabled
+    $asyncMode = getenv('ASYNC_MODE') ?: ($_ENV['ASYNC_MODE'] ?? 'false');
+    $asyncMode = filter_var($asyncMode, FILTER_VALIDATE_BOOLEAN);
+
+    // In async mode, process messages synchronously to collect statistics
+    // This ensures skipped files are tracked even without workers running
+    if ($asyncMode && $messageBus instanceof SortingPhotosByDate\Infrastructure\Messenger\AsyncMessageBus) {
+        $output->write('Processing messages from queue to collect statistics... ');
+        $logger->info('Processing messages from queue synchronously to collect statistics');
+
+        try {
+            $receiver = $messageBus->getReceiver();
+            $processingBus = $container->get(SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus::class);
+
+            $processedCount = 0;
+            while (true) {
+                $envelopes = $receiver->get();
+                if (empty($envelopes)) {
+                    break;
+                }
+
+                foreach ($envelopes as $envelope) {
+                    $message = $envelope->getMessage();
+                    $processingBus->dispatch($message);
+                    $receiver->ack($envelope);
+                    ++$processedCount;
+                }
+            }
+
+            $output->writeln(\sprintf('<info>Done (%d messages processed)</info>', $processedCount));
+            $logger->info('Messages processed synchronously', ['count' => $processedCount]);
+        } catch (Throwable $e) {
+            $output->writeln('<comment>Warning: Could not process messages from queue</comment>');
+            $logger->warning('Could not process messages from queue', ['error' => $e->getMessage()]);
+        }
+    }
+
     // For synchronous processing, messages are processed immediately by SynchronousMessageBus
     // No need to consume separately
 
