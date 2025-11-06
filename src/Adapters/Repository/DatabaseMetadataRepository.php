@@ -126,6 +126,7 @@ SQL;
         return $this->hydrateAsset($result);
     }
 
+    #[\Override]
     public function isProcessed(FilePath $filePath, int $fileSize, FileHash $hash): bool
     {
         return null !== $this->findByPathSizeAndHash($filePath, $fileSize, $hash);
