@@ -1,0 +1,12 @@
+parameters:
+    # Application parameters (from environment variables)
+    # These will be set from environment variables in index.php if not already set
+    app.source_directory: ''
+    app.destination_directory: ''
+    app.organizer_policy: 'date-type'
+    app.dry_run: false
+    
+    # Filesystem parameters
+    app.filesystem.default_dir_permissions: 493  # 0755 in decimal
+
+

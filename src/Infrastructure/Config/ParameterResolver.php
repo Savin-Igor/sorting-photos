@@ -1,0 +1,40 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SortingPhotosByDate\Infrastructure\Config;
+
+/**
+ * Helper class for loading and resolving application parameters from environment variables.
+ */
+final readonly class ParameterResolver
+{
+    /**
+     * Resolve application parameters from environment variables with defaults.
+     *
+     * @return array<string, mixed> Array of parameter name => value
+     */
+    public static function resolveFromEnvironment(): array
+    {
+        return [
+            'app.source_directory' => self::getEnv('SOURCE_DIRECTORY', ''),
+            'app.destination_directory' => self::getEnv('DESTINATION_DIRECTORY', ''),
+            'app.organizer_policy' => self::getEnv('ORGANIZER_POLICY', 'date-type'),
+            'app.dry_run' => filter_var(self::getEnv('DRY_RUN', 'false'), FILTER_VALIDATE_BOOLEAN),
+            'app.filesystem.default_dir_permissions' => (int) self::getEnv('FILESYSTEM_DEFAULT_DIR_PERMISSIONS', '0755'),
+        ];
+    }
+
+    /**
+     * Get environment variable value or return default.
+     *
+     * @return string Environment variable value or default
+     */
+    private static function getEnv(string $name, string $default = ''): string
+    {
+        /** @var string|false $envValue */
+        $envValue = $_ENV[$name] ?? getenv($name);
+
+        return false !== $envValue ? $envValue : $default;
+    }
+}

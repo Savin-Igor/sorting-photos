@@ -54,7 +54,7 @@ services:
         arguments:
             $copier: '@SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier'
             $filesystem: '@League\Flysystem\Filesystem'
-            $defaultDirectoryPermissions: 493  # 0755 in decimal
+            $defaultDirectoryPermissions: '%app.filesystem.default_dir_permissions%'
     
     # Bind FilesystemPort interface to implementation
     SortingPhotosByDate\Ports\FilesystemPort:

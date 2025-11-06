@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 use SortingPhotosByDate\Command\ScanFilesCommand;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Infrastructure\Config\ContainerFactory;
 use SortingPhotosByDate\Infrastructure\Helper\ByteFormatter;
 use SortingPhotosByDate\Infrastructure\Helper\DirectorySizeCalculator;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\ScannerPort;
-use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
-use Symfony\Component\DependencyInjection\ContainerBuilder;
-use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\Messenger\MessageBusInterface;
 
@@ -31,42 +29,17 @@ ini_set('memory_limit', '550M');
 ini_set('display_startup_errors', '1');
 
 try {
-    // Load DI container
-    $container = new ContainerBuilder();
+    // Build and configure DI container
+    $containerFactory = new ContainerFactory(__DIR__);
+    $container = $containerFactory->build();
 
-    // Set parameters BEFORE loading YAML files
-    $container->setParameter('kernel.project_dir', __DIR__);
+    // Validate required parameters
+    $containerFactory->validateRequiredParameters($container);
 
-    // Get configuration from environment BEFORE loading services
-    $sourceDirectory = $_ENV['SOURCE_DIRECTORY'] ?? getenv('SOURCE_DIRECTORY') ?: '';
-    $destinationDirectory = $_ENV['DESTINATION_DIRECTORY'] ?? getenv('DESTINATION_DIRECTORY') ?: '';
-    $organizerPolicy = $_ENV['ORGANIZER_POLICY'] ?? getenv('ORGANIZER_POLICY') ?: 'date-type';
-    $dryRun = filter_var($_ENV['DRY_RUN'] ?? getenv('DRY_RUN') ?: 'false', FILTER_VALIDATE_BOOLEAN);
-
-    if (empty($sourceDirectory) || empty($destinationDirectory)) {
-        throw new RuntimeException('SOURCE_DIRECTORY and DESTINATION_DIRECTORY must be set in .env file or environment variables');
-    }
-
-    // Set application parameters
-    $container->setParameter('app.source_directory', $sourceDirectory);
-    $container->setParameter('app.destination_directory', $destinationDirectory);
-    $container->setParameter('app.organizer_policy', $organizerPolicy);
-    $container->setParameter('app.dry_run', $dryRun);
-
-    // Set FILESYSTEM_DEFAULT_DIR_PERMISSIONS parameter (resolve env var and convert to int)
-    $defaultDirPermissions = (int) ($_ENV['FILESYSTEM_DEFAULT_DIR_PERMISSIONS'] ?? getenv('FILESYSTEM_DEFAULT_DIR_PERMISSIONS') ?: '0755');
-    $container->setParameter('env(int:FILESYSTEM_DEFAULT_DIR_PERMISSIONS)', $defaultDirPermissions);
-
-    $loader = new YamlFileLoader($container, new FileLocator(__DIR__.'/config'));
-    $loader->load('services.yaml');
-
-    // Load flysystem configuration
-    if (file_exists(__DIR__.'/config/packages/flysystem.yaml')) {
-        $loader->load('packages/flysystem.yaml');
-    }
-
-    // Load messenger configuration if needed
-    // Note: For index.php, we'll use sync transport for immediate processing
+    // Get parameters from container
+    $sourceDirectory = $container->getParameter('app.source_directory');
+    $destinationDirectory = $container->getParameter('app.destination_directory');
+    $dryRun = $container->getParameter('app.dry_run');
 
     // Ensure var directory exists
     $varDir = __DIR__.'/var';
@@ -80,27 +53,8 @@ try {
         mkdir($logDir, 0755, true);
     }
 
-    // Configure organizer policy based on environment variable
-    $policyClass = match ($organizerPolicy) {
-        'date-type' => SortingPhotosByDate\Domain\Policies\DateTypePolicy::class,
-        'date' => SortingPhotosByDate\Domain\Policies\DatePolicy::class,
-        'type-date' => SortingPhotosByDate\Domain\Policies\TypeDatePolicy::class,
-        default => SortingPhotosByDate\Domain\Policies\DateTypePolicy::class,
-    };
-
-    // Override policy alias before compiling
-    $container->setAlias(SortingPhotosByDate\Domain\Policies\OrganizerPolicy::class, $policyClass);
-
-    // Compile container
-    $container->compile();
-
-    // Create SynchronousMessageBus manually after compilation to avoid circular dependency
-    // (handlers depend on MessageBusInterface, which is SynchronousMessageBus)
-    $messageBus = new SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus($container);
-
-    // Set it in container for other services that might need it
-    $container->set(MessageBusInterface::class, $messageBus);
-    $container->set(SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus::class, $messageBus);
+    // Get message bus from container
+    $messageBus = $container->get(MessageBusInterface::class);
 
     // Get services after compilation
     $logger = $container->get(LoggerPort::class);
