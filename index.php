@@ -91,16 +91,36 @@ try {
         $filesystem->ensureDirectory($destinationPath);
     }
 
+    // Try to get host paths from environment (for display purposes)
+    $sourceDirectoryHost = getenv('SOURCE_DIRECTORY_HOST') ?: ($_ENV['SOURCE_DIRECTORY_HOST'] ?? null);
+    $destinationDirectoryHost = getenv('DESTINATION_DIRECTORY_HOST') ?: ($_ENV['DESTINATION_DIRECTORY_HOST'] ?? null);
+
+    // Extract host path from SOURCE_DIRECTORY_HOST if it contains colon (docker volume format)
+    if ($sourceDirectoryHost && str_contains($sourceDirectoryHost, ':')) {
+        $sourceDirectoryHost = explode(':', $sourceDirectoryHost)[0];
+    }
+    if ($destinationDirectoryHost && str_contains($destinationDirectoryHost, ':')) {
+        $destinationDirectoryHost = explode(':', $destinationDirectoryHost)[0];
+    }
+
     // Log startup information (console: important, file: detailed)
     $logger->info('=== File Sorting Application Started ===');
-    $logger->debug('Source Directory: '.$sourceDirectory);
-    $logger->debug('Destination Directory: '.$destinationDirectory);
+    $logger->debug('Source Directory (host): '.($sourceDirectoryHost ?? 'N/A'));
+    $logger->debug('Source Directory (container): '.$sourceDirectory);
+    $logger->debug('Destination Directory (host): '.($destinationDirectoryHost ?? 'N/A'));
+    $logger->debug('Destination Directory (container): '.$destinationDirectory);
     $logger->debug('Dry Run Mode: '.($dryRun ? 'YES' : 'NO'));
 
     // Display startup info in console
     $output->writeln('<info>=== File Sorting Application Started ===</info>');
-    $output->writeln(\sprintf('Source: <comment>%s</comment>', $sourceDirectory));
-    $output->writeln(\sprintf('Destination: <comment>%s</comment>', $destinationDirectory));
+    if ($sourceDirectoryHost) {
+        $output->writeln(\sprintf('Source (host): <info>%s</info>', $sourceDirectoryHost));
+    }
+    $output->writeln(\sprintf('Source (container): <comment>%s</comment>', $sourceDirectory));
+    if ($destinationDirectoryHost) {
+        $output->writeln(\sprintf('Destination (host): <info>%s</info>', $destinationDirectoryHost));
+    }
+    $output->writeln(\sprintf('Destination (container): <comment>%s</comment>', $destinationDirectory));
     if ($dryRun) {
         $output->writeln('<comment>Running in DRY-RUN mode</comment>');
     }
