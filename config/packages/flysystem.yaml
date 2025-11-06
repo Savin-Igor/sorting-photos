@@ -49,7 +49,6 @@ services:
     SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier:
         arguments:
             $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
-            $defaultDirectoryPermissions: '%env(int:FILESYSTEM_DEFAULT_DIR_PERMISSIONS)%'
     
     # LocalFilesystemAdapter - implements FilesystemPort using Flysystem
     SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter:

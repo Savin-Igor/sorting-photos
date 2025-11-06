@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Application\Handler;
 
 use SortingPhotosByDate\Application\Command\IngestFileCommand;
+use SortingPhotosByDate\Domain\Event\FileProcessed;
 use SortingPhotosByDate\Domain\MediaAsset;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
 use SortingPhotosByDate\Domain\ValueObjects\FileType;
@@ -12,6 +13,7 @@ use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 use SortingPhotosByDate\Ports\MetadataRepositoryPort;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 /**
  * Handler for IngestFileCommand.
@@ -24,6 +26,7 @@ final readonly class IngestFileHandler
         private MetadataExtractorPort $metadataExtractor,
         private MetadataRepositoryPort $repository,
         private LoggerPort $logger,
+        private MessageBusInterface $messageBus,
     ) {
     }
 
@@ -89,6 +92,10 @@ final readonly class IngestFileHandler
             'file_type' => $fileType->value,
             'hash' => $fileHash->getHash(),
         ]);
+
+        // Dispatch FileProcessed event
+        $event = new FileProcessed($asset);
+        $this->messageBus->dispatch($event);
 
         return $asset;
     }

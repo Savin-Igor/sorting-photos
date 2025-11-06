@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sorting-photos-app
+    volumes:
+      - ./:/var/www/html
+      - ./var/data/source:/var/data/source:ro
+      - ./var/data/destination:/var/data/destination
+      - ./var:/var/www/html/var
+    environment:
+      - SOURCE_DIRECTORY=${SOURCE_DIRECTORY:-/var/data/source}
+      - DESTINATION_DIRECTORY=${DESTINATION_DIRECTORY:-/var/data/destination}
+      - ORGANIZER_POLICY=${ORGANIZER_POLICY:-date-type}
+      - DRY_RUN=${DRY_RUN:-false}
+      - MESSENGER_TRANSPORT_DSN=${MESSENGER_TRANSPORT_DSN:-redis://redis:6379/messages}
+      - MESSENGER_MAX_RETRIES=${MESSENGER_MAX_RETRIES:-3}
+      - MESSENGER_RETRY_DELAY=${MESSENGER_RETRY_DELAY:-1000}
+      - MESSENGER_RETRY_MULTIPLIER=${MESSENGER_RETRY_MULTIPLIER:-2}
+      - MESSENGER_RETRY_MAX_DELAY=${MESSENGER_RETRY_MAX_DELAY:-10000}
+      - FILESYSTEM_LOCAL_ROOT=${FILESYSTEM_LOCAL_ROOT:-/var/www/html}
+      - FILESYSTEM_DEFAULT_DIR_PERMISSIONS=${FILESYSTEM_DEFAULT_DIR_PERMISSIONS:-0755}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - sorting-photos-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: sorting-photos-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - sorting-photos-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: sorting-photos-rabbitmq
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - sorting-photos-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - rabbitmq
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sorting-photos-worker
+    volumes:
+      - ./:/var/www/html
+      - ./var/data/source:/var/data/source:ro
+      - ./var/data/destination:/var/data/destination
+      - ./var:/var/www/html/var
+    environment:
+      - SOURCE_DIRECTORY=${SOURCE_DIRECTORY:-/var/data/source}
+      - DESTINATION_DIRECTORY=${DESTINATION_DIRECTORY:-/var/data/destination}
+      - ORGANIZER_POLICY=${ORGANIZER_POLICY:-date-type}
+      - DRY_RUN=${DRY_RUN:-false}
+      - MESSENGER_TRANSPORT_DSN=${MESSENGER_TRANSPORT_DSN:-redis://redis:6379/messages}
+      - MESSENGER_MAX_RETRIES=${MESSENGER_MAX_RETRIES:-3}
+      - MESSENGER_RETRY_DELAY=${MESSENGER_RETRY_DELAY:-1000}
+      - MESSENGER_RETRY_MULTIPLIER=${MESSENGER_RETRY_MULTIPLIER:-2}
+      - MESSENGER_RETRY_MAX_DELAY=${MESSENGER_RETRY_MAX_DELAY:-10000}
+      - FILESYSTEM_LOCAL_ROOT=${FILESYSTEM_LOCAL_ROOT:-/var/www/html}
+      - FILESYSTEM_DEFAULT_DIR_PERMISSIONS=${FILESYSTEM_DEFAULT_DIR_PERMISSIONS:-0755}
+    depends_on:
+      redis:
+        condition: service_healthy
+      app:
+        condition: service_started
+    networks:
+      - sorting-photos-network
+    restart: unless-stopped
+    command: php bin/console messenger:consume async -vv --time-limit=3600
+    profiles:
+      - worker
+
+volumes:
+  redis-data:
+  rabbitmq-data:
+
+networks:
+  sorting-photos-network:
+    driver: bridge

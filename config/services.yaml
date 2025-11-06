@@ -27,6 +27,134 @@ services:
         arguments:
             $destinationBasePath: '%app.destination_directory%'
 
+    # ============================================
+    # Logger Configuration
+    # ============================================
+    
+    # Monolog Logger
+    Monolog\Logger:
+        arguments:
+            $name: 'file-sorter'
+            $handlers:
+                - '@monolog.handler.console'
+                - '@monolog.handler.file'
+    
+    monolog.handler.console:
+        class: Monolog\Handler\StreamHandler
+        arguments:
+            $stream: 'php://stdout'
+            $level: !php/const Monolog\Logger::INFO
+    
+    monolog.handler.file:
+        class: Monolog\Handler\StreamHandler
+        arguments:
+            $stream: '%kernel.project_dir%/var/log/app.log'
+            $level: !php/const Monolog\Logger::DEBUG
+    
+    # Bind LoggerPort interface to MonologAdapter
+    SortingPhotosByDate\Ports\LoggerPort:
+        alias: SortingPhotosByDate\Adapters\Logger\MonologAdapter
+    
+    SortingPhotosByDate\Adapters\Logger\MonologAdapter:
+        arguments:
+            $logger: '@Monolog\Logger'
+
+    # ============================================
+    # Scanner Configuration
+    # ============================================
+    
+    # Symfony Finder
+    Symfony\Component\Finder\Finder:
+        factory: ['Symfony\Component\Finder\Finder', 'create']
+    
+    # Bind ScannerPort interface to SymfonyFinderAdapter
+    SortingPhotosByDate\Ports\ScannerPort:
+        alias: SortingPhotosByDate\Adapters\Scanner\SymfonyFinderAdapter
+    
+    SortingPhotosByDate\Adapters\Scanner\SymfonyFinderAdapter:
+        arguments:
+            $finder: '@Symfony\Component\Finder\Finder'
+
+    # ============================================
+    # Metadata Extractor Chain Configuration
+    # ============================================
+    
+    # Chain of extractors (tries ExifAdapter, GetId3Adapter, then GenericAdapter)
+    SortingPhotosByDate\Infrastructure\Metadata\MetadataExtractorChain:
+        arguments:
+            $extractors:
+                - '@SortingPhotosByDate\Adapters\Metadata\ExifAdapter'
+                - '@SortingPhotosByDate\Adapters\Metadata\GetId3Adapter'
+                - '@SortingPhotosByDate\Adapters\Metadata\GenericAdapter'
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+    
+    # Bind MetadataExtractorPort interface to chain
+    SortingPhotosByDate\Ports\MetadataExtractorPort:
+        alias: SortingPhotosByDate\Infrastructure\Metadata\MetadataExtractorChain
+
+    # ============================================
+    # Organizer Policy Configuration
+    # ============================================
+    
+    # Policy factory based on configuration
+    SortingPhotosByDate\Domain\Policies\DateTypePolicy:
+        arguments:
+            $baseDirectory: '%app.destination_directory%'
+    
+    SortingPhotosByDate\Domain\Policies\DatePolicy:
+        arguments:
+            $baseDirectory: '%app.destination_directory%'
+    
+    SortingPhotosByDate\Domain\Policies\TypeDatePolicy:
+        arguments:
+            $baseDirectory: '%app.destination_directory%'
+    
+    # Select policy based on configuration (default: DateTypePolicy)
+    SortingPhotosByDate\Domain\Policies\OrganizerPolicy:
+        alias: SortingPhotosByDate\Domain\Policies\DateTypePolicy
+        # Override in index.php based on ORGANIZER_POLICY env var
+
+    # ============================================
+    # Repository Configuration
+    # ============================================
+    
+    # Doctrine DBAL Connection
+    Doctrine\DBAL\Connection:
+        factory: ['Doctrine\DBAL\DriverManager', 'getConnection']
+        arguments:
+            - 
+                driver: 'pdo_sqlite'
+                path: '%kernel.project_dir%/var/database.sqlite'
+    
+    # Database Metadata Repository
+    SortingPhotosByDate\Adapters\Repository\DatabaseMetadataRepository:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+        calls:
+            - ['initializeSchema', []]
+    
+    # Bind MetadataRepositoryPort interface to implementation
+    SortingPhotosByDate\Ports\MetadataRepositoryPort:
+        alias: SortingPhotosByDate\Adapters\Repository\DatabaseMetadataRepository
+
+    # ============================================
+    # Messenger Configuration
+    # ============================================
+    
+    # Synchronous MessageBus for index.php
+    SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus:
+        arguments:
+            $ingestHandler: '@SortingPhotosByDate\Application\Handler\IngestFileHandler'
+            $organizeHandler: '@SortingPhotosByDate\Application\Handler\OrganizeFileHandler'
+            $fileDiscoveredHandler: '@SortingPhotosByDate\Infrastructure\Messenger\FileDiscoveredHandler'
+            $fileProcessedHandler: '@SortingPhotosByDate\Infrastructure\Messenger\FileProcessedHandler'
+            $fileOrganizedHandler: '@SortingPhotosByDate\Infrastructure\Messenger\FileOrganizedHandler'
+            $fileErrorHandler: '@SortingPhotosByDate\Infrastructure\Messenger\FileErrorHandler'
+    
+    # Bind MessageBusInterface to SynchronousMessageBus for index.php
+    Symfony\Component\Messenger\MessageBusInterface:
+        alias: SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus
+    
     # Parameters
     parameters:
         kernel.project_dir: '%kernel.project_dir%'

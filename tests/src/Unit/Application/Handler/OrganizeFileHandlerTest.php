@@ -16,12 +16,15 @@ use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
+use Symfony\Component\Messenger\Envelope;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 final class OrganizeFileHandlerTest extends TestCase
 {
     private \PHPUnit\Framework\MockObject\MockObject $filesystem;
     private \PHPUnit\Framework\MockObject\MockObject $policy;
     private \PHPUnit\Framework\MockObject\MockObject $logger;
+    private \PHPUnit\Framework\MockObject\MockObject $messageBus;
     private OrganizeFileHandler $handler;
 
     protected function setUp(): void
@@ -29,11 +32,13 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->filesystem = $this->createMock(FilesystemPort::class);
         $this->policy = $this->createMock(OrganizerPolicy::class);
         $this->logger = $this->createMock(LoggerPort::class);
+        $this->messageBus = $this->createMock(MessageBusInterface::class);
 
         $this->handler = new OrganizeFileHandler(
             $this->filesystem,
             $this->policy,
-            $this->logger
+            $this->logger,
+            $this->messageBus
         );
     }
 
@@ -46,7 +51,8 @@ final class OrganizeFileHandlerTest extends TestCase
         $destinationBasePath = new FilePath('/destination');
         $targetPath = new FilePath('/destination/2025/11/images/file.jpg');
 
-        $hash = FileHash::fromFile($tempFile);
+        $hashString = hash('sha256', 'test content');
+        $hash = new FileHash($hashString);
         $asset = new MediaAsset(
             $sourcePath,
             FileType::IMAGE,
@@ -66,17 +72,19 @@ final class OrganizeFileHandlerTest extends TestCase
         // Create temporary target file for hash verification
         $targetTempFile = sys_get_temp_dir().'/target_file_'.uniqid().'.jpg';
 
+        $existsCallCount = 0;
         $this->filesystem
             ->expects($this->exactly(3))
             ->method('exists')
-            ->willReturnCallback(function (FilePath $path) use ($targetPath, $sourcePath, $targetTempFile): bool {
-                // First call: check target path (doesn't exist)
-                if ($path->getPath() === $targetPath->getPath()) {
+            ->willReturnCallback(function (FilePath $path) use ($targetPath, $sourcePath, &$existsCallCount): bool {
+                ++$existsCallCount;
+                // First call: check target path (doesn't exist) - in resolveCollision
+                if (1 === $existsCallCount && $path->getPath() === $targetPath->getPath()) {
                     return false;
                 }
 
                 // Second and third calls: check source and target paths after copy (both exist for hash verification)
-                return $path->getPath() === $sourcePath->getPath() || file_exists($targetTempFile);
+                return $path->getPath() === $sourcePath->getPath() || $path->getPath() === $targetPath->getPath();
             });
 
         $this->filesystem
@@ -91,10 +99,26 @@ final class OrganizeFileHandlerTest extends TestCase
             });
 
         $this->filesystem
+            ->expects($this->exactly(2))
+            ->method('calculateHash')
+            ->willReturnCallback(function (FilePath $path) use ($sourcePath, $targetPath, $hashString): string {
+                // Return hash for both source and target
+                return $hashString;
+            });
+
+        $this->filesystem
             ->expects($this->once())
             ->method('delete')
             ->with($sourcePath)
             ->willReturn(true);
+
+        $this->messageBus
+            ->expects($this->once())
+            ->method('dispatch')
+            ->with($this->isInstanceOf(\SortingPhotosByDate\Domain\Event\FileOrganized::class))
+            ->willReturnCallback(function ($message) {
+                return Envelope::wrap($message);
+            });
 
         $result = $this->handler->handle($command);
 
@@ -114,9 +138,10 @@ final class OrganizeFileHandlerTest extends TestCase
         $destinationBasePath = new FilePath('/destination');
         $targetPath = new FilePath('/destination/2025/11/images/file.jpg');
 
-        $hash = FileHash::fromFile($tempFile);
+        $hashString = hash('sha256', 'test content');
+        $hash = new FileHash($hashString);
         $shortHash = $hash->getShortHash(8);
-        new FilePath("/destination/2025/11/images/file-{$shortHash}.jpg");
+        $collisionPath = new FilePath("/destination/2025/11/images/file-{$shortHash}.jpg");
 
         $asset = new MediaAsset(
             $sourcePath,
@@ -138,27 +163,22 @@ final class OrganizeFileHandlerTest extends TestCase
         $collisionTempFile = sys_get_temp_dir().'/collision_'.uniqid().'.jpg';
 
         $callCount = 0;
+        $copyDone = false;
         $this->filesystem
             ->method('exists')
-            ->willReturnCallback(function (FilePath $path) use ($targetPath, $sourcePath, $shortHash, $collisionTempFile, $tempFile, &$callCount): bool {
+            ->willReturnCallback(function (FilePath $path) use ($targetPath, $sourcePath, $collisionPath, &$callCount, &$copyDone): bool {
                 ++$callCount;
                 // First call: check target path (exists) - in resolveCollision
                 if (1 === $callCount && $path->getPath() === $targetPath->getPath()) {
                     return true;
                 }
                 // Second call: check collision path (doesn't exist) - in resolveCollision
-                if (2 === $callCount && str_contains($path->getPath(), $shortHash)) {
+                if (2 === $callCount && $path->getPath() === $collisionPath->getPath()) {
                     return false;
                 }
-                // Third call: check source path after copy (exists) - before verifyHash
-                if (3 === $callCount && $path->getPath() === $sourcePath->getPath()) {
-                    return true;
-                }
-                // Fourth call: check collision path after copy (exists - create temp file) - before verifyHash
-                if (4 === $callCount && str_contains($path->getPath(), $shortHash)) {
-                    copy($tempFile, $collisionTempFile);
-
-                    return true;
+                // After copyWithMetadata is called, both files should exist
+                if ($copyDone) {
+                    return $path->getPath() === $sourcePath->getPath() || $path->getPath() === $collisionPath->getPath();
                 }
 
                 return false;
@@ -167,23 +187,37 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->filesystem
             ->expects($this->once())
             ->method('copyWithMetadata')
-            ->with($sourcePath, $this->callback(function (FilePath $path) use ($shortHash, $tempFile, $collisionTempFile): bool {
-                if (str_contains($path->getPath(), $shortHash)) {
-                    // Create file at collision path location for hash verification
-                    copy($tempFile, $collisionTempFile);
-
-                    return true;
-                }
-
-                return false;
+            ->with($sourcePath, $this->callback(function (FilePath $path) use ($collisionPath, &$copyDone): bool {
+                $copyDone = true;
+                return $path->getPath() === $collisionPath->getPath();
             }))
             ->willReturn(true);
+
+        $this->filesystem
+            ->expects($this->exactly(2))
+            ->method('calculateHash')
+            ->willReturnCallback(function (FilePath $path) use ($sourcePath, $collisionPath, $hashString): string {
+                // Return hash for both source and collision target
+                if ($path->getPath() === $sourcePath->getPath() || $path->getPath() === $collisionPath->getPath()) {
+                    return $hashString;
+                }
+
+                return $hashString;
+            });
 
         $this->filesystem
             ->expects($this->once())
             ->method('delete')
             ->with($sourcePath)
             ->willReturn(true);
+
+        $this->messageBus
+            ->expects($this->once())
+            ->method('dispatch')
+            ->with($this->isInstanceOf(\SortingPhotosByDate\Domain\Event\FileOrganized::class))
+            ->willReturnCallback(function ($message) {
+                return Envelope::wrap($message);
+            });
 
         $result = $this->handler->handle($command);
 
@@ -205,7 +239,8 @@ final class OrganizeFileHandlerTest extends TestCase
         $destinationBasePath = new FilePath('/destination');
         $targetPath = new FilePath('/destination/2025/11/images/file.jpg');
 
-        $hash = FileHash::fromFile($tempFile);
+        $hashString = hash('sha256', 'test content');
+        $hash = new FileHash($hashString);
         $asset = new MediaAsset(
             $sourcePath,
             FileType::IMAGE,

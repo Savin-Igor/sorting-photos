@@ -1,0 +1,17 @@
+vendor/
+var/
+.git/
+.gitignore
+.env
+.env.local
+.env.*.local
+*.log
+*.cache
+data/
+.DS_Store
+Thumbs.db
+docker-compose.yml
+Dockerfile
+.dockerignore
+Makefile
+

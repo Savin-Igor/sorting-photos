@@ -4,12 +4,27 @@
 declare(strict_types=1);
 
 use Symfony\Component\Console\Application;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+use Symfony\Component\Config\FileLocator;
 
 require_once __DIR__.'/../vendor/autoload.php';
 
+// Load DI container
+$container = new ContainerBuilder();
+$loader = new YamlFileLoader($container, new FileLocator(__DIR__.'/../config'));
+$loader->load('services.yaml');
+
+// Compile container
+$container->compile();
+
+// Create console application
 $application = new Application('File Sorter', '1.0.0');
 
-// Commands will be auto-registered via services.yaml
+// Register commands from container
+foreach ($container->findTaggedServiceIds('console.command') as $id => $tags) {
+    $command = $container->get($id);
+    $application->add($command);
+}
 
 $application->run();
-

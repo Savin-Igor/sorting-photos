@@ -16,6 +16,11 @@ recup_dir*/
 /source/
 /destination/
 /var/
+!/var/.gitkeep
+!/var/*/
+!/var/*/.gitkeep
+!/var/*/*/
+!/var/*/*/.gitkeep
 
 # Log files
 *.log

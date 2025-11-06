@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Application\Handler;
 
 use SortingPhotosByDate\Application\Command\OrganizeFileCommand;
+use SortingPhotosByDate\Domain\Event\FileOrganized;
 use SortingPhotosByDate\Domain\Policies\OrganizerPolicy;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 /**
  * Handler for OrganizeFileCommand.
@@ -20,6 +22,7 @@ final readonly class OrganizeFileHandler
         private FilesystemPort $filesystem,
         private OrganizerPolicy $policy,
         private LoggerPort $logger,
+        private MessageBusInterface $messageBus,
     ) {
     }
 
@@ -58,6 +61,10 @@ final readonly class OrganizeFileHandler
             'target_path' => $finalTargetPath->getPath(),
             'hash' => $asset->getHash()->getHash(),
         ]);
+
+        // Dispatch FileOrganized event
+        $event = new FileOrganized($asset, $sourcePath, $finalTargetPath);
+        $this->messageBus->dispatch($event);
 
         return $finalTargetPath;
     }

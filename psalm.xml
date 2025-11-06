@@ -27,30 +27,5 @@
                 <file name="src/Infrastructure/Metadata/GetId3Adapter.php" />
             </errorLevel>
         </UndefinedClass>
-        <UndefinedDocblockClass>
-            <errorLevel type="suppress">
-                <file name="src/Infrastructure/Metadata/GetId3Adapter.php" />
-            </errorLevel>
-        </UndefinedDocblockClass>
-        <MixedAssignment>
-            <errorLevel type="suppress">
-                <file name="src/Infrastructure/Metadata/GetId3Adapter.php" />
-            </errorLevel>
-        </MixedAssignment>
-        <TypeDoesNotContainType>
-            <errorLevel type="suppress">
-                <file name="src/Infrastructure/Filesystem/MetadataPreservingCopier.php" />
-            </errorLevel>
-        </TypeDoesNotContainType>
-        <RedundantCondition>
-            <errorLevel type="suppress">
-                <file name="src/Infrastructure/Filesystem/MetadataPreservingCopier.php" />
-            </errorLevel>
-        </RedundantCondition>
-        <MixedArgument>
-            <errorLevel type="suppress">
-                <file name="src/Infrastructure/Filesystem/MetadataPreservingCopier.php" />
-            </errorLevel>
-        </MixedArgument>
     </issueHandlers>
 </psalm>

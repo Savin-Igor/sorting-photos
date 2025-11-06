@@ -23,6 +23,10 @@ final class DatabaseMetadataRepositoryTest extends TestCase
 
     protected function setUp(): void
     {
+        if (!\extension_loaded('pdo_sqlite')) {
+            $this->markTestSkipped('SQLite extension is not available');
+        }
+
         // Use in-memory SQLite for testing
         $this->connection = DriverManager::getConnection([
             'driver' => 'pdo_sqlite',

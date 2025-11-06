@@ -16,6 +16,8 @@ use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 use SortingPhotosByDate\Ports\MetadataRepositoryPort;
+use Symfony\Component\Messenger\Envelope;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 final class IngestFileHandlerTest extends TestCase
 {
@@ -23,6 +25,7 @@ final class IngestFileHandlerTest extends TestCase
     private \PHPUnit\Framework\MockObject\MockObject $metadataExtractor;
     private \PHPUnit\Framework\MockObject\MockObject $repository;
     private \PHPUnit\Framework\MockObject\MockObject $logger;
+    private \PHPUnit\Framework\MockObject\MockObject $messageBus;
     private IngestFileHandler $handler;
 
     protected function setUp(): void
@@ -31,12 +34,14 @@ final class IngestFileHandlerTest extends TestCase
         $this->metadataExtractor = $this->createMock(MetadataExtractorPort::class);
         $this->repository = $this->createMock(MetadataRepositoryPort::class);
         $this->logger = $this->createMock(LoggerPort::class);
+        $this->messageBus = $this->createMock(MessageBusInterface::class);
 
         $this->handler = new IngestFileHandler(
             $this->filesystem,
             $this->metadataExtractor,
             $this->repository,
-            $this->logger
+            $this->logger,
+            $this->messageBus
         );
     }
 
@@ -104,6 +109,14 @@ final class IngestFileHandlerTest extends TestCase
             ->method('save')
             ->with($this->isInstanceOf(MediaAsset::class))
             ->willReturn(true);
+
+        $this->messageBus
+            ->expects($this->once())
+            ->method('dispatch')
+            ->with($this->isInstanceOf(\SortingPhotosByDate\Domain\Event\FileProcessed::class))
+            ->willReturnCallback(function ($message) {
+                return Envelope::wrap($message);
+            });
 
         $result = $this->handler->handle($command);
 
