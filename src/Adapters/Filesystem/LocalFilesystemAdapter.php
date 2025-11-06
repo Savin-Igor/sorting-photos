@@ -62,7 +62,8 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
                     return false;
                 }
 
-                return unlink($path);
+                // Suppress warnings for read-only file systems (files are already copied)
+                return @unlink($path);
             }
 
             if (!$this->filesystem->fileExists($path)) {
@@ -75,7 +76,8 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
         } catch (\Exception) {
             // Fallback to native PHP if Flysystem fails
             if (file_exists($path)) {
-                return unlink($path);
+                // Suppress warnings for read-only file systems (files are already copied)
+                return @unlink($path);
             }
 
             return false;
