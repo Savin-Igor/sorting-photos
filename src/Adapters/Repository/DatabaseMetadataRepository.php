@@ -173,6 +173,67 @@ SQL;
         }
     }
 
+    #[\Override]
+    public function getDuplicateStats(): array
+    {
+        try {
+            // Count total files
+            $totalFilesResult = $this->connection->fetchOne('SELECT COUNT(*) FROM '.self::TABLE_NAME);
+            $totalFiles = is_numeric($totalFilesResult) ? (int) $totalFilesResult : 0;
+
+            // Count unique hashes
+            $uniqueFilesResult = $this->connection->fetchOne('SELECT COUNT(DISTINCT file_hash) FROM '.self::TABLE_NAME);
+            $uniqueFiles = is_numeric($uniqueFilesResult) ? (int) $uniqueFilesResult : 0;
+
+            // Count duplicates (files with hash that appears more than once)
+            $duplicateFiles = $totalFiles - $uniqueFiles;
+
+            // Calculate total size of duplicate files
+            // Sum all file sizes where hash appears more than once, excluding the first occurrence
+            $duplicateSize = 0;
+            if ($duplicateFiles > 0) {
+                // Get all hashes that appear more than once
+                $duplicateHashes = $this->connection->fetchFirstColumn(
+                    'SELECT file_hash FROM '.self::TABLE_NAME.'
+                    GROUP BY file_hash
+                    HAVING COUNT(*) > 1'
+                );
+
+                // For each duplicate hash, sum sizes of all files except the first one
+                foreach ($duplicateHashes as $hash) {
+                    $duplicateRows = $this->connection->fetchAllAssociative(
+                        'SELECT id, file_size FROM '.self::TABLE_NAME.'
+                            WHERE file_hash = ?
+                            ORDER BY id ASC',
+                        [$hash]
+                    );
+
+                    // Skip first occurrence, sum the rest
+                    if (count($duplicateRows) > 1) {
+                        foreach (array_slice($duplicateRows, 1) as $row) {
+                            $rowSize = $row['file_size'] ?? 0;
+                            $duplicateSize += is_numeric($rowSize) ? (int) $rowSize : 0;
+                        }
+                    }
+                }
+            }
+
+            return [
+                'total_files' => $totalFiles,
+                'unique_files' => $uniqueFiles,
+                'duplicate_files' => $duplicateFiles,
+                'duplicate_size' => $duplicateSize,
+            ];
+        } catch (\Exception) {
+            return [
+                'total_files' => 0,
+                'unique_files' => 0,
+                'duplicate_files' => 0,
+                'duplicate_size' => 0,
+            ];
+        }
+    }
+
     /**
      * @param array<string, mixed> $row
      */

@@ -68,4 +68,11 @@ interface MetadataRepositoryPort
      * @return bool True on success
      */
     public function clearAll(): bool;
+
+    /**
+     * Get statistics about duplicates.
+     *
+     * @return array{total_files: int, unique_files: int, duplicate_files: int, duplicate_size: int}
+     */
+    public function getDuplicateStats(): array;
 }

@@ -55,6 +55,10 @@ final readonly class ContainerFactory
     private function setKernelParameters(ContainerBuilder $container): void
     {
         $container->setParameter('kernel.project_dir', $this->projectDir);
+
+        // Generate log file name with timestamp for each run
+        $logFileName = date('Y-m-d_H-i-s').'.log';
+        $container->setParameter('app.log_file', $logFileName);
     }
 
     /**

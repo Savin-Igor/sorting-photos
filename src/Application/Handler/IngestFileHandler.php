@@ -64,8 +64,9 @@ final readonly class IngestFileHandler
         $existingAsset = $this->repository->findByHash($fileHash);
         if ($existingAsset instanceof MediaAsset) {
             // File with same hash already exists - this is a duplicate
-            $this->logger->warning('Duplicate file detected, skipping', [
+            $this->logger->debug('Duplicate file detected, skipping ingestion', [
                 'file_path' => $filePath->getPath(),
+                'file_size' => $fileSize,
                 'hash' => $fileHash->getHash(),
                 'existing_file_path' => $existingAsset->getSourcePath()->getPath(),
                 'existing_file_size' => $existingAsset->getFileSize(),
@@ -76,7 +77,7 @@ final readonly class IngestFileHandler
 
         // Check if already processed (idempotency - same path, size, hash)
         if ($this->repository->isProcessed($filePath, $fileSize, $fileHash)) {
-            $this->logger->info('File already processed, skipping', [
+            $this->logger->debug('File already processed, skipping', [
                 'file_path' => $filePath->getPath(),
                 'hash' => $fileHash->getHash(),
             ]);
@@ -112,7 +113,7 @@ final readonly class IngestFileHandler
             throw new \RuntimeException("Failed to save asset to repository: {$filePath->getPath()}");
         }
 
-        $this->logger->info('File ingested successfully', [
+        $this->logger->debug('File ingested successfully', [
             'file_path' => $filePath->getPath(),
             'file_type' => $fileType->value,
             'hash' => $fileHash->getHash(),

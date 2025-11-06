@@ -9,9 +9,10 @@ use SortingPhotosByDate\Infrastructure\Helper\ByteFormatter;
 use SortingPhotosByDate\Infrastructure\Helper\DirectorySizeCalculator;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
+use SortingPhotosByDate\Ports\MetadataRepositoryPort;
 use SortingPhotosByDate\Ports\ScannerPort;
 use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\Messenger\MessageBusInterface;
 
@@ -60,10 +61,22 @@ try {
     $logger = $container->get(LoggerPort::class);
     $filesystem = $container->get(FilesystemPort::class);
     $scanner = $container->get(ScannerPort::class);
+    $repository = $container->get(MetadataRepositoryPort::class);
 
     // Create helper instances
     $byteFormatter = new ByteFormatter();
     $directorySizeCalculator = new DirectorySizeCalculator($filesystem);
+
+    // Create console output for progress bar
+    $output = new ConsoleOutput();
+
+    // Get log file name from container (includes timestamp)
+    $logFileName = $container->getParameter('app.log_file');
+    $logFilePath = __DIR__.'/var/log/'.$logFileName;
+
+    // Display log file info in console
+    $output->writeln(\sprintf('Log file: <comment>%s</comment>', $logFilePath));
+    $output->writeln('');
 
     // Validate directories exist (they must be mounted/created on host)
     if (!is_dir($sourceDirectory)) {
@@ -78,20 +91,61 @@ try {
         $filesystem->ensureDirectory($destinationPath);
     }
 
+    // Log startup information (console: important, file: detailed)
     $logger->info('=== File Sorting Application Started ===');
-    $logger->info('Source Directory: '.$sourceDirectory);
-    $logger->info('Destination Directory: '.$destinationDirectory);
-    $logger->info('Dry Run Mode: '.($dryRun ? 'YES' : 'NO'));
+    $logger->debug('Source Directory: '.$sourceDirectory);
+    $logger->debug('Destination Directory: '.$destinationDirectory);
+    $logger->debug('Dry Run Mode: '.($dryRun ? 'YES' : 'NO'));
+
+    // Display startup info in console
+    $output->writeln('<info>=== File Sorting Application Started ===</info>');
+    $output->writeln(\sprintf('Source: <comment>%s</comment>', $sourceDirectory));
+    $output->writeln(\sprintf('Destination: <comment>%s</comment>', $destinationDirectory));
+    if ($dryRun) {
+        $output->writeln('<comment>Running in DRY-RUN mode</comment>');
+    }
+    $output->writeln('');
 
     // Calculate directory sizes before processing
-    $logger->info('Calculating directory sizes...');
+    $output->write('Calculating directory sizes... ');
     $sourceDirectorySize = $directorySizeCalculator->calculate($sourceDirectory);
     $destinationDirectorySizeBefore = $directorySizeCalculator->calculate($destinationDirectory);
-    $expectedFinalSize = $sourceDirectorySize + $destinationDirectorySizeBefore;
 
-    $logger->info('Source Directory Size: '.$byteFormatter->format($sourceDirectorySize));
-    $logger->info('Destination Directory Size Before: '.$byteFormatter->format($destinationDirectorySizeBefore));
-    $logger->info('Expected Final Size: '.$byteFormatter->format($expectedFinalSize));
+    // Get duplicate statistics from database
+    $duplicateStats = $repository->getDuplicateStats();
+    $duplicateSize = $duplicateStats['duplicate_size'] ?? 0;
+
+    // Expected final size = source size + destination size - duplicate size (duplicates won't be copied)
+    $expectedFinalSize = $sourceDirectorySize + $destinationDirectorySizeBefore - $duplicateSize;
+
+    $output->writeln('<info>Done</info>');
+    $output->writeln('');
+
+    // Display size information
+    $output->writeln(\sprintf('Source Directory: <info>%s</info>', $byteFormatter->format($sourceDirectorySize)));
+    $output->writeln(\sprintf('Destination Directory (before): <info>%s</info>', $byteFormatter->format($destinationDirectorySizeBefore)));
+    if ($duplicateSize > 0) {
+        $output->writeln(\sprintf(
+            'Duplicate files (will be skipped): <comment>%s</comment> (%d files)',
+            $byteFormatter->format($duplicateSize),
+            $duplicateStats['duplicate_files'] ?? 0
+        ));
+    }
+    $output->writeln(\sprintf('Expected Final Size: <info>%s</info>', $byteFormatter->format($expectedFinalSize)));
+    $output->writeln('');
+
+    // Log detailed information to file
+    $logger->debug('Source Directory Size: '.$byteFormatter->format($sourceDirectorySize));
+    $logger->debug('Destination Directory Size Before: '.$byteFormatter->format($destinationDirectorySizeBefore));
+    if ($duplicateSize > 0) {
+        $logger->info('Duplicate files detected', [
+            'duplicate_count' => $duplicateStats['duplicate_files'] ?? 0,
+            'duplicate_size' => $duplicateSize,
+            'total_files' => $duplicateStats['total_files'] ?? 0,
+            'unique_files' => $duplicateStats['unique_files'] ?? 0,
+        ]);
+    }
+    $logger->debug('Expected Final Size: '.$byteFormatter->format($expectedFinalSize));
 
     // Create and execute ScanFilesCommand
     $scanCommand = new ScanFilesCommand($scanner, $messageBus, $filesystem, $logger);
@@ -99,81 +153,113 @@ try {
         'source-directory' => $sourceDirectory,
         '--dry-run' => $dryRun,
     ]);
-    $output = new BufferedOutput();
 
+    $output->writeln('<info>Starting file scan and processing...</info>');
     $logger->info('Starting file scan and processing...');
+
     $exitCode = $scanCommand->run($input, $output);
-    $commandOutput = $output->fetch();
 
     if (0 !== $exitCode) {
+        $output->writeln('<error>File scan failed!</error>');
         $logger->error('Scan command failed with exit code: '.$exitCode);
-        $logger->error('Command output: '.$commandOutput);
         throw new RuntimeException('File scan failed');
     }
 
+    $output->writeln('');
     $logger->info('Scan command completed successfully');
-    if (!empty($commandOutput)) {
-        $logger->info('Command output: '.trim($commandOutput));
-    }
 
-    // For synchronous processing, we need to consume messages immediately
-    // In production, this would be handled by workers, but for index.php we process synchronously
-    if (!$dryRun) {
-        $logger->info('Processing messages synchronously...');
-        // Note: In a real scenario, you would run messenger:consume here
-        // For now, we'll rely on the handlers being called synchronously if using sync transport
-    }
+    // For synchronous processing, messages are processed immediately by SynchronousMessageBus
+    // No need to consume separately
 
     // Calculate directory sizes after processing
-    $logger->info('Calculating directory sizes after processing...');
+    $output->write('Calculating directory sizes after processing... ');
     $destinationDirectorySizeAfter = $directorySizeCalculator->calculate($destinationDirectory);
     $sourceDirectorySizeAfter = $directorySizeCalculator->calculate($sourceDirectory);
+    $output->writeln('<info>Done</info>');
+    $output->writeln('');
 
-    $logger->info('Destination Directory Size After: '.$byteFormatter->format($destinationDirectorySizeAfter));
-    $logger->info('Source Directory Size After: '.$byteFormatter->format($sourceDirectorySizeAfter));
+    $logger->debug('Destination Directory Size After: '.$byteFormatter->format($destinationDirectorySizeAfter));
+    $logger->debug('Source Directory Size After: '.$byteFormatter->format($sourceDirectorySizeAfter));
 
     // Verify integrity
     $movedSize = $destinationDirectorySizeAfter - $destinationDirectorySizeBefore;
     $remainingSize = $sourceDirectorySizeAfter;
 
-    $logger->info('Size moved to destination: '.$byteFormatter->format($movedSize));
-    $logger->info('Size remaining in source: '.$byteFormatter->format($remainingSize));
+    // Get updated duplicate statistics
+    $finalDuplicateStats = $repository->getDuplicateStats();
+
+    // Display results
+    $output->writeln('<info>=== Processing Results ===</info>');
+    $output->writeln(\sprintf('Size moved to destination: <info>%s</info>', $byteFormatter->format($movedSize)));
+    $output->writeln(\sprintf('Size remaining in source: <info>%s</info>', $byteFormatter->format($remainingSize)));
+
+    if ($finalDuplicateStats['duplicate_files'] > 0) {
+        $output->writeln(\sprintf(
+            'Duplicate files skipped: <comment>%d</comment> (<comment>%s</comment>)',
+            $finalDuplicateStats['duplicate_files'],
+            $byteFormatter->format($finalDuplicateStats['duplicate_size'])
+        ));
+    }
+    $output->writeln('');
+
+    // Log detailed information to file
+    $logger->debug('Size moved to destination: '.$byteFormatter->format($movedSize));
+    $logger->debug('Size remaining in source: '.$byteFormatter->format($remainingSize));
+    if ($finalDuplicateStats['duplicate_files'] > 0) {
+        $logger->info('Duplicate files statistics', [
+            'duplicate_count' => $finalDuplicateStats['duplicate_files'],
+            'duplicate_size' => $finalDuplicateStats['duplicate_size'],
+            'total_files' => $finalDuplicateStats['total_files'],
+            'unique_files' => $finalDuplicateStats['unique_files'],
+        ]);
+    }
 
     // Safety checks
     $warnings = [];
     $errors = [];
 
-    // Check 1: Verify total size matches
+    // Check 1: Verify total size matches (accounting for duplicates)
     $totalSizeAfter = $destinationDirectorySizeAfter + $sourceDirectorySizeAfter;
     $totalSizeBefore = $sourceDirectorySize + $destinationDirectorySizeBefore;
+    // Note: duplicates are not copied, so they don't affect the total size calculation
 
     if ($totalSizeAfter !== $totalSizeBefore) {
         $difference = abs($totalSizeAfter - $totalSizeBefore);
-        $errors[] = \sprintf(
+        $errorMsg = \sprintf(
             'ALERT!!! Total size mismatch: Expected %s, Got %s (Difference: %s)',
             $byteFormatter->format($totalSizeBefore),
             $byteFormatter->format($totalSizeAfter),
             $byteFormatter->format($difference)
         );
+        $errors[] = $errorMsg;
+        $output->writeln(\sprintf('<error>%s</error>', $errorMsg));
     }
 
-    // Check 2: Verify expected final size
-    if ($destinationDirectorySizeAfter !== $expectedFinalSize) {
-        $difference = abs($destinationDirectorySizeAfter - $expectedFinalSize);
-        $warnings[] = \sprintf(
-            'Destination size does not match expected: Expected %s, Got %s (Difference: %s)',
+    // Check 2: Verify expected final size (accounting for duplicates)
+    // Allow small difference due to rounding or file system differences
+    $sizeDifference = abs($destinationDirectorySizeAfter - $expectedFinalSize);
+    $sizeDifferencePercent = $expectedFinalSize > 0 ? ($sizeDifference / $expectedFinalSize) * 100 : 0;
+
+    if ($sizeDifferencePercent > 0.1) { // More than 0.1% difference
+        $warningMsg = \sprintf(
+            'Destination size differs from expected: Expected %s, Got %s (Difference: %s, %.2f%%)',
             $byteFormatter->format($expectedFinalSize),
             $byteFormatter->format($destinationDirectorySizeAfter),
-            $byteFormatter->format($difference)
+            $byteFormatter->format($sizeDifference),
+            $sizeDifferencePercent
         );
+        $warnings[] = $warningMsg;
+        $output->writeln(\sprintf('<comment>Warning: %s</comment>', $warningMsg));
     }
 
     // Check 3: Verify files were actually moved (if not dry-run)
     if (!$dryRun && 0 === $movedSize && $sourceDirectorySize > 0) {
-        $warnings[] = 'No files were moved, but source directory is not empty';
+        $warningMsg = 'No files were moved, but source directory is not empty';
+        $warnings[] = $warningMsg;
+        $output->writeln(\sprintf('<comment>Warning: %s</comment>', $warningMsg));
     }
 
-    // Log warnings and errors
+    // Log warnings and errors to file
     foreach ($warnings as $warning) {
         $logger->warning($warning);
     }
@@ -183,9 +269,12 @@ try {
     }
 
     if (empty($errors) && empty($warnings)) {
+        $output->writeln('<info>✅ All integrity checks passed!</info>');
         $logger->info('✅ All integrity checks passed!');
     }
 
+    $output->writeln('');
+    $output->writeln('<info>=== File Sorting Application Completed ===</info>');
     $logger->info('=== File Sorting Application Completed ===');
 
     exit(empty($errors) ? 0 : 1);

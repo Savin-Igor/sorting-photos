@@ -40,26 +40,50 @@ services:
     # Logger Configuration
     # ============================================
     
-    # Monolog Logger (only console handler to avoid file permission issues)
-    Monolog\Logger:
-        arguments:
-            $name: 'file-sorter'
-            $handlers:
-                - '@monolog.handler.console'
-                # File handler disabled temporarily to avoid permission issues
-                # - '@monolog.handler.file'
-    
+    # Console handler - only important messages (INFO and above)
     monolog.handler.console:
         class: Monolog\Handler\StreamHandler
         arguments:
             $stream: 'php://stdout'
             $level: !php/const Monolog\Logger::INFO
+        calls:
+            - ['setFormatter', ['@monolog.formatter.console']]
     
+    # File handler - all detailed messages (DEBUG and above)
+    # Log file name includes timestamp for each run (e.g., 2025-11-06_15-30-45.log)
     monolog.handler.file:
         class: Monolog\Handler\StreamHandler
         arguments:
-            $stream: '%kernel.project_dir%/var/log/app.log'
+            $stream: '%kernel.project_dir%/var/log/%app.log_file%'
             $level: !php/const Monolog\Logger::DEBUG
+        calls:
+            - ['setFormatter', ['@monolog.formatter.file']]
+    
+    # Console formatter - colored, structured output
+    monolog.formatter.console:
+        class: Monolog\Formatter\LineFormatter
+        arguments:
+            $format: "%datetime% | %level_name% | %message%\n"
+            $dateFormat: 'Y-m-d H:i:s'
+            $allowInlineLineBreaks: false
+            $ignoreEmptyContextAndExtra: true
+    
+    # File formatter - detailed JSON-like format
+    monolog.formatter.file:
+        class: Monolog\Formatter\LineFormatter
+        arguments:
+            $format: "[%datetime%] %channel%.%level_name%: %message% %context% %extra%\n"
+            $dateFormat: 'Y-m-d\TH:i:sP'
+            $allowInlineLineBreaks: true
+            $ignoreEmptyContextAndExtra: false
+    
+    # Monolog Logger with both handlers
+    Monolog\Logger:
+        arguments:
+            $name: 'file-sorter'
+            $handlers:
+                - '@monolog.handler.console'
+                - '@monolog.handler.file'
     
     # Bind LoggerPort interface to MonologAdapter
     SortingPhotosByDate\Ports\LoggerPort:
