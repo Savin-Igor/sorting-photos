@@ -21,11 +21,6 @@
         </ignoreFiles>
     </projectFiles>
     <issueHandlers>
-        <MissingConstructor>
-            <errorLevel type="suppress">
-                <directory name="src/Domain/ValueObjects" />
-            </errorLevel>
-        </MissingConstructor>
         <UndefinedClass>
             <errorLevel type="suppress">
                 <file name="src/Adapters/Metadata/GetId3Adapter.php" />

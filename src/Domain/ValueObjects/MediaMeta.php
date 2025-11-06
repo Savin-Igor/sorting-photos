@@ -73,7 +73,7 @@ final class MediaMeta
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     public function getAdditionalMetadata(): array
     {

@@ -15,6 +15,7 @@ final class SymfonyFinderAdapter implements ScannerPort
     ) {
     }
 
+    #[\Override]
     public function scan(string $directory): iterable
     {
         if (!is_dir($directory)) {

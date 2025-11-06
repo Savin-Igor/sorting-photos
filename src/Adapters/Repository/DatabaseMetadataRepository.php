@@ -163,7 +163,7 @@ SQL;
             null !== $row['metadata_json'] ? json_decode($row['metadata_json'], true, 512, JSON_THROW_ON_ERROR) : []
         );
 
-        $date = \SortingPhotosByDate\Domain\ValueObjects\MediaDate::fromString($row['date_taken']);
+        $date = \SortingPhotosByDate\Domain\ValueObjects\MediaDate::fromString((string) $row['date_taken']);
 
         return new MediaAsset($sourcePath, $fileType, $metadata, $date, $hash);
     }
