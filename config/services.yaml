@@ -109,6 +109,19 @@ services:
     # Metadata Extractors
     # ============================================
     
+    # GetID3 library instance
+    JamesHeinrich\GetID3\GetID3: ~
+    
+    # GetID3 Adapter for AudioVideoMetadataAnalyzerInterface
+    SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter:
+        arguments:
+            $getId3: '@JamesHeinrich\GetID3\GetID3'
+    
+    # Bind AudioVideoMetadataAnalyzerInterface to GetId3Adapter
+    SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface:
+        alias: SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter
+        public: true
+    
     SortingPhotosByDate\Adapters\Metadata\GenericAdapter:
         arguments:
             $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
