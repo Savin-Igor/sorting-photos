@@ -50,14 +50,14 @@ final class OrganizeFileHandler
 
         // Delete source file only after successful copy and verification
         if (!$this->filesystem->delete($sourcePath)) {
-            $this->logger->warning('Failed to delete source file after copy', [
+            $this->logger->warning("Failed to delete source file after copy", [
                 'source_path' => $sourcePath->getPath(),
                 'target_path' => $finalTargetPath->getPath(),
             ]);
             // Don't throw exception - file is already copied
         }
 
-        $this->logger->info('File organized successfully', [
+        $this->logger->info("File organized successfully", [
             'source_path' => $sourcePath->getPath(),
             'target_path' => $finalTargetPath->getPath(),
             'hash' => $asset->getHash()->getHash(),
@@ -78,13 +78,13 @@ final class OrganizeFileHandler
         // File exists - create collision path with hash prefix
         $pathInfo = pathinfo($targetPath->getPath());
         $directory = $pathInfo['dirname'] ?? '.';
-        $filename = $pathInfo['filename'] ?? '';
+        $filename = isset($pathInfo['filename']) ? $pathInfo['filename'] : '';
         $extension = isset($pathInfo['extension']) ? '.'.$pathInfo['extension'] : '';
         $hashPrefix = $hash->getShortHash(8);
 
         $collisionPath = new FilePath("{$directory}/{$filename}-{$hashPrefix}{$extension}");
 
-        $this->logger->info('File collision detected, using hash prefix', [
+        $this->logger->info("File collision detected, using hash prefix", [
             'original_path' => $targetPath->getPath(),
             'collision_path' => $collisionPath->getPath(),
         ]);
@@ -98,7 +98,7 @@ final class OrganizeFileHandler
     private function verifyHash(
         FilePath $sourcePath,
         FilePath $targetPath,
-        \SortingPhotosByDate\Domain\ValueObjects\FileHash $expectedHash,
+        \SortingPhotosByDate\Domain\ValueObjects\FileHash $expectedHash
     ): void {
         try {
             $sourceHash = \SortingPhotosByDate\Domain\ValueObjects\FileHash::fromFile($sourcePath->getPath());
@@ -112,7 +112,7 @@ final class OrganizeFileHandler
                 throw new \RuntimeException("Hash verification failed: expected hash {$expectedHash->getHash()} does not match target hash {$targetHash->getHash()}");
             }
         } catch (\Exception $e) {
-            $this->logger->error('Hash verification failed', [
+            $this->logger->error("Hash verification failed", [
                 'source_path' => $sourcePath->getPath(),
                 'target_path' => $targetPath->getPath(),
                 'error' => $e->getMessage(),
@@ -121,3 +121,4 @@ final class OrganizeFileHandler
         }
     }
 }
+
