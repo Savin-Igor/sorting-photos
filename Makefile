@@ -107,7 +107,7 @@ consume: ## Consume messages from queue (run worker)
 		${MAKE} up; \
 	fi
 	@echo "Starting message consumer..."
-	${DOCKER_COMPOSE} exec app php bin/console messenger:consume async -vv
+	${DOCKER_COMPOSE} exec app php bin/console messenger:consume -vv
 .PHONY: consume
 
 consume-workers: ## Start multiple workers for parallel processing (usage: make consume-workers WORKERS=4)
@@ -118,7 +118,7 @@ consume-workers: ## Start multiple workers for parallel processing (usage: make 
 	@echo "Starting $${WORKERS:-4} workers for parallel processing..."
 	@for i in $$(seq 1 $${WORKERS:-4}); do \
 		echo "Starting worker $$i..."; \
-		${DOCKER_COMPOSE} exec -d app php bin/console messenger:consume async -vv --time-limit=3600 || true; \
+		${DOCKER_COMPOSE} exec -d app php bin/console messenger:consume -vv --time-limit=3600 || true; \
 	done
 	@echo "Started $${WORKERS:-4} workers. Use 'docker compose logs -f app' to monitor."
 .PHONY: consume-workers

@@ -81,15 +81,34 @@ SQL;
                 'created_at' => date('Y-m-d H:i:s'),
             ];
 
-            // Check if record exists
-            $existing = $this->findByPathSizeAndHash(
-                $asset->getSourcePath(),
-                $asset->getFileSize(),
-                $asset->getHash()
-            );
+            // Use INSERT OR IGNORE to prevent race conditions in async mode
+            // This ensures atomic check-and-insert operation
+            // If record already exists (UNIQUE constraint), it will be ignored
+            $sql = 'INSERT OR IGNORE INTO '.self::TABLE_NAME.' (
+                file_path, file_name, file_size, file_hash, mime_type, file_type, category,
+                date_taken, width, height, duration, metadata_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
-            if ($existing instanceof MediaAsset) {
-                // Update existing record
+            $params = [
+                $data['file_path'],
+                $data['file_name'],
+                $data['file_size'],
+                $data['file_hash'],
+                $data['mime_type'],
+                $data['file_type'],
+                $data['category'],
+                $data['date_taken'],
+                $data['width'],
+                $data['height'],
+                $data['duration'],
+                $data['metadata_json'],
+                $data['created_at'],
+            ];
+
+            $affected = $this->connection->executeStatement($sql, $params);
+
+            // If no rows were affected, record already exists - update it
+            if (0 === $affected) {
                 $this->connection->update(
                     self::TABLE_NAME,
                     $data,
@@ -99,9 +118,6 @@ SQL;
                         'file_hash' => $asset->getHash()->getHash(),
                     ]
                 );
-            } else {
-                // Insert new record
-                $this->connection->insert(self::TABLE_NAME, $data);
             }
 
             return true;

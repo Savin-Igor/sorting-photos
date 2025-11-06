@@ -64,20 +64,28 @@ final readonly class IngestFileHandler
         $existingAsset = $this->repository->findByHash($fileHash);
         if ($existingAsset instanceof MediaAsset) {
             // File with same hash already exists - this is a duplicate
-            $this->logger->debug('Duplicate file detected, skipping ingestion', [
-                'file_path' => $filePath->getPath(),
-                'file_size' => $fileSize,
-                'hash' => $fileHash->getHash(),
-                'existing_file_path' => $existingAsset->getSourcePath()->getPath(),
-                'existing_file_size' => $existingAsset->getFileSize(),
-            ]);
+            // Check if it's the same file (same path) or a different file (duplicate)
+            $existingPath = $existingAsset->getSourcePath();
+            if ($existingPath->getPath() !== $filePath->getPath()) {
+                // Different path, same hash - this is a duplicate
+                $this->logger->info('Duplicate file detected (same hash, different path), skipping ingestion', [
+                    'file_path' => $filePath->getPath(),
+                    'file_size' => $fileSize,
+                    'hash' => $fileHash->getHash(),
+                    'existing_file_path' => $existingPath->getPath(),
+                    'existing_file_size' => $existingAsset->getFileSize(),
+                ]);
 
-            return null;
+                return null;
+            }
+            // Same path and hash - already processed, will be caught by isProcessed() check below
         }
 
         // Check if already processed (idempotency - same path, size, hash)
+        // This check prevents reprocessing, but in async mode there's still a race condition
+        // The save() method uses INSERT OR IGNORE to handle concurrent access atomically
         if ($this->repository->isProcessed($filePath, $fileSize, $fileHash)) {
-            $this->logger->debug('File already processed, skipping', [
+            $this->logger->info('File already processed, skipping', [
                 'file_path' => $filePath->getPath(),
                 'hash' => $fileHash->getHash(),
             ]);
@@ -113,7 +121,7 @@ final readonly class IngestFileHandler
             throw new \RuntimeException("Failed to save asset to repository: {$filePath->getPath()}");
         }
 
-        $this->logger->debug('File ingested successfully', [
+        $this->logger->info('File ingested successfully', [
             'file_path' => $filePath->getPath(),
             'file_type' => $fileType->value,
             'hash' => $fileHash->getHash(),

@@ -40,7 +40,7 @@ final readonly class OrganizeFileHandler
             // Check if existing file is different from current source (duplicate)
             $existingPath = $existingAsset->getSourcePath();
             if ($existingPath->getPath() !== $sourcePath->getPath()) {
-                $this->logger->debug('Duplicate file detected, skipping organization', [
+                $this->logger->info('Duplicate file detected, skipping organization', [
                     'source_path' => $sourcePath->getPath(),
                     'source_size' => $asset->getFileSize(),
                     'hash' => $asset->getHash()->getHash(),
@@ -78,7 +78,7 @@ final readonly class OrganizeFileHandler
             // Don't throw exception - file is already copied
         }
 
-        $this->logger->debug('File organized successfully', [
+        $this->logger->info('File organized successfully', [
             'source_path' => $sourcePath->getPath(),
             'target_path' => $finalTargetPath->getPath(),
             'hash' => $asset->getHash()->getHash(),

@@ -287,8 +287,8 @@ final class IngestFileHandlerTest extends TestCase
 
         $this->logger
             ->expects($this->once())
-            ->method('debug')
-            ->with('Duplicate file detected, skipping ingestion', $this->callback(fn(array $context): bool => $context['file_path'] === $filePath->getPath()
+            ->method('info')
+            ->with('Duplicate file detected (same hash, different path), skipping ingestion', $this->callback(fn(array $context): bool => $context['file_path'] === $filePath->getPath()
                 && $context['existing_file_path'] === $existingPath->getPath()
                 && $context['hash'] === $fileHash->getHash()));
 
