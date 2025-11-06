@@ -62,12 +62,12 @@ final class ScanFilesCommand extends Command
 
         if ($dryRun) {
             $io->note('Running in DRY-RUN mode');
-            $this->logger->info('Starting file scan in dry-run mode', [
+            $this->logger->debug('Starting file scan in dry-run mode', [
                 'source_directory' => $sourceDirectory,
             ]);
         } else {
             $io->info('Starting file scan');
-            $this->logger->info('Starting file scan', [
+            $this->logger->debug('Starting file scan', [
                 'source_directory' => $sourceDirectory,
             ]);
         }
@@ -81,7 +81,7 @@ final class ScanFilesCommand extends Command
 
             if (0 === $totalFiles) {
                 $io->warning('No files found in directory');
-                $this->logger->info('No files found in directory', [
+                $this->logger->debug('No files found in directory', [
                     'source_directory' => $sourceDirectory,
                 ]);
 
@@ -139,7 +139,7 @@ final class ScanFilesCommand extends Command
                 $skippedCount
             ));
 
-            $this->logger->info('File scan completed', [
+            $this->logger->debug('File scan completed', [
                 'source_directory' => $sourceDirectory,
                 'total_files' => $fileCount,
                 'discovered' => $discoveredCount,

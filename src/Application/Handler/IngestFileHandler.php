@@ -130,7 +130,7 @@ final readonly class IngestFileHandler
             throw new \RuntimeException("Failed to save asset to repository: {$filePath->getPath()}");
         }
 
-        $this->logger->info('File ingested successfully', [
+        $this->logger->debug('File ingested successfully', [
             'file_path' => $filePath->getPath(),
             'file_type' => $fileType->value,
             'hash' => $fileHash->getHash(),

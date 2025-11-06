@@ -78,7 +78,7 @@ final class ConsumeMessagesCommand extends Command
         $processingBus = $this->createProcessingMessageBus();
 
         $io->info('Starting message consumer...');
-        $this->logger->info('Message consumer started');
+        $this->logger->debug('Message consumer started');
 
         // Create worker - it will get messages from receiver and dispatch them to processingBus
         $worker = new Worker(
@@ -106,7 +106,7 @@ final class ConsumeMessagesCommand extends Command
             ]);
 
             $io->success('Message consumer stopped');
-            $this->logger->info('Message consumer stopped');
+            $this->logger->debug('Message consumer stopped');
 
             return Command::SUCCESS;
         } catch (\Throwable $e) {

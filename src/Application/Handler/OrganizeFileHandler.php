@@ -78,7 +78,7 @@ final readonly class OrganizeFileHandler
             // Don't throw exception - file is already copied
         }
 
-        $this->logger->info('File organized successfully', [
+        $this->logger->debug('File organized successfully', [
             'source_path' => $sourcePath->getPath(),
             'target_path' => $finalTargetPath->getPath(),
             'hash' => $asset->getHash()->getHash(),

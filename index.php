@@ -158,7 +158,7 @@ try {
     $logger->debug('Source Directory Size: '.$byteFormatter->format($sourceDirectorySize));
     $logger->debug('Destination Directory Size Before: '.$byteFormatter->format($destinationDirectorySizeBefore));
     if ($duplicateSize > 0) {
-        $logger->info('Duplicate files detected', [
+        $logger->debug('Duplicate files detected', [
             'duplicate_count' => $duplicateStats['duplicate_files'] ?? 0,
             'duplicate_size' => $duplicateSize,
             'total_files' => $duplicateStats['total_files'] ?? 0,
@@ -175,7 +175,7 @@ try {
     ]);
 
     $output->writeln('<info>Starting file scan and processing...</info>');
-    $logger->info('Starting file scan and processing...');
+    $logger->debug('Starting file scan and processing...');
 
     $exitCode = $scanCommand->run($input, $output);
 
@@ -186,7 +186,7 @@ try {
     }
 
     $output->writeln('');
-    $logger->info('Scan command completed successfully');
+    $logger->debug('Scan command completed successfully');
 
     // Check if async mode is enabled
     $asyncMode = getenv('ASYNC_MODE') ?: ($_ENV['ASYNC_MODE'] ?? 'false');
@@ -196,7 +196,7 @@ try {
     // This ensures skipped files are tracked even without workers running
     if ($asyncMode && $messageBus instanceof SortingPhotosByDate\Infrastructure\Messenger\AsyncMessageBus) {
         $output->write('Processing messages from queue to collect statistics... ');
-        $logger->info('Processing messages from queue synchronously to collect statistics');
+        $logger->debug('Processing messages from queue synchronously to collect statistics');
 
         try {
             $receiver = $messageBus->getReceiver();
@@ -218,7 +218,7 @@ try {
             }
 
             $output->writeln(\sprintf('<info>Done (%d messages processed)</info>', $processedCount));
-            $logger->info('Messages processed synchronously', ['count' => $processedCount]);
+            $logger->debug('Messages processed synchronously', ['count' => $processedCount]);
         } catch (Throwable $e) {
             $output->writeln('<comment>Warning: Could not process messages from queue</comment>');
             $logger->warning('Could not process messages from queue', ['error' => $e->getMessage()]);
@@ -290,7 +290,7 @@ try {
     $logger->debug('Size moved to destination: '.$byteFormatter->format($movedSize));
     $logger->debug('Size remaining in source: '.$byteFormatter->format($remainingSize));
     if ($finalDuplicateStats['duplicate_files'] > 0) {
-        $logger->info('Duplicate files statistics', [
+        $logger->debug('Duplicate files statistics', [
             'duplicate_count' => $finalDuplicateStats['duplicate_files'],
             'duplicate_size' => $finalDuplicateStats['duplicate_size'],
             'total_files' => $finalDuplicateStats['total_files'],

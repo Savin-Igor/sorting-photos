@@ -76,7 +76,7 @@ final class ScanFilesCommandTest extends TestCase
 
         $this->logger
             ->expects($this->atLeastOnce())
-            ->method('info');
+            ->method('debug');
 
         $commandTester = new \Symfony\Component\Console\Tester\CommandTester($this->command);
         $commandTester->execute([
@@ -128,7 +128,7 @@ final class ScanFilesCommandTest extends TestCase
 
         $this->logger
             ->expects($this->atLeastOnce())
-            ->method('info')
+            ->method('debug')
             ->with($this->logicalOr(
                 $this->stringContains('Dry-run'),
                 $this->stringContains('Starting file scan'),
@@ -165,7 +165,7 @@ final class ScanFilesCommandTest extends TestCase
 
         $this->logger
             ->expects($this->exactly(2))
-            ->method('info')
+            ->method('debug')
             ->withConsecutive(
                 [$this->stringContains('Starting file scan')],
                 [$this->stringContains('No files found')]
