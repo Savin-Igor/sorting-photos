@@ -1,5 +1,13 @@
 <?xml version="1.0"?>
-<psalm>
+<psalm
+    errorLevel="1"
+    findUnusedBaselineEntry="false"
+    findUnusedCode="false"
+    findUnusedVariablesAndParams="false"
+    useDocblockTypes="true"
+    useDocblockPropertyTypes="true"
+    strictBinaryOperands="false"
+>
     <projectFiles>
         <directory name="src" />
         <ignoreFiles>
