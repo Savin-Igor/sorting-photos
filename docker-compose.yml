@@ -27,7 +27,7 @@ services:
       - DESTINATION_DIRECTORY=/var/data/destination
       - ORGANIZER_POLICY=${ORGANIZER_POLICY:-date-type}
       - DRY_RUN=${DRY_RUN:-false}
-      - ASYNC_MODE=${ASYNC_MODE:-true}
+      - ASYNC_MODE=${ASYNC_MODE:-false}
       - MESSENGER_TRANSPORT_DSN=${MESSENGER_TRANSPORT_DSN:-redis://redis:6379/messages}
       - MESSENGER_MAX_RETRIES=${MESSENGER_MAX_RETRIES:-3}
       - MESSENGER_RETRY_DELAY=${MESSENGER_RETRY_DELAY:-1000}
@@ -103,7 +103,7 @@ services:
       - DESTINATION_DIRECTORY=/var/data/destination
       - ORGANIZER_POLICY=${ORGANIZER_POLICY:-date-type}
       - DRY_RUN=${DRY_RUN:-false}
-      - ASYNC_MODE=${ASYNC_MODE:-true}
+      - ASYNC_MODE=${ASYNC_MODE:-false}
       - MESSENGER_TRANSPORT_DSN=${MESSENGER_TRANSPORT_DSN:-redis://redis:6379/messages}
       - MESSENGER_MAX_RETRIES=${MESSENGER_MAX_RETRIES:-3}
       - MESSENGER_RETRY_DELAY=${MESSENGER_RETRY_DELAY:-1000}
