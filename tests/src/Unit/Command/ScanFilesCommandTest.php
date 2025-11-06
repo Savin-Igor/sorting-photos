@@ -53,7 +53,7 @@ final class ScanFilesCommandTest extends TestCase
             ->expects($this->once())
             ->method('scan')
             ->with($sourceDir)
-            ->willReturnCallback(function () use ($filePath1, $filePath2) {
+            ->willReturnCallback(function () use ($filePath1, $filePath2): \Generator {
                 yield $filePath1;
                 yield $filePath2;
             });
@@ -106,7 +106,7 @@ final class ScanFilesCommandTest extends TestCase
             ->expects($this->once())
             ->method('scan')
             ->with($sourceDir)
-            ->willReturnCallback(function () use ($filePath) {
+            ->willReturnCallback(function () use ($filePath): \Generator {
                 yield $filePath;
             });
 
@@ -219,7 +219,7 @@ final class ScanFilesCommandTest extends TestCase
             ->expects($this->once())
             ->method('scan')
             ->with($sourceDir)
-            ->willReturnCallback(function () use ($filePath1, $filePath2) {
+            ->willReturnCallback(function () use ($filePath1, $filePath2): \Generator {
                 yield $filePath1;
                 yield $filePath2;
             });
