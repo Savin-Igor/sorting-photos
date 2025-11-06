@@ -123,6 +123,17 @@ final class FilenameDateExtractorTest extends TestCase
         $this->assertNull($date);
     }
 
+    public function testExtractDateWithHash(): void
+    {
+        // Test that YYYY-MM-DD format is parsed correctly even when followed by a hash
+        // This ensures that timestamp patterns don't incorrectly match parts of hex hashes
+        $date = $this->extractor->extract('2015-04-11_bde2139835456a39d4b31c4d80d27495.jpeg');
+        $this->assertInstanceOf(Carbon::class, $date);
+        $this->assertSame(2015, $date->year);
+        $this->assertSame(4, $date->month);
+        $this->assertSame(11, $date->day);
+    }
+
     public function testExtractFullPath(): void
     {
         $date = $this->extractor->extract('/var/data/source/2014-08-02_04-01-34_file.jpeg');
