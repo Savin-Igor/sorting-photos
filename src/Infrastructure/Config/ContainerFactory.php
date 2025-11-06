@@ -35,8 +35,8 @@ final readonly class ContainerFactory
         $this->loadParameters($container);
         $this->loadServices($container);
         $this->configureOrganizerPolicy($container);
+        $this->setupMessageBus($container);
         $this->compileContainer($container);
-        $this->setupMessageBus();
 
         return $container;
     }
@@ -149,13 +149,54 @@ final readonly class ContainerFactory
     }
 
     /**
-     * Setup message bus after container compilation to avoid circular dependencies.
+     * Setup message bus before container compilation.
+     * Chooses between SynchronousMessageBus and AsyncMessageBus based on ASYNC_MODE env var.
      */
-    private function setupMessageBus(): void
+    private function setupMessageBus(ContainerBuilder $container): void
     {
-        // The MessageBusInterface is already created during compilation
-        // We just need to ensure it's properly set up
-        // No need to replace it - the placeholder service will work fine
+        // Check if async mode is enabled
+        $asyncMode = getenv('ASYNC_MODE') ?: ($_ENV['ASYNC_MODE'] ?? 'false');
+        $asyncMode = filter_var($asyncMode, FILTER_VALIDATE_BOOLEAN);
+
+        if ($asyncMode) {
+            // Use AsyncMessageBus for async processing
+            $transportDsn = getenv('MESSENGER_TRANSPORT_DSN') ?: ($_ENV['MESSENGER_TRANSPORT_DSN'] ?? 'redis://redis:6379/messages');
+
+            // Define routing from messenger.yaml
+            $messageRouting = [
+                \SortingPhotosByDate\Domain\Event\FileDiscovered::class => 'async',
+                \SortingPhotosByDate\Domain\Event\FileProcessed::class => 'async',
+                \SortingPhotosByDate\Domain\Event\FileOrganized::class => 'async',
+                \SortingPhotosByDate\Domain\Event\FileError::class => 'async',
+                \SortingPhotosByDate\Application\Command\IngestFileCommand::class => 'async',
+                \SortingPhotosByDate\Application\Command\OrganizeFileCommand::class => 'async',
+            ];
+
+            // Get existing definition and modify it instead of replacing
+            if ($container->hasDefinition(\Symfony\Component\Messenger\MessageBusInterface::class)) {
+                $definition = $container->getDefinition(\Symfony\Component\Messenger\MessageBusInterface::class);
+                // Clear existing arguments
+                $definition->setArguments([]);
+            } else {
+                $definition = new \Symfony\Component\DependencyInjection\Definition();
+            }
+
+            // Set AsyncMessageBus class and arguments (using named arguments to match YAML format)
+            $definition->setClass(\SortingPhotosByDate\Infrastructure\Messenger\AsyncMessageBus::class);
+            $definition->setArguments([
+                '$container' => new \Symfony\Component\DependencyInjection\Reference('service_container'),
+                '$transportDsn' => $transportDsn,
+                '$messageRouting' => $messageRouting,
+            ]);
+            $definition->setPublic(true);
+            $definition->setAutowired(false); // Disable autowiring
+
+            $container->setDefinition(
+                \Symfony\Component\Messenger\MessageBusInterface::class,
+                $definition
+            );
+        }
+        // If async mode is disabled, keep SynchronousMessageBus (default from services.yaml)
     }
 
     /**
