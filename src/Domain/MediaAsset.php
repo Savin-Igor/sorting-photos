@@ -67,4 +67,3 @@ final class MediaAsset
         return $this->metadata->getFileSize();
     }
 }
-
