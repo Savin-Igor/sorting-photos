@@ -3,6 +3,12 @@ PWD:=$(shell pwd)
 
 DOCKER_COMPOSE:=${DOCKER} compose
 
+# Load .env file if it exists
+ifneq (,$(wildcard .env))
+    include .env
+    export
+endif
+
 .DEFAULT_GOAL:= help
 
 ##@ Docker compose commands
