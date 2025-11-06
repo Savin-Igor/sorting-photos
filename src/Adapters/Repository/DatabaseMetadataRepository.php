@@ -111,6 +111,7 @@ SQL;
         return $this->hydrateAsset($result);
     }
 
+    #[\Override]
     public function findByHash(FileHash $hash): ?MediaAsset
     {
         $result = $this->connection->fetchAssociative(
