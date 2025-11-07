@@ -19,6 +19,7 @@ final readonly class DatabaseSchemaInitializer
         $this->createUploadBatchesTable();
         $this->createQuotaStatusTable();
         $this->createDistributedLocksTable();
+        $this->createTokensTable();
     }
 
     private function createUploadJobsTable(): void
@@ -138,5 +139,19 @@ SQL;
         } catch (\Exception) {
             // Индекс может уже существовать
         }
+    }
+
+    private function createTokensTable(): void
+    {
+        $sql = <<<'SQL'
+CREATE TABLE IF NOT EXISTS google_photos_tokens (
+    refresh_token TEXT NOT NULL,
+    access_token TEXT NULL,
+    expires_at DATETIME NULL,
+    updated_at DATETIME NOT NULL
+)
+SQL;
+
+        $this->connection->executeStatement($sql);
     }
 }

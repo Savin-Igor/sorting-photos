@@ -272,12 +272,16 @@ services:
     
     # Application Services
     SortingPhotosByDate\Application\Service\GooglePhotos\:
-        resource: '../../src/Application/Service/GooglePhotos/*'
+        resource: '../src/Application/Service/GooglePhotos'
+        exclude:
+            - '../src/Application/Service/GooglePhotos/Exception'
         public: true
     
     # Infrastructure Services
     SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\:
-        resource: '../../src/Infrastructure/Storage/GooglePhotos/*'
+        resource: '../src/Infrastructure/Storage/GooglePhotos/*'
+        exclude:
+            - '../src/Infrastructure/Storage/GooglePhotos/QuotaStatus.php'
         public: true
     
     # Repositories
@@ -307,8 +311,26 @@ services:
             $httpClient: '@Psr\Http\Client\ClientInterface'
             $requestFactory: '@Psr\Http\Message\RequestFactoryInterface'
             $streamFactory: '@Psr\Http\Message\StreamFactoryInterface'
-            $accessToken: '%app.google_photos.access_token%'
+            $tokenManager: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenManager'
+    
+    # Google Auth Library Integration
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\CredentialsFactory:
+        arguments:
+            $credentialsPath: '%app.google_photos.credentials_path%'
             $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenStorage:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenManager:
+        arguments:
+            $credentialsFactory: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\CredentialsFactory'
+            $tokenStorage: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenStorage'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+            $fullAccess: '%app.google_photos.full_access%'
+            $fallbackAccessToken: '%app.google_photos.access_token%'
     
     # HTTP Client (Guzzle)
     Psr\Http\Client\ClientInterface:

@@ -12,5 +12,7 @@ parameters:
     # Google Photos API parameters
     app.google_photos.access_token: ''
     app.google_photos.album_id: null
+    app.google_photos.credentials_path: ''
+    app.google_photos.full_access: false
 
 

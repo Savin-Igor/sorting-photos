@@ -134,19 +134,84 @@ php bin/console google-photos:upload --source=/path/to/files
 
 | Переменная | Описание | Обязательно |
 |------------|----------|-------------|
-| `GOOGLE_PHOTOS_ACCESS_TOKEN` | OAuth 2.0 access token для Google Photos API | Да |
+| `GOOGLE_PHOTOS_CREDENTIALS_PATH` | Путь к файлу `credentials.json` из Google Cloud Console | Да (для авторизации) |
+| `GOOGLE_PHOTOS_FULL_ACCESS` | Запросить полный доступ (photoslibrary) вместо appendonly | Нет (по умолчанию: false) |
+| `GOOGLE_PHOTOS_ACCESS_TOKEN` | OAuth 2.0 access token (опционально, fallback если нет refresh token) | Нет |
 | `GOOGLE_PHOTOS_ALBUM_ID` | ID альбома для загрузки (опционально) | Нет |
 
-## Получение Access Token
+## Авторизация через OAuth 2.0
 
-Для получения access token необходимо:
+Система использует официальную библиотеку [Google Auth Library for PHP](https://github.com/googleapis/google-auth-library-php) для работы с OAuth 2.0.
 
-1. Создать проект в Google Cloud Console
-2. Включить Google Photos Library API
-3. Создать OAuth 2.0 credentials
-4. Получить access token через OAuth 2.0 flow
+### Шаг 1: Настройка Google Cloud Console
 
-Подробнее: https://developers.google.com/photos/library/guides/authentication
+1. Создайте проект в [Google Cloud Console](https://console.cloud.google.com/)
+2. Включите **Google Photos Library API** для вашего проекта
+3. Перейдите в **APIs & Services > Credentials**
+4. Создайте **OAuth 2.0 Client ID**:
+   - Application type: **Web application** или **Desktop application**
+   - Authorized redirect URIs: добавьте ваш redirect URI (например, `http://localhost:8080/oauth/callback`)
+5. Скачайте файл **credentials.json** (кнопка "Download JSON")
+
+### Шаг 2: Настройка credentials.json
+
+1. Сохраните скачанный файл `credentials.json` в директории на хосте (например, `/home/user/.config/google-photos/credentials.json`)
+2. Добавьте путь к **директории** (не к файлу!) в `.env`:
+
+```bash
+# Путь к директории на хосте, где лежит credentials.json
+GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST=/home/user/.config/google-photos
+```
+
+**Важно:** 
+- Указывайте путь к **директории**, а не к файлу
+- Файл должен называться `credentials.json` (именно так!)
+- Файл `credentials.json` содержит секретные данные - не коммитьте его в git!
+- Директория будет смонтирована в контейнер как `/var/www/html/config/credentials`
+- После изменения переменной перезапустите контейнеры: `make down && make up`
+
+### Шаг 3: Авторизация приложения
+
+1. Запустите команду авторизации:
+
+```bash
+php bin/console google-photos:authorize
+```
+
+2. Команда покажет URL для авторизации. Откройте его в браузере
+3. Войдите в свой Google аккаунт и предоставьте разрешения
+4. После авторизации Google перенаправит вас на redirect URI с параметром `code`
+5. Скопируйте код из URL и выполните:
+
+```bash
+php bin/console google-photos:authorize --code=YOUR_AUTHORIZATION_CODE
+```
+
+6. Токены будут сохранены в базе данных автоматически
+
+### Области доступа (Scopes)
+
+По умолчанию запрашивается область `photoslibrary.appendonly` (только загрузка). Для полного доступа используйте:
+
+```bash
+php bin/console google-photos:authorize --full-access
+```
+
+Это запросит область `photoslibrary` (полный доступ: загрузка, создание альбомов и т.д.).
+
+### Автоматическое обновление токенов
+
+Система автоматически обновляет access token при его истечении используя refresh token. Вам не нужно вручную обновлять токены - это происходит прозрачно при каждом API запросе.
+
+## Получение Access Token (альтернативный способ)
+
+Если вы предпочитаете получить токен вручную (например, через Google OAuth Playground), вы можете установить его через переменную окружения:
+
+```bash
+GOOGLE_PHOTOS_ACCESS_TOKEN=your_token_here
+```
+
+**Примечание:** Access token истекает через ~1 час. Для длительной работы рекомендуется использовать OAuth flow с refresh token.
 
 ## Архитектура
 

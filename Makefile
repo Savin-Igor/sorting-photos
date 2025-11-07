@@ -304,6 +304,107 @@ redis-flush: ## Flush all Redis data
 	@echo "Redis flushed"
 .PHONY: redis-flush
 
+##@ Google Photos commands
+
+google-photos-authorize: ## Authorize Google Photos API (usage: make google-photos-authorize CODE=authorization_code)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@if [ -n "$$CODE" ]; then \
+		echo "Exchanging authorization code for tokens..."; \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:authorize --code=$$CODE; \
+	else \
+		echo "Getting authorization URL..."; \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:authorize; \
+	fi
+.PHONY: google-photos-authorize
+
+google-photos-authorize-full: ## Authorize Google Photos API with full access scope
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@if [ -n "$$CODE" ]; then \
+		echo "Exchanging authorization code for tokens (full access)..."; \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:authorize --code=$$CODE --full-access; \
+	else \
+		echo "Getting authorization URL (full access)..."; \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:authorize --full-access; \
+	fi
+.PHONY: google-photos-authorize-full
+
+google-photos-test: ## Test Google Photos API connection (usage: make google-photos-test LIMIT=5 ALBUMS=false)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@if [ "$$ALBUMS" = "true" ]; then \
+		echo "Testing Google Photos API (albums)..."; \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:test --albums --limit=$${LIMIT:-5}; \
+	else \
+		echo "Testing Google Photos API (media items)..."; \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:test --limit=$${LIMIT:-5}; \
+	fi
+.PHONY: google-photos-test
+
+google-photos-test-albums: ## Test Google Photos API and list albums (usage: make google-photos-test-albums LIMIT=10)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Testing Google Photos API (albums)..."
+	@if [ -n "$$LIMIT" ]; then \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:test --albums --limit=$$LIMIT; \
+	else \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:test --albums --limit=10; \
+	fi
+.PHONY: google-photos-test-albums
+
+google-photos-upload: ## Upload files to Google Photos (usage: make google-photos-upload SOURCE=/path/to/files)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Starting Google Photos upload..."
+	@if [ -n "$$SOURCE" ]; then \
+		echo "Source directory: $$SOURCE"; \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:upload --source=$$SOURCE; \
+	elif [ -n "$$SOURCE_DIRECTORY_HOST" ]; then \
+		echo "Source directory: $$SOURCE_DIRECTORY_HOST"; \
+		${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$$SOURCE_DIRECTORY_HOST" app php bin/console google-photos:upload --source=$$SOURCE_DIRECTORY_HOST; \
+	else \
+		echo "Using default source directory from .env"; \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:upload; \
+	fi
+.PHONY: google-photos-upload
+
+google-photos-scan: ## Scan files and create upload jobs without uploading (usage: make google-photos-scan SOURCE=/path/to/files)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Scanning files for Google Photos upload..."
+	@if [ -z "$$SOURCE" ] && [ -z "$$SOURCE_DIRECTORY_HOST" ]; then \
+		echo "Error: SOURCE is required"; \
+		exit 1; \
+	fi
+	@if [ -n "$$SOURCE" ]; then \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:upload --scan-only --source=$$SOURCE; \
+	else \
+		${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$$SOURCE_DIRECTORY_HOST" app php bin/console google-photos:upload --scan-only --source=$$SOURCE_DIRECTORY_HOST; \
+	fi
+.PHONY: google-photos-scan
+
+google-photos-init-schema: ## Initialize Google Photos database schema
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Initializing Google Photos database schema..."
+	${DOCKER_COMPOSE} exec app php bin/console google-photos:upload --init-schema
+.PHONY: google-photos-init-schema
+
 ##@ RabbitMQ commands (when using RabbitMQ profile)
 
 rabbitmq-management: ## Open RabbitMQ management UI in browser (Linux)

@@ -21,6 +21,13 @@ services:
       # Example: DESTINATION_DIRECTORY_HOST=/mnt/external
       - ${DESTINATION_DIRECTORY_HOST:-./var/data/destination}:/var/data/destination
       - ./var:/var/www/html/var
+      # Mount Google Photos credentials directory
+      # Set GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST env var to mount your credentials directory
+      # Format: /host/path/to/directory (directory containing credentials.json file)
+      # The directory will be mounted to /var/www/html/config/credentials:ro
+      # Example: GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST=/home/user/.config/google-photos
+      # Important: The file must be named credentials.json (exactly this name!)
+      - ${GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST:-./config/credentials}:/var/www/html/config/credentials:ro
     environment:
       # These paths are ALWAYS INSIDE the container (after volume mount)
       # DO NOT set SOURCE_DIRECTORY/DESTINATION_DIRECTORY on host - use SOURCE_DIRECTORY_HOST/DESTINATION_DIRECTORY_HOST instead
@@ -37,6 +44,9 @@ services:
       - MESSENGER_RETRY_MAX_DELAY=${MESSENGER_RETRY_MAX_DELAY:-10000}
       - FILESYSTEM_LOCAL_ROOT=${FILESYSTEM_LOCAL_ROOT:-/var/www/html}
       - FILESYSTEM_DEFAULT_DIR_PERMISSIONS=${FILESYSTEM_DEFAULT_DIR_PERMISSIONS:-0755}
+      - GOOGLE_PHOTOS_CREDENTIALS_PATH=${GOOGLE_PHOTOS_CREDENTIALS_PATH:-/var/www/html/config/credentials/credentials.json}
+      - GOOGLE_PHOTOS_ALBUM_ID=${GOOGLE_PHOTOS_ALBUM_ID:-}
+      - GOOGLE_PHOTOS_FULL_ACCESS=${GOOGLE_PHOTOS_FULL_ACCESS:-false}
     depends_on:
       redis:
         condition: service_healthy
@@ -99,6 +109,10 @@ services:
       - "${SOURCE_DIRECTORY_HOST:-./var/data/source}:/var/data/source:ro"
       - "${DESTINATION_DIRECTORY_HOST:-./var/data/destination}:/var/data/destination"
       - ./var:/var/www/html/var
+      # Mount Google Photos credentials directory - same as app service
+      # Format: /host/path/to/directory (directory containing credentials.json file)
+      # Important: The file must be named credentials.json (exactly this name!)
+      - ${GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST:-./config/credentials}:/var/www/html/config/credentials:ro
     environment:
       # These paths are ALWAYS INSIDE the container (after volume mount)
       - SOURCE_DIRECTORY=/var/data/source
@@ -113,6 +127,9 @@ services:
       - MESSENGER_RETRY_MAX_DELAY=${MESSENGER_RETRY_MAX_DELAY:-10000}
       - FILESYSTEM_LOCAL_ROOT=${FILESYSTEM_LOCAL_ROOT:-/var/www/html}
       - FILESYSTEM_DEFAULT_DIR_PERMISSIONS=${FILESYSTEM_DEFAULT_DIR_PERMISSIONS:-0755}
+      - GOOGLE_PHOTOS_CREDENTIALS_PATH=${GOOGLE_PHOTOS_CREDENTIALS_PATH:-/var/www/html/config/credentials/credentials.json}
+      - GOOGLE_PHOTOS_ALBUM_ID=${GOOGLE_PHOTOS_ALBUM_ID:-}
+      - GOOGLE_PHOTOS_FULL_ACCESS=${GOOGLE_PHOTOS_FULL_ACCESS:-false}
     depends_on:
       redis:
         condition: service_healthy

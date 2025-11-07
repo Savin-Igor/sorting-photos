@@ -6,7 +6,9 @@ namespace SortingPhotosByDate\Infrastructure\Storage\GooglePhotos;
 
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
+use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\QuotaExceededException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\SessionExpiredException;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchCreateResponse;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchItemRequest;
@@ -25,22 +27,37 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
         private ClientInterface $httpClient,
         private RequestFactoryInterface $requestFactory,
         private StreamFactoryInterface $streamFactory,
-        private string $accessToken,
+        private TokenManager $tokenManager,
     ) {
+    }
+
+    /**
+     * Получить валидный access token, обновив его при необходимости.
+     */
+    private function getAccessToken(): string
+    {
+        return $this->tokenManager->getValidAccessToken();
     }
 
     public function initiateResumableUpload(int $fileSize, string $mimeType): string
     {
         $url = self::BASE_URL.'/uploads';
         $request = $this->requestFactory->createRequest('POST', $url)
-            ->withHeader('Authorization', 'Bearer '.$this->accessToken)
+            ->withHeader('Authorization', 'Bearer '.$this->getAccessToken())
             ->withHeader('X-Goog-Upload-Command', 'start')
             ->withHeader('X-Goog-Upload-Offset', '0')
             ->withHeader('X-Goog-Upload-Protocol', 'resumable')
             ->withHeader('X-Goog-Upload-Header', "Content-Type: {$mimeType}")
-            ->withHeader('Content-Length', (string) $fileSize);
+            ->withHeader('X-Goog-Upload-Size', (string) $fileSize)
+            ->withHeader('Content-Length', '0');
 
         $response = $this->httpClient->sendRequest($request);
+
+        // Handle quota errors
+        if (429 === $response->getStatusCode()) {
+            $resetTime = $this->extractQuotaResetTime($response);
+            throw QuotaExceededException::requestsExceeded($resetTime);
+        }
 
         if (200 !== $response->getStatusCode()) {
             throw new \RuntimeException(\sprintf('Failed to initiate resumable upload: %s %s', $response->getStatusCode(), $response->getBody()->getContents()));
@@ -67,21 +84,50 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
 
         $response = $this->httpClient->sendRequest($request);
 
+        // Handle quota errors
+        if (429 === $response->getStatusCode()) {
+            $resetTime = $this->extractQuotaResetTime($response);
+            throw QuotaExceededException::requestsExceeded($resetTime);
+        }
+
         if (!\in_array($response->getStatusCode(), [200, 308], true)) {
             throw new \RuntimeException(\sprintf('Failed to upload chunk: %s %s', $response->getStatusCode(), $response->getBody()->getContents()));
+        }
+
+        // Check Range in 308 response to confirm accepted bytes
+        if (308 === $response->getStatusCode()) {
+            $range = $response->getHeaderLine('Range');
+            if ('' === $range) {
+                throw new \RuntimeException('No Range header in 308 response');
+            }
+
+            $confirmedBytes = $this->parseRange($range);
+            // Verify that confirmed range matches expected
+            if ($confirmedBytes < $offset + $chunkLength) {
+                throw new \RuntimeException(\sprintf('Range mismatch: expected at least %d bytes, got %d', $offset + $chunkLength, $confirmedBytes));
+            }
         }
     }
 
     public function completeUpload(string $sessionUri): string
     {
-        // Для завершения загрузки нужно сделать GET запрос без Range header
-        $request = $this->requestFactory->createRequest('GET', $sessionUri);
+        // For upload completion use PUT without Range header
+        // or POST with X-Goog-Upload-Command: upload, finalize
+        // Using PUT without Range signals completion
+        $request = $this->requestFactory->createRequest('PUT', $sessionUri)
+            ->withHeader('Content-Length', '0');
 
         $response = $this->httpClient->sendRequest($request);
 
+        // Handle quota errors
+        if (429 === $response->getStatusCode()) {
+            $resetTime = $this->extractQuotaResetTime($response);
+            throw QuotaExceededException::requestsExceeded($resetTime);
+        }
+
         if (200 === $response->getStatusCode()) {
             $body = $response->getBody()->getContents();
-            $data = \json_decode((string) $body, true);
+            $data = \json_decode($body, true);
 
             if (false === $data || !isset($data['uploadToken'])) {
                 throw new \RuntimeException('No uploadToken in response');
@@ -95,16 +141,16 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
 
     public function queryUploadStatus(string $sessionUri): UploadStatus
     {
-        // Используем GET с Range header для проверки статуса
+        // Use GET with X-Goog-Upload-Command: query to check status
         $request = $this->requestFactory->createRequest('GET', $sessionUri)
-            ->withHeader('Range', 'bytes=0-0');
+            ->withHeader('X-Goog-Upload-Command', 'query');
 
         $response = $this->httpClient->sendRequest($request);
 
         if (200 === $response->getStatusCode()) {
-            // Загрузка завершена
+            // Upload completed
             $body = $response->getBody()->getContents();
-            $data = \json_decode((string) $body, true);
+            $data = \json_decode($body, true);
 
             if (false === $data || !isset($data['uploadToken'])) {
                 throw new \RuntimeException('No uploadToken in response');
@@ -114,14 +160,18 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
         }
 
         if (308 === $response->getStatusCode()) {
-            // Не завершено, получить uploaded bytes из Range header
+            // Not completed, get uploaded bytes from Range header
             $range = $response->getHeaderLine('Range');
+            if ('' === $range) {
+                throw new \RuntimeException('No Range header in 308 response');
+            }
+
             $uploadedBytes = $this->parseRange($range);
 
             return UploadStatus::incomplete($uploadedBytes);
         }
 
-        // 404/410 - сессия истекла
+        // 404/410 - session expired
         if (\in_array($response->getStatusCode(), [404, 410], true)) {
             throw new SessionExpiredException('Resumable session expired');
         }
@@ -138,6 +188,7 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
                 'description' => $item->getFilename(),
                 'simpleMediaItem' => [
                     'uploadToken' => $item->getUploadToken(),
+                    // Use RFC 3339 format with timezone
                     'creationTime' => $item->getCreationTime()->format('Y-m-d\TH:i:s\Z'),
                 ],
             ],
@@ -148,23 +199,30 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
             'newMediaItems' => $newMediaItems,
         ];
 
-        if (null !== $albumId) {
+        if (null !== $albumId && '' !== $albumId) {
             $body['albumId'] = $albumId;
         }
 
         $request = $this->requestFactory->createRequest('POST', $url)
-            ->withHeader('Authorization', 'Bearer '.$this->accessToken)
+            ->withHeader('Authorization', 'Bearer '.$this->getAccessToken())
             ->withHeader('Content-Type', 'application/json')
             ->withBody($this->streamFactory->createStream(\json_encode($body, \JSON_THROW_ON_ERROR)));
 
         $response = $this->httpClient->sendRequest($request);
 
+        // Handle quota errors
+        if (429 === $response->getStatusCode()) {
+            $resetTime = $this->extractQuotaResetTime($response);
+            throw QuotaExceededException::requestsExceeded($resetTime);
+        }
+
         if (200 !== $response->getStatusCode()) {
-            throw new \RuntimeException(\sprintf('Failed to batch create media items: %s %s', $response->getStatusCode(), $response->getBody()->getContents()));
+            $errorBody = $response->getBody()->getContents();
+            throw new \RuntimeException(\sprintf('Failed to batch create media items: %s %s', $response->getStatusCode(), $errorBody));
         }
 
         $body = $response->getBody()->getContents();
-        $data = \json_decode((string) $body, true, 512, \JSON_THROW_ON_ERROR);
+        $data = \json_decode($body, true, 512, \JSON_THROW_ON_ERROR);
 
         if (false === $data) {
             throw new \RuntimeException('Invalid JSON response from API');
@@ -206,11 +264,123 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
         return new BatchCreateResponse($results, $errors);
     }
 
+    public function listMediaItems(int $pageSize = 25, ?string $pageToken = null): array
+    {
+        $url = self::BASE_URL.'/mediaItems';
+
+        $params = [
+            'pageSize' => (string) $pageSize,
+        ];
+
+        if (null !== $pageToken) {
+            $params['pageToken'] = $pageToken;
+        }
+
+        $request = $this->requestFactory->createRequest('GET', $url.'?'.\http_build_query($params))
+            ->withHeader('Authorization', 'Bearer '.$this->getAccessToken());
+
+        $response = $this->httpClient->sendRequest($request);
+
+        // Handle quota errors
+        if (429 === $response->getStatusCode()) {
+            $resetTime = $this->extractQuotaResetTime($response);
+            throw QuotaExceededException::requestsExceeded($resetTime);
+        }
+
+        if (200 !== $response->getStatusCode()) {
+            $errorBody = $response->getBody()->getContents();
+            throw new \RuntimeException(\sprintf('Failed to list media items: %s %s', $response->getStatusCode(), $errorBody));
+        }
+
+        $data = \json_decode($response->getBody()->getContents(), true, 512, \JSON_THROW_ON_ERROR);
+
+        if (false === $data) {
+            throw new \RuntimeException('Invalid JSON response from API');
+        }
+
+        $mediaItems = [];
+        foreach ($data['mediaItems'] ?? [] as $item) {
+            $mediaItems[] = new MediaItem(
+                id: $item['id'] ?? '',
+                productUrl: $item['productUrl'] ?? ''
+            );
+        }
+
+        return [
+            'mediaItems' => $mediaItems,
+            'nextPageToken' => $data['nextPageToken'] ?? null,
+        ];
+    }
+
+    public function listAlbums(int $pageSize = 50, ?string $pageToken = null): array
+    {
+        $url = self::BASE_URL.'/albums';
+
+        $params = [
+            'pageSize' => (string) $pageSize,
+        ];
+
+        if (null !== $pageToken) {
+            $params['pageToken'] = $pageToken;
+        }
+
+        $request = $this->requestFactory->createRequest('GET', $url.'?'.\http_build_query($params))
+            ->withHeader('Authorization', 'Bearer '.$this->getAccessToken());
+
+        $response = $this->httpClient->sendRequest($request);
+
+        // Обработка ошибок квоты
+        if (429 === $response->getStatusCode()) {
+            $resetTime = $this->extractQuotaResetTime($response);
+            throw QuotaExceededException::requestsExceeded($resetTime);
+        }
+
+        if (200 !== $response->getStatusCode()) {
+            $errorBody = $response->getBody()->getContents();
+            throw new \RuntimeException(\sprintf('Failed to list albums: %s %s', $response->getStatusCode(), $errorBody));
+        }
+
+        $data = \json_decode($response->getBody()->getContents(), true, 512, \JSON_THROW_ON_ERROR);
+
+        if (false === $data) {
+            throw new \RuntimeException('Invalid JSON response from API');
+        }
+
+        $albums = [];
+        foreach ($data['albums'] ?? [] as $album) {
+            $albums[] = [
+                'id' => $album['id'] ?? '',
+                'title' => $album['title'] ?? '',
+                'productUrl' => $album['productUrl'] ?? '',
+            ];
+        }
+
+        return [
+            'albums' => $albums,
+            'nextPageToken' => $data['nextPageToken'] ?? null,
+        ];
+    }
+
+    /**
+     * Extract quota reset time from HTTP response.
+     */
+    private function extractQuotaResetTime(ResponseInterface $response): \DateTimeImmutable
+    {
+        // Try to extract Retry-After header
+        $retryAfter = $response->getHeaderLine('Retry-After');
+        if ('' !== $retryAfter && \is_numeric($retryAfter)) {
+            return new \DateTimeImmutable(\sprintf('+%d seconds', (int) $retryAfter));
+        }
+
+        // If Retry-After is not present, use standard reset time (24 hours)
+        return new \DateTimeImmutable('+1 day');
+    }
+
     private function parseRange(string $range): int
     {
         // Range: bytes=0-12345
         if (\preg_match('/bytes=0-(\d+)/', $range, $matches)) {
-            return (int) $matches[1] + 1; // +1 потому что range включает последний байт
+            return (int) $matches[1] + 1; // +1 because range includes the last byte
         }
 
         return 0;

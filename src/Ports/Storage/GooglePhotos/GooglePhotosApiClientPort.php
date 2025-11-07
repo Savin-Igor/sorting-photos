@@ -34,4 +34,24 @@ interface GooglePhotosApiClientPort
      * @param array<BatchItemRequest> $items
      */
     public function batchCreateMediaItems(array $items, ?string $albumId = null): BatchCreateResponse;
+
+    /**
+     * Получить список медиа-элементов.
+     *
+     * @param int     $pageSize  Максимальное количество элементов (по умолчанию 25)
+     * @param ?string $pageToken Токен для пагинации
+     *
+     * @return array{mediaItems: array<MediaItem>, nextPageToken: ?string}
+     */
+    public function listMediaItems(int $pageSize = 25, ?string $pageToken = null): array;
+
+    /**
+     * Получить список альбомов.
+     *
+     * @param int     $pageSize  Максимальное количество альбомов (по умолчанию 50)
+     * @param ?string $pageToken Токен для пагинации
+     *
+     * @return array{albums: array<array{id: string, title: string, productUrl: string}>, nextPageToken: ?string}
+     */
+    public function listAlbums(int $pageSize = 50, ?string $pageToken = null): array;
 }

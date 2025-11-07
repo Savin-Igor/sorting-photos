@@ -16,6 +16,12 @@ recup_dir*/
 .env.*.local
 .env.test
 
+# Google Photos credentials
+config/credentials/credentials.json
+*.json
+!composer.json
+!package.json
+
 # Source and destination directories
 /source/
 /destination/

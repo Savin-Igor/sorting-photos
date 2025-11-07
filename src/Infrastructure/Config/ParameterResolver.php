@@ -26,6 +26,8 @@ final readonly class ParameterResolver
             'app.filesystem.default_dir_permissions' => (int) self::getEnv('FILESYSTEM_DEFAULT_DIR_PERMISSIONS', '0755'),
             'app.google_photos.access_token' => self::getEnv('GOOGLE_PHOTOS_ACCESS_TOKEN', ''),
             'app.google_photos.album_id' => '' !== $albumId ? $albumId : null,
+            'app.google_photos.credentials_path' => self::getEnv('GOOGLE_PHOTOS_CREDENTIALS_PATH', ''),
+            'app.google_photos.full_access' => filter_var(self::getEnv('GOOGLE_PHOTOS_FULL_ACCESS', 'false'), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 
