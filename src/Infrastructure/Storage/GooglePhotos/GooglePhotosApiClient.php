@@ -329,7 +329,7 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
 
         $response = $this->httpClient->sendRequest($request);
 
-        // Обработка ошибок квоты
+        // Handle quota errors
         if (429 === $response->getStatusCode()) {
             $resetTime = $this->extractQuotaResetTime($response);
             throw QuotaExceededException::requestsExceeded($resetTime);

@@ -36,6 +36,10 @@ final class TokenManager
                     $refreshToken,
                     $this->fullAccess
                 );
+                $this->logger->info('Created UserRefreshCredentials', [
+                    'fullAccess' => $this->fullAccess,
+                    'scope' => $this->fullAccess ? 'photoslibrary' : 'photoslibrary.appendonly',
+                ]);
             }
         }
 
@@ -51,6 +55,20 @@ final class TokenManager
 
                 $accessToken = $tokenData['access_token'];
                 $this->logger->debug('Access token obtained from UserRefreshCredentials');
+                
+                // Log scope from token response if available
+                if (isset($tokenData['scope'])) {
+                    $this->logger->info('Access token scope from Google', [
+                        'scope' => $tokenData['scope'],
+                        'requested_scope' => $this->fullAccess ? 'photoslibrary' : 'photoslibrary.appendonly',
+                        'fullAccess' => $this->fullAccess,
+                    ]);
+                } else {
+                    $this->logger->warning('No scope in token response from Google', [
+                        'token_keys' => array_keys($tokenData),
+                        'requested_scope' => $this->fullAccess ? 'photoslibrary' : 'photoslibrary.appendonly',
+                    ]);
+                }
 
                 return $accessToken;
             } catch (\Exception $e) {
@@ -96,5 +114,15 @@ final class TokenManager
     public function hasRefreshToken(): bool
     {
         return $this->tokenStorage->hasRefreshToken();
+    }
+
+    /**
+     * Delete refresh token (for re-authorization).
+     */
+    public function deleteRefreshToken(): void
+    {
+        $this->tokenStorage->deleteRefreshToken();
+        $this->credentials = null; // Reset cache
+        $this->logger->info('Refresh token deleted');
     }
 }

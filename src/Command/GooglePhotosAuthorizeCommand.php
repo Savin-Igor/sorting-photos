@@ -32,7 +32,8 @@ final class GooglePhotosAuthorizeCommand extends Command
     {
         $this
             ->addOption('code', null, InputOption::VALUE_REQUIRED, 'Authorization code from Google (for callback)')
-            ->addOption('full-access', null, InputOption::VALUE_NONE, 'Request full access scope (photoslibrary) instead of appendonly');
+            ->addOption('full-access', null, InputOption::VALUE_NONE, 'Request full access scope (photoslibrary) instead of appendonly')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Force re-authorization even if refresh token exists');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -45,12 +46,19 @@ final class GooglePhotosAuthorizeCommand extends Command
             return $this->handleCallback($io, $code, $input->getOption('full-access'));
         }
 
-        // If refresh token already exists - show status
-        if ($this->tokenManager->hasRefreshToken()) {
+        // If refresh token already exists and not forcing - show status
+        if ($this->tokenManager->hasRefreshToken() && !$input->getOption('force')) {
             $io->info('Refresh token already exists. Use --code option to update it.');
-            $io->note('To re-authorize, you may need to revoke existing tokens first.');
+            $io->note('To re-authorize, use --force option or revoke existing tokens first.');
 
             return Command::SUCCESS;
+        }
+
+        // If forcing re-authorization, delete existing token
+        if ($input->getOption('force') && $this->tokenManager->hasRefreshToken()) {
+            $io->warning('Deleting existing refresh token for re-authorization...');
+            $this->tokenManager->deleteRefreshToken();
+            $io->info('Refresh token deleted. Please revoke access at: https://myaccount.google.com/permissions');
         }
 
         // Show authorization URL
@@ -141,6 +149,7 @@ final class GooglePhotosAuthorizeCommand extends Command
                 'Refresh token has been saved:',
                 '- Access Token: expires in '.$tokens['expires_in'].' seconds',
                 '- Refresh Token: saved for long-term use',
+                '- Scope: '.($fullAccess ? 'Full access (photoslibrary)' : 'Append only (photoslibrary.appendonly)'),
                 '',
                 'You can now use the upload command.',
             ]);

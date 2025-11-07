@@ -330,7 +330,7 @@ google-photos-authorize-full: ## Authorize Google Photos API with full access sc
 		${DOCKER_COMPOSE} exec app php bin/console google-photos:authorize --code=$$CODE --full-access; \
 	else \
 		echo "Getting authorization URL (full access)..."; \
-		${DOCKER_COMPOSE} exec app php bin/console google-photos:authorize --full-access; \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:authorize --full-access --force; \
 	fi
 .PHONY: google-photos-authorize-full
 
