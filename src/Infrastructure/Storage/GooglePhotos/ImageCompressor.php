@@ -6,32 +6,41 @@ namespace SortingPhotosByDate\Infrastructure\Storage\GooglePhotos;
 
 final class ImageCompressor
 {
-    private const int JPEG_MAX_PIXELS = 75_000_000; // 75 МП
-    private const int PNG_MAX_PIXELS = 200_000_000; // 200 МП
+    public function __construct(
+        private readonly bool $enabled,
+        private readonly int $jpegMaxPixels,
+        private readonly int $pngMaxPixels,
+    ) {
+    }
 
     public function compressIfNeeded(string $filePath, string $mimeType): string
     {
+        // If compression is disabled, return original file
+        if (!$this->enabled) {
+            return $filePath;
+        }
+
         $imageInfo = \getimagesize($filePath);
         if (false === $imageInfo) {
-            return $filePath; // Не удалось определить размер, оставляем как есть
+            return $filePath; // Failed to determine size, keep as is
         }
 
         $width = $imageInfo[0];
         $height = $imageInfo[1];
         $pixels = $width * $height;
 
-        // Лимиты Google Photos
+        // Compression limits
         $maxPixels = match ($mimeType) {
-            'image/jpeg', 'image/jpg' => self::JPEG_MAX_PIXELS,
-            'image/png' => self::PNG_MAX_PIXELS,
+            'image/jpeg', 'image/jpg' => $this->jpegMaxPixels,
+            'image/png' => $this->pngMaxPixels,
             default => \PHP_INT_MAX,
         };
 
         if ($pixels <= $maxPixels) {
-            return $filePath; // Не нужно сжимать
+            return $filePath; // No compression needed
         }
 
-        // Сжать до лимита (сохраняя пропорции)
+        // Compress to limit (preserving aspect ratio)
         $scale = \sqrt($maxPixels / $pixels);
         $newWidth = \max(1, (int) ($width * $scale));
         $newHeight = \max(1, (int) ($height * $scale));

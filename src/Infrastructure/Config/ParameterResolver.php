@@ -28,6 +28,11 @@ final readonly class ParameterResolver
             'app.google_photos.album_id' => '' !== $albumId ? $albumId : null,
             'app.google_photos.credentials_path' => self::getEnv('GOOGLE_PHOTOS_CREDENTIALS_PATH', ''),
             'app.google_photos.full_access' => filter_var(self::getEnv('GOOGLE_PHOTOS_FULL_ACCESS', 'false'), FILTER_VALIDATE_BOOLEAN),
+            // Compression settings
+            'app.compression.enabled' => filter_var(self::getEnv('COMPRESSION_ENABLED', 'false'), FILTER_VALIDATE_BOOLEAN),
+            'app.compression.jpeg_max_pixels' => (int) self::getEnv('COMPRESSION_JPEG_MAX_PIXELS', '75000000'),
+            'app.compression.png_max_pixels' => (int) self::getEnv('COMPRESSION_PNG_MAX_PIXELS', '200000000'),
+            'app.compression.video_max_size_bytes' => (int) self::getEnv('COMPRESSION_VIDEO_MAX_SIZE_BYTES', '10737418240'), // 10 GB
         ];
     }
 

@@ -304,6 +304,29 @@ redis-flush: ## Flush all Redis data
 	@echo "Redis flushed"
 .PHONY: redis-flush
 
+##@ Testing commands
+
+test-compression: ## Test file compression (usage: make test-compression SOURCE=/path/to/source DEST=/path/to/dest [RECURSIVE=true] [DRY_RUN=true])
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@if [ -z "$$SOURCE" ] || [ -z "$$DEST" ]; then \
+		echo "Error: SOURCE and DEST are required"; \
+		echo "Usage: make test-compression SOURCE=/path/to/source DEST=/path/to/dest [RECURSIVE=true] [DRY_RUN=true]"; \
+		exit 1; \
+	fi
+	@RECURSIVE_FLAG=""; \
+	if [ "$$RECURSIVE" = "true" ]; then \
+		RECURSIVE_FLAG="--recursive"; \
+	fi; \
+	DRY_RUN_FLAG=""; \
+	if [ "$$DRY_RUN" = "true" ]; then \
+		DRY_RUN_FLAG="--dry-run"; \
+	fi; \
+	${DOCKER_COMPOSE} exec app php bin/console test:compression $$SOURCE $$DEST $$RECURSIVE_FLAG $$DRY_RUN_FLAG
+.PHONY: test-compression
+
 ##@ Google Photos commands
 
 google-photos-authorize: ## Authorize Google Photos API (usage: make google-photos-authorize CODE=authorization_code)

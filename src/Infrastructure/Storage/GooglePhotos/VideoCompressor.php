@@ -6,23 +6,32 @@ namespace SortingPhotosByDate\Infrastructure\Storage\GooglePhotos;
 
 final class VideoCompressor
 {
-    private const int MAX_SIZE = 10 * 1024 * 1024 * 1024; // 10 ГБ
+    public function __construct(
+        private readonly bool $enabled,
+        private readonly int $maxSizeBytes,
+    ) {
+    }
 
     public function compressIfNeeded(string $filePath): string
     {
+        // If compression is disabled, return original file
+        if (!$this->enabled) {
+            return $filePath;
+        }
+
         $fileSize = \filesize($filePath);
         if (false === $fileSize) {
             throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
         }
 
-        if ($fileSize <= self::MAX_SIZE) {
-            return $filePath; // Не нужно сжимать
+        if ($fileSize <= $this->maxSizeBytes) {
+            return $filePath; // No compression needed
         }
 
-        // Использовать ffmpeg для сжатия (если доступен)
+        // Use ffmpeg for compression (if available)
         if (!$this->isFfmpegAvailable()) {
-            // Если ffmpeg недоступен, возвращаем оригинал
-            // В реальности можно выбросить исключение или использовать другой метод
+            // If ffmpeg is not available, return original
+            // In production, you might want to throw an exception or use another method
             return $filePath;
         }
 

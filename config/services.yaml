@@ -351,8 +351,16 @@ services:
             $connection: '@Doctrine\DBAL\Connection'
     
     # Compressors
-    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ImageCompressor: ~
-    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\VideoCompressor: ~
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ImageCompressor:
+        arguments:
+            $enabled: '%app.compression.enabled%'
+            $jpegMaxPixels: '%app.compression.jpeg_max_pixels%'
+            $pngMaxPixels: '%app.compression.png_max_pixels%'
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\VideoCompressor:
+        arguments:
+            $enabled: '%app.compression.enabled%'
+            $maxSizeBytes: '%app.compression.video_max_size_bytes%'
     
     # Database Schema Initializer
     SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseSchemaInitializer:

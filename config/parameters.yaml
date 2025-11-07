@@ -14,5 +14,11 @@ parameters:
     app.google_photos.album_id: null
     app.google_photos.credentials_path: ''
     app.google_photos.full_access: false
+    
+    # Compression parameters
+    app.compression.enabled: false
+    app.compression.jpeg_max_pixels: 75000000  # 75 MP (Google Photos limit)
+    app.compression.png_max_pixels: 200000000  # 200 MP (Google Photos limit)
+    app.compression.video_max_size_bytes: 10737418240  # 10 GB (Google Photos limit)
 
 
