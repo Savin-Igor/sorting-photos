@@ -8,5 +8,9 @@ parameters:
     
     # Filesystem parameters
     app.filesystem.default_dir_permissions: 493  # 0755 in decimal
+    
+    # Google Photos API parameters
+    app.google_photos.access_token: ''
+    app.google_photos.album_id: null
 
 

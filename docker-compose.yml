@@ -11,12 +11,14 @@ services:
       - ./:/var/www/html
       # Mount source directory from host - can be any path (USB drive, network share, etc.)
       # Set SOURCE_DIRECTORY_HOST env var to mount your source directory
-      # Example: SOURCE_DIRECTORY_HOST=/home/user/Pictures:/var/data/source:ro
-      # Or: SOURCE_DIRECTORY_HOST=/mnt/usb/photos:/var/data/source:ro
+      # Format: /host/path (will be mounted to /var/data/source:ro)
+      # Example: SOURCE_DIRECTORY_HOST=/home/user/Pictures
+      # Or: SOURCE_DIRECTORY_HOST=/mnt/usb/photos
       - ${SOURCE_DIRECTORY_HOST:-./var/data/source}:/var/data/source:ro
       # Mount destination directory from host - can be any path
       # Set DESTINATION_DIRECTORY_HOST env var to mount your destination directory
-      # Example: DESTINATION_DIRECTORY_HOST=/mnt/external:/var/data/destination
+      # Format: /host/path (will be mounted to /var/data/destination)
+      # Example: DESTINATION_DIRECTORY_HOST=/mnt/external
       - ${DESTINATION_DIRECTORY_HOST:-./var/data/destination}:/var/data/destination
       - ./var:/var/www/html/var
     environment:

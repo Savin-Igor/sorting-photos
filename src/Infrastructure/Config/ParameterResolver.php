@@ -16,12 +16,16 @@ final readonly class ParameterResolver
      */
     public static function resolveFromEnvironment(): array
     {
+        $albumId = self::getEnv('GOOGLE_PHOTOS_ALBUM_ID', '');
+
         return [
             'app.source_directory' => self::getEnv('SOURCE_DIRECTORY', ''),
             'app.destination_directory' => self::getEnv('DESTINATION_DIRECTORY', ''),
             'app.organizer_policy' => self::getEnv('ORGANIZER_POLICY', 'date-type'),
             'app.dry_run' => filter_var(self::getEnv('DRY_RUN', 'false'), FILTER_VALIDATE_BOOLEAN),
             'app.filesystem.default_dir_permissions' => (int) self::getEnv('FILESYSTEM_DEFAULT_DIR_PERMISSIONS', '0755'),
+            'app.google_photos.access_token' => self::getEnv('GOOGLE_PHOTOS_ACCESS_TOKEN', ''),
+            'app.google_photos.album_id' => '' !== $albumId ? $albumId : null,
         ];
     }
 

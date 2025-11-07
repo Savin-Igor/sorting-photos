@@ -266,3 +266,79 @@ services:
             $container: '@service_container'
         # This will be replaced with AsyncMessageBus if ASYNC_MODE=true in ContainerFactory::setupMessageBus()
 
+    # ============================================
+    # Google Photos Upload Configuration
+    # ============================================
+    
+    # Application Services
+    SortingPhotosByDate\Application\Service\GooglePhotos\:
+        resource: '../../src/Application/Service/GooglePhotos/*'
+        public: true
+    
+    # Infrastructure Services
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\:
+        resource: '../../src/Infrastructure/Storage/GooglePhotos/*'
+        public: true
+    
+    # Repositories
+    SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort:
+        alias: SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseUploadJobRepository
+        public: true
+    
+    SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadBatchRepositoryPort:
+        alias: SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseUploadBatchRepository
+        public: true
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseUploadJobRepository:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseUploadBatchRepository:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+    
+    # Google Photos API Client
+    SortingPhotosByDate\Ports\Storage\GooglePhotos\GooglePhotosApiClientPort:
+        alias: SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\GooglePhotosApiClient
+        public: true
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\GooglePhotosApiClient:
+        arguments:
+            $httpClient: '@Psr\Http\Client\ClientInterface'
+            $requestFactory: '@Psr\Http\Message\RequestFactoryInterface'
+            $streamFactory: '@Psr\Http\Message\StreamFactoryInterface'
+            $accessToken: '%app.google_photos.access_token%'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+    
+    # HTTP Client (Guzzle)
+    Psr\Http\Client\ClientInterface:
+        class: GuzzleHttp\Client
+        public: true
+    
+    Psr\Http\Message\RequestFactoryInterface:
+        class: GuzzleHttp\Psr7\HttpFactory
+        public: true
+    
+    Psr\Http\Message\StreamFactoryInterface:
+        class: GuzzleHttp\Psr7\HttpFactory
+        public: true
+    
+    # Quota Tracker
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\QuotaTracker:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+    
+    # Compressors
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ImageCompressor: ~
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\VideoCompressor: ~
+    
+    # Database Schema Initializer
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseSchemaInitializer:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+    
+    # Batch Processor with optional album ID
+    SortingPhotosByDate\Application\Service\GooglePhotos\BatchProcessor:
+        arguments:
+            $albumId: '%app.google_photos.album_id%'
+

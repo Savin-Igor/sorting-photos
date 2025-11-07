@@ -26,6 +26,14 @@ framework:
             SortingPhotosByDate\Domain\Event\FileProcessed: async
             SortingPhotosByDate\Domain\Event\FileOrganized: async
             SortingPhotosByDate\Domain\Event\FileError: async
+            
+            # Google Photos upload events (синхронная обработка через основной цикл)
+            SortingPhotosByDate\Domain\Event\UploadInitiated: async
+            SortingPhotosByDate\Domain\Event\UploadProgressed: async
+            SortingPhotosByDate\Domain\Event\UploadCompleted: async
+            SortingPhotosByDate\Domain\Event\UploadPausedByQuota: async
+            SortingPhotosByDate\Domain\Event\BatchCreated: async
+            SortingPhotosByDate\Domain\Event\BatchCompleted: async
 
             # Route commands to async transport
             SortingPhotosByDate\Application\Command\IngestFileCommand: async
