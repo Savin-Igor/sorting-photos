@@ -40,9 +40,31 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
                 return true;
             }
 
-            $this->filesystem->createDirectory($path, [
-                'visibility' => $this->permissionsToVisibility($this->defaultDirectoryPermissions),
-            ]);
+            // Flysystem createDirectory doesn't create parent directories recursively
+            // We need to create parent directories first
+            $parts = explode('/', trim($path, '/'));
+            $currentPath = '';
+            foreach ($parts as $part) {
+                if ('' === $part) {
+                    continue;
+                }
+                $currentPath .= '/'.$part;
+                if (!$this->filesystem->directoryExists($currentPath)) {
+                    try {
+                        $this->filesystem->createDirectory($currentPath, [
+                            'visibility' => $this->permissionsToVisibility($this->defaultDirectoryPermissions),
+                        ]);
+                    } catch (\Exception) {
+                        // If directory already exists (race condition), verify it exists
+                        // If it still doesn't exist, return false
+                        // @phpstan-ignore-next-line (directoryExists may return true if directory was created by another process)
+                        if (!$this->filesystem->directoryExists($currentPath)) {
+                            return false;
+                        }
+                        // Directory exists now, continue
+                    }
+                }
+            }
 
             return true;
         } catch (\Exception) {

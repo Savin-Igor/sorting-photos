@@ -111,11 +111,8 @@ final readonly class MetadataPreservingCopier
             throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
         }
 
-        // Ensure destination directory exists
-        $destinationDir = dirname($destPath);
-        if (!$this->filesystem->directoryExists($destinationDir)) {
-            $this->filesystem->createDirectory($destinationDir);
-        }
+        // Ensure destination directory exists (recursively)
+        $this->ensureDirectoryRecursive(dirname($destPath));
 
         // Get source metadata before copying (using native PHP for metadata Flysystem doesn't support)
         $permissions = 0644;
@@ -166,10 +163,10 @@ final readonly class MetadataPreservingCopier
             throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
         }
 
-        // Ensure destination directory exists
+        // Ensure destination directory exists (recursively)
         $destinationDir = dirname($destPath);
-        if (!is_dir($destinationDir)) {
-            mkdir($destinationDir, 0755, true);
+        if (!is_dir($destinationDir) && (!mkdir($destinationDir, 0755, true) && !is_dir($destinationDir))) {
+            throw new \RuntimeException("Failed to create destination directory: {$destinationDir}");
         }
 
         // Get source metadata
@@ -204,11 +201,8 @@ final readonly class MetadataPreservingCopier
             throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
         }
 
-        // Ensure destination directory exists
-        $destinationDir = dirname($destPath);
-        if (!$this->filesystem->directoryExists($destinationDir)) {
-            $this->filesystem->createDirectory($destinationDir);
-        }
+        // Ensure destination directory exists (recursively)
+        $this->ensureDirectoryRecursive(dirname($destPath));
 
         // Get source metadata
         $permissions = fileperms($sourcePath) ?: 0644;
@@ -276,6 +270,36 @@ final readonly class MetadataPreservingCopier
             // Clean up destination file if integrity check fails
             $this->filesystem->delete($destPath);
             throw new \RuntimeException("File integrity check failed: source hash {$sourceHash} does not match destination hash {$destHash}");
+        }
+    }
+
+    /**
+     * Ensure directory exists recursively using Flysystem.
+     */
+    private function ensureDirectoryRecursive(string $directoryPath): void
+    {
+        if ($this->filesystem->directoryExists($directoryPath)) {
+            return;
+        }
+
+        // Create directory recursively by creating parent directories first
+        $isAbsolute = str_starts_with($directoryPath, '/');
+        $parts = array_filter(explode('/', $directoryPath), static fn (string $part): bool => '' !== $part);
+        $currentPath = $isAbsolute ? '' : '.';
+        foreach ($parts as $part) {
+            $currentPath .= '/'.$part;
+            if (!$this->filesystem->directoryExists($currentPath)) {
+                try {
+                    $this->filesystem->createDirectory($currentPath);
+                } catch (\Exception $e) {
+                    // If directory already exists (race condition), verify it exists
+                    // If it still doesn't exist, rethrow the exception
+                    // @phpstan-ignore-next-line (directoryExists may return true if directory was created by another process)
+                    if (!$this->filesystem->directoryExists($currentPath)) {
+                        throw new \RuntimeException("Failed to create directory: {$currentPath}", 0, $e);
+                    }
+                }
+            }
         }
     }
 

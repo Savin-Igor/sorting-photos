@@ -353,7 +353,8 @@ final readonly class ContainerFactory
         $wrapperDefinition->setPublic(true);
 
         $container->setDefinition($wrapperId, $wrapperDefinition);
-        $container->setAlias($filesystemPortId, $wrapperId);
+        $alias = $container->setAlias($filesystemPortId, $wrapperId);
+        $alias->setPublic(true);
     }
 
     /**
@@ -383,7 +384,8 @@ final readonly class ContainerFactory
         $wrapperDefinition->setPublic(true);
 
         $container->setDefinition($wrapperId, $wrapperDefinition);
-        $container->setAlias($portId, $wrapperId);
+        $alias = $container->setAlias($portId, $wrapperId);
+        $alias->setPublic(true);
     }
 
     /**

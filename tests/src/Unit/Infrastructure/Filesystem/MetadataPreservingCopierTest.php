@@ -35,15 +35,22 @@ final class MetadataPreservingCopierTest extends TestCase
             ->willReturn(true);
 
         $this->filesystem
-            ->expects($this->once())
+            ->expects($this->atLeastOnce())
             ->method('directoryExists')
-            ->with($destDirStr)
-            ->willReturn(false);
+            ->willReturnCallback(fn(string $path): bool =>
+                // Return false for destination directory, true for others (already exist)
+                $path !== $destDirStr);
 
         $this->filesystem
-            ->expects($this->once())
+            ->expects($this->atLeastOnce())
             ->method('createDirectory')
-            ->with($destDirStr);
+            ->willReturnCallback(function (string $path) use ($destDirStr): void {
+                // Allow creating destination directory or any parent
+                if ($path === $destDirStr || str_starts_with($destDirStr, $path.'/')) {
+                    return;
+                }
+                throw new \RuntimeException("Unexpected directory creation: {$path}");
+            });
 
         // Mock read calls: first for copying, then two for hash verification
         $this->filesystem
@@ -93,15 +100,22 @@ final class MetadataPreservingCopierTest extends TestCase
             ->willReturn(true);
 
         $this->filesystem
-            ->expects($this->once())
+            ->expects($this->atLeastOnce())
             ->method('directoryExists')
-            ->with($destDirStr)
-            ->willReturn(false);
+            ->willReturnCallback(fn(string $path): bool =>
+                // Return false for destination directory, true for others (already exist)
+                $path !== $destDirStr);
 
         $this->filesystem
-            ->expects($this->once())
+            ->expects($this->atLeastOnce())
             ->method('createDirectory')
-            ->with($destDirStr);
+            ->willReturnCallback(function (string $path) use ($destDirStr): void {
+                // Allow creating destination directory or any parent
+                if ($path === $destDirStr || str_starts_with($destDirStr, $path.'/')) {
+                    return;
+                }
+                throw new \RuntimeException("Unexpected directory creation: {$path}");
+            });
 
         // Mock read calls: first for copying, then two for hash verification with different content
         $readCallCount = 0;
@@ -156,15 +170,22 @@ final class MetadataPreservingCopierTest extends TestCase
             ->willReturn(true);
 
         $this->filesystem
-            ->expects($this->once())
+            ->expects($this->atLeastOnce())
             ->method('directoryExists')
-            ->with($destDirStr)
-            ->willReturn(false);
+            ->willReturnCallback(fn(string $path): bool =>
+                // Return false for destination directory, true for others (already exist)
+                $path !== $destDirStr);
 
         $this->filesystem
-            ->expects($this->once())
+            ->expects($this->atLeastOnce())
             ->method('createDirectory')
-            ->with($destDirStr);
+            ->willReturnCallback(function (string $path) use ($destDirStr): void {
+                // Allow creating destination directory or any parent
+                if ($path === $destDirStr || str_starts_with($destDirStr, $path.'/')) {
+                    return;
+                }
+                throw new \RuntimeException("Unexpected directory creation: {$path}");
+            });
 
         // Mock read calls: first for copying, then two for hash verification
         $this->filesystem
