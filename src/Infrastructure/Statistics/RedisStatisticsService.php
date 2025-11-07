@@ -88,18 +88,31 @@ final readonly class RedisStatisticsService
 
     /**
      * Get all statistics.
+     * Optimized to use MGET for single round-trip to Redis.
      *
      * @return array{total: int, processed: int, skipped: int, duplicates: int, already_processed: int, errors: int}
      */
     public function getStats(): array
     {
+        // Use MGET to fetch all values in a single round-trip
+        $values = $this->redis->mget([
+            self::KEY_TOTAL,
+            self::KEY_PROCESSED,
+            self::KEY_SKIPPED,
+            self::KEY_DUPLICATES,
+            self::KEY_ALREADY_PROCESSED,
+            self::KEY_ERRORS,
+        ]);
+
+        // Ensure we have 6 values, defaulting to null if missing
+        /** @var array<int, string|null> $values */
         return [
-            'total' => (int) ($this->redis->get(self::KEY_TOTAL) ?? 0),
-            'processed' => (int) ($this->redis->get(self::KEY_PROCESSED) ?? 0),
-            'skipped' => (int) ($this->redis->get(self::KEY_SKIPPED) ?? 0),
-            'duplicates' => (int) ($this->redis->get(self::KEY_DUPLICATES) ?? 0),
-            'already_processed' => (int) ($this->redis->get(self::KEY_ALREADY_PROCESSED) ?? 0),
-            'errors' => (int) ($this->redis->get(self::KEY_ERRORS) ?? 0),
+            'total' => (int) ($values[0] ?? 0),
+            'processed' => (int) ($values[1] ?? 0),
+            'skipped' => (int) ($values[2] ?? 0),
+            'duplicates' => (int) ($values[3] ?? 0),
+            'already_processed' => (int) ($values[4] ?? 0),
+            'errors' => (int) ($values[5] ?? 0),
         ];
     }
 

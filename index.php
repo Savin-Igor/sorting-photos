@@ -226,38 +226,38 @@ try {
                 $lastProcessed = 0;
 
                 while ($waited < $maxWait) {
-                    $stats = $statisticsService->getStats();
-                    $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
+                    // Update progress bar and check completion every 0.5 seconds
+                    if (($waited - $lastUpdate) >= 0.5) {
+                        $stats = $statisticsService->getStats();
+                        $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
 
-                    // Update progress bar every 0.2 seconds for smoother updates
-                    if (($waited - $lastUpdate) >= 0.2) {
                         $redisProgressTracker->update();
                         $lastUpdate = $waited;
-                    }
 
-                    // Check if processing is stalled
-                    if ($current === $lastProcessed && $current > 0) {
-                        ++$stalledCount;
-                        // If stalled for more than 5 seconds, check if workers are running
-                        if ($stalledCount > 25) { // 25 * 0.2 = 5 seconds
-                            $output->writeln('');
-                            $output->writeln('<comment>Processing seems stalled. Make sure workers are running:</comment>');
-                            $output->writeln('<comment>  make consume-workers WORKERS=8</comment>');
-                            $stalledCount = 0; // Reset counter
+                        // Check if processing is stalled
+                        if ($current === $lastProcessed && $current > 0) {
+                            ++$stalledCount;
+                            // If stalled for more than 5 seconds, check if workers are running
+                            if ($stalledCount > 10) { // 10 * 0.5 = 5 seconds
+                                $output->writeln('');
+                                $output->writeln('<comment>Processing seems stalled. Make sure workers are running:</comment>');
+                                $output->writeln('<comment>  make consume-workers WORKERS=8</comment>');
+                                $stalledCount = 0; // Reset counter
+                            }
+                        } else {
+                            $stalledCount = 0;
                         }
-                    } else {
-                        $stalledCount = 0;
+
+                        $lastProcessed = $current;
+
+                        // If all files are processed, break immediately
+                        if ($totalFiles > 0 && $current >= $totalFiles) {
+                            break;
+                        }
                     }
 
-                    $lastProcessed = $current;
-
-                    // If all files are processed, break
-                    if ($totalFiles > 0 && $current >= $totalFiles) {
-                        break;
-                    }
-
-                    usleep(200000); // 0.2 seconds
-                    $waited += 0.2;
+                    usleep(500000); // 0.5 seconds
+                    $waited += 0.5;
                 }
 
                 $redisProgressTracker->update();
@@ -271,22 +271,23 @@ try {
                 $lastUpdate = 0;
 
                 while ($waited < $maxWait) {
-                    $stats = $statisticsService->getStats();
-                    $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
-
-                    // Update progress bar every 0.2 seconds
-                    if (($waited - $lastUpdate) >= 0.2) {
+                    // Update progress bar every 0.5 seconds to reduce Redis load
+                    if (($waited - $lastUpdate) >= 0.5) {
                         $redisProgressTracker->update();
                         $lastUpdate = $waited;
+
+                        // Check completion when updating progress
+                        $stats = $statisticsService->getStats();
+                        $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
+
+                        // If all files are processed, break
+                        if ($current >= $totalFiles) {
+                            break;
+                        }
                     }
 
-                    // If all files are processed, break
-                    if ($current >= $totalFiles) {
-                        break;
-                    }
-
-                    usleep(200000); // 0.2 seconds
-                    $waited += 0.2;
+                    usleep(500000); // 0.5 seconds
+                    $waited += 0.5;
                 }
 
                 $redisProgressTracker->update();
