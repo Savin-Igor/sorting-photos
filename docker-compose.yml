@@ -119,7 +119,7 @@ services:
     networks:
       - sorting-photos-network
     restart: unless-stopped
-    command: php bin/console messenger:consume async -vv --time-limit=3600
+    command: php bin/console messenger:consume -vv --time-limit=3600
     profiles:
       - worker
 

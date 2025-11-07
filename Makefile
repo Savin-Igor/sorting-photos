@@ -89,7 +89,8 @@ run: ## Run the application (sort files)
 	@echo "Running file sorting application..."
 	@echo "Using SOURCE_DIRECTORY_HOST: $${SOURCE_DIRECTORY_HOST:-./var/data/source}"
 	@echo "Using DESTINATION_DIRECTORY_HOST: $${DESTINATION_DIRECTORY_HOST:-./var/data/destination}"
-	${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$${SOURCE_DIRECTORY_HOST:-}" -e DESTINATION_DIRECTORY_HOST="$${DESTINATION_DIRECTORY_HOST:-}" app php index.php
+	@echo "Using ASYNC_MODE: $${ASYNC_MODE:-false}"
+	${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$${SOURCE_DIRECTORY_HOST:-}" -e DESTINATION_DIRECTORY_HOST="$${DESTINATION_DIRECTORY_HOST:-}" -e ASYNC_MODE="$${ASYNC_MODE:-false}" app php index.php
 .PHONY: run
 
 run-with-workers: ## Run the application with workers (usage: make run-with-workers WORKERS=8)
