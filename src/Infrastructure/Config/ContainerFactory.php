@@ -157,9 +157,19 @@ final readonly class ContainerFactory
         $sourceDsn = getenv('SOURCE_STORAGE_DSN') ?: ($_ENV['SOURCE_STORAGE_DSN'] ?? null);
         $destinationDsn = getenv('DESTINATION_STORAGE_DSN') ?: ($_ENV['DESTINATION_STORAGE_DSN'] ?? null);
 
+        // Get rate limit configuration from environment variables
+        $rateLimitConfig = $this->getRateLimitFromEnvironment();
+
         // If DSNs are not set, use default local storage
         if (null === $sourceDsn && null === $destinationDsn) {
-            // Use default local storage configuration from storage.yaml
+            // Apply rate limiting to default adapters if configured
+            // Note: Rate limiting is applied to StoragePort/DestinationStoragePort,
+            // but FilesystemPort continues to use LocalFilesystemAdapter directly
+            // to avoid circular dependency (LocalStorageAdapter depends on FilesystemPort)
+            if (null !== $rateLimitConfig) {
+                $this->applyRateLimitingToDefaultAdapters($container, $rateLimitConfig);
+            }
+
             return;
         }
 
@@ -168,6 +178,15 @@ final readonly class ContainerFactory
             try {
                 /** @var string $sourceDsn */
                 $sourceConfig = \SortingPhotosByDate\Infrastructure\Storage\StorageConfiguration::fromDsn($sourceDsn);
+                // Apply rate limit from environment if not specified in DSN
+                if (null === $sourceConfig->rateLimit && null !== $rateLimitConfig) {
+                    $sourceConfig = new \SortingPhotosByDate\Infrastructure\Storage\StorageConfiguration(
+                        type: $sourceConfig->type,
+                        credentials: $sourceConfig->credentials,
+                        rateLimit: $rateLimitConfig,
+                        options: $sourceConfig->options,
+                    );
+                }
                 $this->configureStorageAdapter($container, $sourceConfig, 'source');
             } catch (\Exception $e) {
                 // Log error but don't fail - fall back to default
@@ -179,12 +198,192 @@ final readonly class ContainerFactory
             try {
                 /** @var string $destinationDsn */
                 $destinationConfig = \SortingPhotosByDate\Infrastructure\Storage\StorageConfiguration::fromDsn($destinationDsn);
+                // Apply rate limit from environment if not specified in DSN
+                if (null === $destinationConfig->rateLimit && null !== $rateLimitConfig) {
+                    $destinationConfig = new \SortingPhotosByDate\Infrastructure\Storage\StorageConfiguration(
+                        type: $destinationConfig->type,
+                        credentials: $destinationConfig->credentials,
+                        rateLimit: $rateLimitConfig,
+                        options: $destinationConfig->options,
+                    );
+                }
                 $this->configureStorageAdapter($container, $destinationConfig, 'destination');
             } catch (\Exception $e) {
                 // Log error but don't fail - fall back to default
                 error_log("Failed to configure destination storage from DSN: {$e->getMessage()}");
             }
         }
+
+        // Apply rate limiting to FilesystemPort if configured (for handlers that use FilesystemPort directly)
+        if (null !== $rateLimitConfig) {
+            $this->applyRateLimitingToFilesystemPort($container, $rateLimitConfig);
+        }
+    }
+
+    /**
+     * Apply rate limiting to FilesystemPort.
+     */
+    private function applyRateLimitingToFilesystemPort(
+        ContainerBuilder $container,
+        \SortingPhotosByDate\Infrastructure\Storage\RateLimitConfiguration $rateLimitConfig,
+    ): void {
+        $filesystemPortId = \SortingPhotosByDate\Ports\FilesystemPort::class;
+        if (!$container->hasAlias($filesystemPortId)) {
+            return;
+        }
+
+        // Create rate limiter service if not exists
+        $rateLimiterId = 'SortingPhotosByDate\Infrastructure\Storage\RateLimiting\RateLimiter.default';
+        if (!$container->hasDefinition($rateLimiterId)) {
+            $rateLimiterDefinition = new \Symfony\Component\DependencyInjection\Definition(
+                \SortingPhotosByDate\Infrastructure\Storage\RateLimiting\TokenBucketRateLimiter::class
+            );
+            $rateLimiterDefinition->setArguments([
+                (int) $rateLimitConfig->requests,
+                (int) $rateLimitConfig->perSeconds,
+                null !== $rateLimitConfig->burst ? (int) $rateLimitConfig->burst : null,
+            ]);
+            $rateLimiterDefinition->setPublic(true);
+            $container->setDefinition($rateLimiterId, $rateLimiterDefinition);
+        }
+
+        // Wrap FilesystemPort with rate limiter
+        $originalFilesystemId = (string) $container->getAlias($filesystemPortId);
+        $this->wrapFilesystemPortWithRateLimiter($container, $originalFilesystemId, $filesystemPortId, $rateLimiterId);
+    }
+
+    /**
+     * Get rate limit configuration from environment variables.
+     */
+    private function getRateLimitFromEnvironment(): ?\SortingPhotosByDate\Infrastructure\Storage\RateLimitConfiguration
+    {
+        $requests = getenv('RATE_LIMIT_REQUESTS') ?: ($_ENV['RATE_LIMIT_REQUESTS'] ?? null);
+        $perSeconds = getenv('RATE_LIMIT_PER_SECONDS') ?: ($_ENV['RATE_LIMIT_PER_SECONDS'] ?? null);
+
+        if (null === $requests || null === $perSeconds) {
+            return null;
+        }
+
+        if (!is_numeric($requests) || !is_numeric($perSeconds)) {
+            error_log('Invalid rate limit configuration: requests and perSeconds must be numeric');
+
+            return null;
+        }
+
+        $burst = getenv('RATE_LIMIT_BURST') ?: ($_ENV['RATE_LIMIT_BURST'] ?? null);
+
+        try {
+            return new \SortingPhotosByDate\Infrastructure\Storage\RateLimitConfiguration(
+                requests: (int) $requests,
+                perSeconds: (int) $perSeconds,
+                burst: null !== $burst && is_numeric($burst) ? (int) $burst : null,
+            );
+        } catch (\Exception $e) {
+            error_log("Invalid rate limit configuration: {$e->getMessage()}");
+
+            return null;
+        }
+    }
+
+    /**
+     * Apply rate limiting to default storage adapters.
+     */
+    private function applyRateLimitingToDefaultAdapters(
+        ContainerBuilder $container,
+        \SortingPhotosByDate\Infrastructure\Storage\RateLimitConfiguration $rateLimitConfig,
+    ): void {
+        // Create rate limiter service
+        $rateLimiterId = 'SortingPhotosByDate\Infrastructure\Storage\RateLimiting\RateLimiter.default';
+        if (!$container->hasDefinition($rateLimiterId)) {
+            $rateLimiterDefinition = new \Symfony\Component\DependencyInjection\Definition(
+                \SortingPhotosByDate\Infrastructure\Storage\RateLimiting\TokenBucketRateLimiter::class
+            );
+            $rateLimiterDefinition->setArguments([
+                (int) $rateLimitConfig->requests,
+                (int) $rateLimitConfig->perSeconds,
+                null !== $rateLimitConfig->burst ? (int) $rateLimitConfig->burst : null,
+            ]);
+            $rateLimiterDefinition->setPublic(true);
+            $container->setDefinition($rateLimiterId, $rateLimiterDefinition);
+        }
+
+        // Wrap FilesystemPort with rate limiter (used by handlers)
+        $filesystemPortId = \SortingPhotosByDate\Ports\FilesystemPort::class;
+        if ($container->hasAlias($filesystemPortId)) {
+            $originalFilesystemId = (string) $container->getAlias($filesystemPortId);
+            $this->wrapFilesystemPortWithRateLimiter($container, $originalFilesystemId, $filesystemPortId, $rateLimiterId);
+        }
+
+        // Wrap source storage port with rate limiter
+        $sourcePortId = \SortingPhotosByDate\Ports\Storage\StoragePort::class;
+        if ($container->hasAlias($sourcePortId)) {
+            $sourceAdapterId = (string) $container->getAlias($sourcePortId);
+            $this->wrapAdapterWithRateLimiter($container, $sourceAdapterId, $sourcePortId, $rateLimiterId, true);
+        }
+
+        // Wrap destination storage port with rate limiter
+        $destinationPortId = \SortingPhotosByDate\Ports\Storage\DestinationStoragePort::class;
+        if ($container->hasAlias($destinationPortId)) {
+            $destinationAdapterId = (string) $container->getAlias($destinationPortId);
+            $this->wrapAdapterWithRateLimiter($container, $destinationAdapterId, $destinationPortId, $rateLimiterId, false);
+        }
+    }
+
+    /**
+     * Wrap FilesystemPort with rate limiter decorator.
+     */
+    private function wrapFilesystemPortWithRateLimiter(
+        ContainerBuilder $container,
+        string $originalFilesystemId,
+        string $filesystemPortId,
+        string $rateLimiterId,
+    ): void {
+        $wrapperId = $filesystemPortId.'.rate_limited';
+        if ($container->hasDefinition($wrapperId)) {
+            return; // Already wrapped
+        }
+
+        $wrapperDefinition = new \Symfony\Component\DependencyInjection\Definition(
+            \SortingPhotosByDate\Infrastructure\Storage\RateLimiting\RateLimitedFilesystemPort::class
+        );
+        $wrapperDefinition->setArguments([
+            new \Symfony\Component\DependencyInjection\Reference($originalFilesystemId),
+            new \Symfony\Component\DependencyInjection\Reference($rateLimiterId),
+        ]);
+        $wrapperDefinition->setPublic(true);
+
+        $container->setDefinition($wrapperId, $wrapperDefinition);
+        $container->setAlias($filesystemPortId, $wrapperId);
+    }
+
+    /**
+     * Wrap adapter with rate limiter decorator.
+     */
+    private function wrapAdapterWithRateLimiter(
+        ContainerBuilder $container,
+        string $adapterId,
+        string $portId,
+        string $rateLimiterId,
+        bool $isSource,
+    ): void {
+        $wrapperId = $portId.'.rate_limited';
+        if ($container->hasDefinition($wrapperId)) {
+            return; // Already wrapped
+        }
+
+        $wrapperClass = $isSource
+            ? \SortingPhotosByDate\Infrastructure\Storage\RateLimiting\RateLimitedStoragePort::class
+            : \SortingPhotosByDate\Infrastructure\Storage\RateLimiting\RateLimitedDestinationStoragePort::class;
+
+        $wrapperDefinition = new \Symfony\Component\DependencyInjection\Definition($wrapperClass);
+        $wrapperDefinition->setArguments([
+            new \Symfony\Component\DependencyInjection\Reference($adapterId),
+            new \Symfony\Component\DependencyInjection\Reference($rateLimiterId),
+        ]);
+        $wrapperDefinition->setPublic(true);
+
+        $container->setDefinition($wrapperId, $wrapperDefinition);
+        $container->setAlias($portId, $wrapperId);
     }
 
     /**
@@ -228,8 +427,27 @@ final readonly class ContainerFactory
                 $container->setDefinition($adapterServiceId, $adapterDefinition);
             }
 
-            // Set alias
-            $container->setAlias($serviceId, $adapterServiceId);
+            // Apply rate limiting if configured
+            if (null !== $config->rateLimit) {
+                $rateLimiterId = $serviceId.'.rate_limiter';
+                if (!$container->hasDefinition($rateLimiterId)) {
+                    $rateLimiterDefinition = new \Symfony\Component\DependencyInjection\Definition(
+                        \SortingPhotosByDate\Infrastructure\Storage\RateLimiting\TokenBucketRateLimiter::class
+                    );
+                    $rateLimiterDefinition->setArguments([
+                        $config->rateLimit->requests,
+                        $config->rateLimit->perSeconds,
+                        $config->rateLimit->burst,
+                    ]);
+                    $rateLimiterDefinition->setPublic(true);
+                    $container->setDefinition($rateLimiterId, $rateLimiterDefinition);
+                }
+
+                $this->wrapAdapterWithRateLimiter($container, $adapterServiceId, $serviceId, $rateLimiterId, 'source' === $type);
+            } else {
+                // Set alias without rate limiting
+                $container->setAlias($serviceId, $adapterServiceId);
+            }
         } else {
             // For local storage, update basePath if needed
             if (isset($config->options['location'])) {
@@ -240,6 +458,30 @@ final readonly class ContainerFactory
                     $arguments['$basePath'] = $config->options['location'];
                     $definition->setArguments($arguments);
                 }
+            }
+
+            // Apply rate limiting to local adapter if configured
+            if (null !== $config->rateLimit) {
+                $rateLimiterId = $serviceId.'.rate_limiter';
+                if (!$container->hasDefinition($rateLimiterId)) {
+                    $rateLimiterDefinition = new \Symfony\Component\DependencyInjection\Definition(
+                        \SortingPhotosByDate\Infrastructure\Storage\RateLimiting\TokenBucketRateLimiter::class
+                    );
+                    $rateLimiterDefinition->setArguments([
+                        $config->rateLimit->requests,
+                        $config->rateLimit->perSeconds,
+                        $config->rateLimit->burst,
+                    ]);
+                    $rateLimiterDefinition->setPublic(true);
+                    $container->setDefinition($rateLimiterId, $rateLimiterDefinition);
+                }
+
+                // Get the actual adapter ID from alias
+                $adapterId = 'source' === $type
+                    ? 'SortingPhotosByDate\Adapters\Storage\Local\LocalStorageAdapter.source'
+                    : \SortingPhotosByDate\Adapters\Storage\Local\LocalStorageAdapter::class;
+
+                $this->wrapAdapterWithRateLimiter($container, $adapterId, $serviceId, $rateLimiterId, 'source' === $type);
             }
         }
     }
