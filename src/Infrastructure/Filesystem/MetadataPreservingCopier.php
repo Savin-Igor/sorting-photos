@@ -164,9 +164,35 @@ final readonly class MetadataPreservingCopier
         }
 
         // Ensure destination directory exists (recursively)
+        // Even if destination is outside Flysystem root, try to use Flysystem for directory creation
+        // as it handles Docker volume mounts better than native mkdir
         $destinationDir = dirname($destPath);
-        if (!is_dir($destinationDir) && (!mkdir($destinationDir, 0755, true) && !is_dir($destinationDir))) {
-            throw new \RuntimeException("Failed to create destination directory: {$destinationDir}");
+        $destInRoot = $this->isWithinFilesystemRoot($destPath);
+
+        if ($destInRoot) {
+            // Use Flysystem for directories within root
+            $this->ensureDirectoryRecursive($destinationDir);
+        } else {
+            // For directories outside root, try Flysystem first (it may still work)
+            // If that fails, fall back to native mkdir
+            try {
+                $this->ensureDirectoryRecursive($destinationDir);
+            } catch (\Exception) {
+                // Fall back to native mkdir
+                // Try to create directory recursively with mkdir
+                if (!is_dir($destinationDir) && (!@mkdir($destinationDir, 0755, true) && !is_dir($destinationDir))) {
+                    // If mkdir failed, create directories one by one
+                    $isAbsolute = str_starts_with($destinationDir, '/');
+                    $parts = array_filter(explode('/', $destinationDir), static fn (string $part): bool => '' !== $part);
+                    $currentPath = $isAbsolute ? '/' : '.';
+                    foreach ($parts as $part) {
+                        $currentPath = rtrim($currentPath, '/').'/'.$part;
+                        if (!is_dir($currentPath) && (!@mkdir($currentPath, 0755, false) && !is_dir($currentPath))) {
+                            throw new \RuntimeException("Failed to create destination directory: {$currentPath}");
+                        }
+                    }
+                }
+            }
         }
 
         // Get source metadata
@@ -275,11 +301,32 @@ final readonly class MetadataPreservingCopier
 
     /**
      * Ensure directory exists recursively using Flysystem.
+     * Works with both paths within and outside Flysystem root.
      */
     private function ensureDirectoryRecursive(string $directoryPath): void
     {
-        if ($this->filesystem->directoryExists($directoryPath)) {
-            return;
+        // Check if path is within Flysystem root
+        $inRoot = $this->isWithinFilesystemRoot($directoryPath);
+
+        if ($inRoot) {
+            // Use Flysystem for paths within root
+            if ($this->filesystem->directoryExists($directoryPath)) {
+                return;
+            }
+        } else {
+            // For paths outside root, check with native PHP first
+            if (is_dir($directoryPath)) {
+                return;
+            }
+            // Try to use Flysystem anyway - it may work with absolute paths
+            // If directoryExists throws an exception, we'll catch it and use native PHP
+            try {
+                if ($this->filesystem->directoryExists($directoryPath)) {
+                    return;
+                }
+            } catch (\Exception) {
+                // Flysystem can't handle this path, will use native PHP below
+            }
         }
 
         // Create directory recursively by creating parent directories first
@@ -288,16 +335,25 @@ final readonly class MetadataPreservingCopier
         $currentPath = $isAbsolute ? '' : '.';
         foreach ($parts as $part) {
             $currentPath .= '/'.$part;
-            if (!$this->filesystem->directoryExists($currentPath)) {
-                try {
-                    $this->filesystem->createDirectory($currentPath);
-                } catch (\Exception $e) {
-                    // If directory already exists (race condition), verify it exists
-                    // If it still doesn't exist, rethrow the exception
-                    // @phpstan-ignore-next-line (directoryExists may return true if directory was created by another process)
-                    if (!$this->filesystem->directoryExists($currentPath)) {
-                        throw new \RuntimeException("Failed to create directory: {$currentPath}", 0, $e);
+            $currentInRoot = $this->isWithinFilesystemRoot($currentPath);
+
+            if ($currentInRoot) {
+                // Use Flysystem for paths within root
+                if (!$this->filesystem->directoryExists($currentPath)) {
+                    try {
+                        $this->filesystem->createDirectory($currentPath);
+                    } catch (\Exception $e) {
+                        // If directory already exists (race condition), verify it exists
+                        // @phpstan-ignore-next-line (directoryExists may return true if directory was created by another process)
+                        if (!$this->filesystem->directoryExists($currentPath)) {
+                            throw new \RuntimeException("Failed to create directory: {$currentPath}", 0, $e);
+                        }
                     }
+                }
+            } elseif (!is_dir($currentPath)) {
+                // Use native PHP for paths outside root
+                if (!@mkdir($currentPath, 0755, false) && !is_dir($currentPath)) {
+                    throw new \RuntimeException("Failed to create directory: {$currentPath}");
                 }
             }
         }
