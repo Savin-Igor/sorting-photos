@@ -126,6 +126,32 @@ metadata-clear: ## Clear all metadata from database (reset processing locks)
 	${DOCKER_COMPOSE} exec app php bin/console metadata:clear --force
 .PHONY: metadata-clear
 
+show-progress: ## Show real-time processing progress (usage: make show-progress INTERVAL=0.5 TIMEOUT=0)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Showing processing progress..."
+	@if [ -n "$$INTERVAL" ] && [ -n "$$TIMEOUT" ]; then \
+		${DOCKER_COMPOSE} exec app php bin/console show:progress --interval=$$INTERVAL --timeout=$$TIMEOUT; \
+	elif [ -n "$$INTERVAL" ]; then \
+		${DOCKER_COMPOSE} exec app php bin/console show:progress --interval=$$INTERVAL; \
+	elif [ -n "$$TIMEOUT" ]; then \
+		${DOCKER_COMPOSE} exec app php bin/console show:progress --timeout=$$TIMEOUT; \
+	else \
+		${DOCKER_COMPOSE} exec app php bin/console show:progress; \
+	fi
+.PHONY: show-progress
+
+show-progress-once: ## Show current statistics once and exit
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Showing current statistics..."
+	${DOCKER_COMPOSE} exec app php bin/console show:progress --once
+.PHONY: show-progress-once
+
 consume: ## Consume messages from queue (run worker)
 	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
 		echo "Containers are not running. Starting them..."; \

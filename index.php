@@ -198,101 +198,23 @@ try {
 
     $logger->debug('Scan command completed successfully');
 
-    // Process messages and show progress
+    // Files are being processed by workers (async) or immediately (sync)
+    // Use 'make show-progress' command to monitor progress in real-time
     if (null !== $statisticsService) {
         $stats = $statisticsService->getStats();
         $totalFiles = $stats['total'];
 
         if ($totalFiles > 0) {
             $output->writeln('');
-            $output->writeln('<info>Processing files...</info>');
-
-            // Create Redis-based progress tracker
-            $redisProgressTracker = new SortingPhotosByDate\Infrastructure\Helper\RedisProgressTracker(
-                $output,
-                $statisticsService,
-                $output->isVerbose()
-            );
-            $redisProgressTracker->initialize($totalFiles);
-
-            // In async mode, wait for workers to process
-            // In sync mode, messages are processed immediately
+            $output->writeln(\sprintf('<info>Processing started: %d files queued</info>', $totalFiles));
             if ($asyncMode) {
-                // Wait for async processing with progress updates
-                $maxWait = 600; // 10 minutes max for large batches
-                $waited = 0;
-                $lastUpdate = 0;
-                $stalledCount = 0;
-                $lastProcessed = 0;
-
-                while ($waited < $maxWait) {
-                    // Update progress bar and check completion every 0.5 seconds
-                    if (($waited - $lastUpdate) >= 0.5) {
-                        $stats = $statisticsService->getStats();
-                        $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
-
-                        $redisProgressTracker->update();
-                        $lastUpdate = $waited;
-
-                        // Check if processing is stalled
-                        if ($current === $lastProcessed && $current > 0) {
-                            ++$stalledCount;
-                            // If stalled for more than 5 seconds, check if workers are running
-                            if ($stalledCount > 10) { // 10 * 0.5 = 5 seconds
-                                $output->writeln('');
-                                $output->writeln('<comment>Processing seems stalled. Make sure workers are running:</comment>');
-                                $output->writeln('<comment>  make consume-workers WORKERS=8</comment>');
-                                $stalledCount = 0; // Reset counter
-                            }
-                        } else {
-                            $stalledCount = 0;
-                        }
-
-                        $lastProcessed = $current;
-
-                        // If all files are processed, break immediately
-                        if ($totalFiles > 0 && $current >= $totalFiles) {
-                            break;
-                        }
-                    }
-
-                    usleep(500000); // 0.5 seconds
-                    $waited += 0.5;
-                }
-
-                $redisProgressTracker->update();
-                $redisProgressTracker->finish();
+                $output->writeln('<comment>Files are being processed by workers in the background.</comment>');
+                $output->writeln('<comment>Monitor progress with: <info>make show-progress</info></comment>');
             } else {
-                // In sync mode, process messages and update progress
-                // Messages are processed immediately by SynchronousMessageBus
-                // Just wait a bit and update progress bar
-                $maxWait = 120; // 2 minutes max for sync processing
-                $waited = 0;
-                $lastUpdate = 0;
-
-                while ($waited < $maxWait) {
-                    // Update progress bar every 0.5 seconds to reduce Redis load
-                    if (($waited - $lastUpdate) >= 0.5) {
-                        $redisProgressTracker->update();
-                        $lastUpdate = $waited;
-
-                        // Check completion when updating progress
-                        $stats = $statisticsService->getStats();
-                        $current = $stats['processed'] + $stats['skipped'] + $stats['errors'];
-
-                        // If all files are processed, break
-                        if ($current >= $totalFiles) {
-                            break;
-                        }
-                    }
-
-                    usleep(500000); // 0.5 seconds
-                    $waited += 0.5;
-                }
-
-                $redisProgressTracker->update();
-                $redisProgressTracker->finish();
+                $output->writeln('<comment>Files are being processed synchronously.</comment>');
+                $output->writeln('<comment>Monitor progress with: <info>make show-progress</info></comment>');
             }
+            $output->writeln('');
         }
     }
 
