@@ -104,6 +104,15 @@ final readonly class ContainerFactory
             $loader->load('packages/flysystem.yaml');
         }
 
+        // Load storage abstraction configuration
+        $storageFile = $this->projectDir.'/config/packages/storage.yaml';
+        if (file_exists($storageFile)) {
+            $loader->load('packages/storage.yaml');
+        }
+
+        // Configure storage adapters based on DSN if provided
+        $this->configureStorageAdapters($container);
+
         // If async mode is enabled, override MessageBusInterface definition
         $asyncMode = getenv('ASYNC_MODE') ?: ($_ENV['ASYNC_MODE'] ?? 'false');
         $asyncMode = filter_var($asyncMode, FILTER_VALIDATE_BOOLEAN);
@@ -136,6 +145,102 @@ final readonly class ContainerFactory
             $definition->setAutoconfigured(false);
 
             $container->setDefinition(MessageBusInterface::class, $definition);
+        }
+    }
+
+    /**
+     * Configure storage adapters based on DSN configuration.
+     */
+    private function configureStorageAdapters(ContainerBuilder $container): void
+    {
+        // Check if storage DSNs are configured
+        $sourceDsn = getenv('SOURCE_STORAGE_DSN') ?: ($_ENV['SOURCE_STORAGE_DSN'] ?? null);
+        $destinationDsn = getenv('DESTINATION_STORAGE_DSN') ?: ($_ENV['DESTINATION_STORAGE_DSN'] ?? null);
+
+        // If DSNs are not set, use default local storage
+        if (null === $sourceDsn && null === $destinationDsn) {
+            // Use default local storage configuration from storage.yaml
+            return;
+        }
+
+        // Parse DSNs and configure adapters
+        if (null !== $sourceDsn) {
+            try {
+                /** @var string $sourceDsn */
+                $sourceConfig = \SortingPhotosByDate\Infrastructure\Storage\StorageConfiguration::fromDsn($sourceDsn);
+                $this->configureStorageAdapter($container, $sourceConfig, 'source');
+            } catch (\Exception $e) {
+                // Log error but don't fail - fall back to default
+                error_log("Failed to configure source storage from DSN: {$e->getMessage()}");
+            }
+        }
+
+        if (null !== $destinationDsn) {
+            try {
+                /** @var string $destinationDsn */
+                $destinationConfig = \SortingPhotosByDate\Infrastructure\Storage\StorageConfiguration::fromDsn($destinationDsn);
+                $this->configureStorageAdapter($container, $destinationConfig, 'destination');
+            } catch (\Exception $e) {
+                // Log error but don't fail - fall back to default
+                error_log("Failed to configure destination storage from DSN: {$e->getMessage()}");
+            }
+        }
+    }
+
+    /**
+     * Configure a single storage adapter.
+     */
+    private function configureStorageAdapter(
+        ContainerBuilder $container,
+        \SortingPhotosByDate\Infrastructure\Storage\StorageConfiguration $config,
+        string $type,
+    ): void {
+        $adapterClass = match ($config->type) {
+            \SortingPhotosByDate\Domain\Storage\StorageType::LOCAL => \SortingPhotosByDate\Adapters\Storage\Local\LocalStorageAdapter::class,
+            \SortingPhotosByDate\Domain\Storage\StorageType::GOOGLE_PHOTOS => \SortingPhotosByDate\Adapters\Storage\GooglePhotos\GooglePhotosAdapter::class,
+            default => throw new \RuntimeException("Storage type {$config->type->value} not yet fully implemented"),
+        };
+
+        $serviceId = match ($type) {
+            'source' => \SortingPhotosByDate\Ports\Storage\StoragePort::class,
+            'destination' => \SortingPhotosByDate\Ports\Storage\DestinationStoragePort::class,
+            default => throw new \InvalidArgumentException("Invalid storage type: {$type}"),
+        };
+
+        // Configure adapter service if it's not local (local is already configured)
+        if (\SortingPhotosByDate\Domain\Storage\StorageType::LOCAL !== $config->type) {
+            $adapterServiceId = $adapterClass;
+            if (!$container->hasDefinition($adapterServiceId)) {
+                $adapterDefinition = new \Symfony\Component\DependencyInjection\Definition($adapterClass);
+                $adapterDefinition->setPublic(true);
+                $adapterDefinition->setAutowired(false);
+                $adapterDefinition->setAutoconfigured(false);
+
+                // Set arguments based on storage type
+                match ($config->type) {
+                    \SortingPhotosByDate\Domain\Storage\StorageType::GOOGLE_PHOTOS => $adapterDefinition->setArguments([
+                        $config->credentials,
+                        $config->options,
+                    ]),
+                    default => throw new \RuntimeException("Storage type {$config->type->value} configuration not implemented"),
+                };
+
+                $container->setDefinition($adapterServiceId, $adapterDefinition);
+            }
+
+            // Set alias
+            $container->setAlias($serviceId, $adapterServiceId);
+        } else {
+            // For local storage, update basePath if needed
+            if (isset($config->options['location'])) {
+                $localAdapterId = \SortingPhotosByDate\Adapters\Storage\Local\LocalStorageAdapter::class;
+                if ($container->hasDefinition($localAdapterId)) {
+                    $definition = $container->getDefinition($localAdapterId);
+                    $arguments = $definition->getArguments();
+                    $arguments['$basePath'] = $config->options['location'];
+                    $definition->setArguments($arguments);
+                }
+            }
         }
     }
 

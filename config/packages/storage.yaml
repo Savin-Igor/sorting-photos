@@ -1,0 +1,70 @@
+# Storage abstraction configuration
+# This allows using different storage backends (local, Google Photos, Dropbox, S3, etc.)
+
+services:
+    # ============================================
+    # Storage Adapter Factory
+    # ============================================
+    
+    SortingPhotosByDate\Infrastructure\Storage\StorageAdapterFactory:
+        arguments:
+            $container: '@service_container'
+        public: true
+    
+    # ============================================
+    # Local Storage Adapter
+    # ============================================
+    
+    # Source storage adapter (for reading)
+    SortingPhotosByDate\Adapters\Storage\Local\LocalStorageAdapter.source:
+        class: SortingPhotosByDate\Adapters\Storage\Local\LocalStorageAdapter
+        arguments:
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $scanner: '@SortingPhotosByDate\Ports\ScannerPort'
+            $basePath: '%app.source_directory%'
+        public: true
+    
+    # Destination storage adapter (for writing)
+    SortingPhotosByDate\Adapters\Storage\Local\LocalStorageAdapter:
+        arguments:
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $scanner: '@SortingPhotosByDate\Ports\ScannerPort'
+            $basePath: '%app.destination_directory%'
+        public: true
+    
+    # ============================================
+    # Google Photos Storage Adapter (placeholder)
+    # ============================================
+    
+    SortingPhotosByDate\Adapters\Storage\GooglePhotos\GooglePhotosAdapter:
+        autowire: false
+        autoconfigure: false
+        public: true
+        # Arguments will be set dynamically based on configuration
+    
+    # ============================================
+    # Storage Ports (will be configured dynamically)
+    # ============================================
+    
+    # Source storage port (for reading)
+    SortingPhotosByDate\Ports\Storage\StoragePort:
+        alias: SortingPhotosByDate\Adapters\Storage\Local\LocalStorageAdapter.source
+        public: true
+    
+    # Destination storage port (for writing)
+    SortingPhotosByDate\Ports\Storage\DestinationStoragePort:
+        alias: SortingPhotosByDate\Adapters\Storage\Local\LocalStorageAdapter
+        public: true
+    
+    # ============================================
+    # Bridge for backward compatibility
+    # ============================================
+    
+    # Bridge that implements FilesystemPort using StoragePort/DestinationStoragePort
+    # This allows existing code to work with the new storage abstraction
+    SortingPhotosByDate\Infrastructure\Storage\Bridge\StorageToFilesystemBridge:
+        arguments:
+            $sourceStorage: '@SortingPhotosByDate\Ports\Storage\StoragePort'
+            $destinationStorage: '@SortingPhotosByDate\Ports\Storage\DestinationStoragePort'
+        public: true
+
