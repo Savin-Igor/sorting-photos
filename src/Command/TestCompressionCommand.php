@@ -14,7 +14,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+use Symfony\Component\DependencyInjection\ParameterBag\ContainerBagInterface;
 use Symfony\Component\Mime\MimeTypes;
 
 #[AsCommand(
@@ -27,7 +27,7 @@ final class TestCompressionCommand extends Command
         private readonly ImageCompressor $imageCompressor,
         private readonly VideoCompressor $videoCompressor,
         private readonly LoggerPort $logger,
-        private readonly ParameterBagInterface $parameterBag,
+        private readonly ContainerBagInterface $parameterBag,
     ) {
         parent::__construct();
     }
