@@ -34,6 +34,7 @@
         "symfony/event-dispatcher-contracts": "^3.0",
         "symfony/finder": "^7.0",
         "symfony/messenger": "^7.0",
+        "symfony/mime": "^7.3",
         "symfony/redis-messenger": "^7.3",
         "symfony/yaml": "^7.0"
     },

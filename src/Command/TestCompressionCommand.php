@@ -233,6 +233,48 @@ final class TestCompressionCommand extends Command
     }
 
     /**
+     * Detect MIME type of a file.
+     */
+    private function detectMimeType(string $filePath): string
+    {
+        // Try mime_content_type first (if available)
+        if (\function_exists('mime_content_type')) {
+            $mimeType = \mime_content_type($filePath);
+            if (false !== $mimeType && 'application/octet-stream' !== $mimeType) {
+                return $mimeType;
+            }
+        }
+
+        // Fallback to finfo_file
+        if (\function_exists('finfo_open')) {
+            $finfo = \finfo_open(\FILEINFO_MIME_TYPE);
+            if (false !== $finfo) {
+                $mimeType = \finfo_file($finfo, $filePath);
+                \finfo_close($finfo);
+                if (false !== $mimeType && 'application/octet-stream' !== $mimeType) {
+                    return $mimeType;
+                }
+            }
+        }
+
+        // Fallback to extension-based detection
+        $extension = \strtolower(\pathinfo($filePath, \PATHINFO_EXTENSION));
+        $mimeTypes = [
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'mp4' => 'video/mp4',
+            'avi' => 'video/x-msvideo',
+            'mov' => 'video/quicktime',
+            'mkv' => 'video/x-matroska',
+        ];
+
+        return $mimeTypes[$extension] ?? 'application/octet-stream';
+    }
+
+    /**
      * Format bytes to human-readable format.
      */
     private function formatBytes(int $bytes): string
