@@ -71,6 +71,7 @@ final class UploadOrchestrator
                     // 5.2. Priority 1: Incomplete batches
                     $batch = $this->batchRepository->findProcessingOrPaused();
                     if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
+                        $this->logger->debug('Processing incomplete batch', ['batch_id' => $batch->getId()]);
                         try {
                             $this->batchProcessor->processBatch($batch);
                             continue;
@@ -82,6 +83,7 @@ final class UploadOrchestrator
                     // 5.3. Priority 2: Collect new batch
                     $batch = $this->batchCollector->collectBatch();
                     if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
+                        $this->logger->debug('Collected new batch', ['batch_id' => $batch->getId()]);
                         try {
                             $this->batchProcessor->processBatch($batch);
                             continue;
@@ -93,20 +95,42 @@ final class UploadOrchestrator
                     // 5.4. Priority 3: Upload next file
                     $job = $this->jobRepository->findNextPendingOrResumable();
                     if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
+                        $this->logger->info('Processing upload job', [
+                            'job_id' => $job->getId(),
+                            'file_path' => $job->getFilePath(),
+                            'state' => $job->getState()->value,
+                        ]);
                         try {
                             $this->uploadService->uploadFile($job);
+                            $this->logger->info('Upload job completed', [
+                                'job_id' => $job->getId(),
+                            ]);
                             continue;
                         } catch (QuotaExceededException) {
                             break;
                         }
+                    } else {
+                        $this->logger->debug('No pending or resumable jobs found');
                     }
 
                     // 5.5. No work
                     $this->logger->info('No more work to do');
                     break;
                 } catch (\Exception $e) {
+                    $errorDetails = \sprintf(
+                        "Error in orchestrator loop: %s\nFile: %s:%d\nTrace:\n%s\n",
+                        $e->getMessage(),
+                        $e->getFile(),
+                        $e->getLine(),
+                        $e->getTraceAsString()
+                    );
+                    \fwrite(\STDERR, $errorDetails);
+
                     $this->logger->error('Error in orchestrator loop', [
-                        'error' => $e->getMessage(),
+                        'exception' => $e::class,
+                        'message' => $e->getMessage(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
                         'trace' => $e->getTraceAsString(),
                     ]);
 

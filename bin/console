@@ -6,8 +6,16 @@ declare(strict_types=1);
 use SortingPhotosByDate\Infrastructure\Config\ContainerFactory;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Dotenv\Dotenv;
 
 require_once __DIR__.'/../vendor/autoload.php';
+
+// Load .env file if it exists
+$envFile = dirname(__DIR__).'/.env';
+if (file_exists($envFile)) {
+    $dotenv = new Dotenv();
+    $dotenv->load($envFile);
+}
 
 // Build and configure DI container using ContainerFactory
 $containerFactory = new ContainerFactory(dirname(__DIR__));

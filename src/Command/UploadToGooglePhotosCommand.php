@@ -8,6 +8,7 @@ use SortingPhotosByDate\Application\Service\GooglePhotos\FileScanner;
 use SortingPhotosByDate\Application\Service\GooglePhotos\UploadOrchestrator;
 use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseSchemaInitializer;
 use SortingPhotosByDate\Ports\LoggerPort;
+use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -25,6 +26,7 @@ final class UploadToGooglePhotosCommand extends Command
         private readonly UploadOrchestrator $orchestrator,
         private readonly FileScanner $fileScanner,
         private readonly DatabaseSchemaInitializer $schemaInitializer,
+        private readonly UploadJobRepositoryPort $jobRepository,
         private readonly LoggerPort $logger,
     ) {
         parent::__construct();
@@ -61,10 +63,14 @@ final class UploadToGooglePhotosCommand extends Command
         // Scan only
         if ($input->getOption('scan-only')) {
             $sourcePath = $input->getOption('source');
+            // Use SOURCE_DIRECTORY from environment if not provided
             if (null === $sourcePath) {
-                $io->error('Source path is required for scan-only mode');
+                $sourcePath = getenv('SOURCE_DIRECTORY');
+                if (false === $sourcePath || '' === $sourcePath) {
+                    $io->error('Source path is required. Set --source option or SOURCE_DIRECTORY environment variable');
 
-                return Command::FAILURE;
+                    return Command::FAILURE;
+                }
             }
 
             $io->info(\sprintf('Scanning files in: %s', $sourcePath));
@@ -72,6 +78,17 @@ final class UploadToGooglePhotosCommand extends Command
             $io->success(\sprintf('Scanned and created %d upload jobs', $count));
 
             return Command::SUCCESS;
+        }
+
+        // Auto-scan if SOURCE_DIRECTORY is set and no jobs exist
+        $sourcePath = $input->getOption('source') ?: getenv('SOURCE_DIRECTORY');
+        if (false !== $sourcePath && '' !== $sourcePath) {
+            $pendingJob = $this->jobRepository->findNextPendingOrResumable();
+            if (!$pendingJob instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
+                $io->info(\sprintf('No pending jobs found. Scanning source directory: %s', $sourcePath));
+                $count = $this->fileScanner->scanAndCreateJobs($sourcePath);
+                $io->info(\sprintf('Scanned and created %d upload jobs', $count));
+            }
         }
 
         // Start orchestrator
@@ -87,7 +104,10 @@ final class UploadToGooglePhotosCommand extends Command
         } catch (\Exception $e) {
             $io->error(\sprintf('Upload failed: %s', $e->getMessage()));
             $this->logger->error('Upload orchestrator failed', [
-                'error' => $e->getMessage(),
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
 

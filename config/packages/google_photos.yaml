@@ -1,0 +1,16 @@
+# Google Photos configuration parameters are defined in config/parameters.yaml
+
+services:
+    SortingPhotosByDate\Application\Service\FileCompressionService: ~
+
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ImageCompressor:
+        arguments:
+            $enabled: '%app.compression.enabled%'
+            $jpegMaxPixels: '%app.compression.jpeg_max_pixels%'
+            $pngMaxPixels: '%app.compression.png_max_pixels%'
+
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\VideoCompressor:
+        arguments:
+            $enabled: '%app.compression.enabled%'
+            $maxWidth: '%google_photos.compression.max_width%'
+            $maxHeight: '%google_photos.compression.max_height%'

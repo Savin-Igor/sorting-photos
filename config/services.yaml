@@ -6,12 +6,19 @@ services:
     # Commands
     SortingPhotosByDate\Command\:
         resource: '../src/Command/*'
+        exclude:
+            - '../src/Command/OrganizeFilesCommand.php'
+            - '../src/Command/ScanFilesCommand.php'
+            - '../src/Command/TestCompressionCommand.php'
         tags: ['console.command']
         public: true
 
     # Application Handlers
     SortingPhotosByDate\Application\Handler\:
         resource: '../src/Application/Handler/*'
+        exclude:
+            - '../src/Application/Handler/OrganizeFileHandler.php'
+            - '../src/Application/Handler/IngestFileHandler.php'
         public: true
         # Explicitly bind RedisStatisticsService for handlers that need it
         bind:
@@ -266,10 +273,9 @@ services:
             $container: '@service_container'
         # This will be replaced with AsyncMessageBus if ASYNC_MODE=true in ContainerFactory::setupMessageBus()
 
-    # FileCompressionService
-    SortingPhotosByDate\Application\Service\FileCompressionServiceInterface:
-        alias: SortingPhotosByDate\Application\Service\FileCompressionService
-        public: true
+    # FileCompressionService - temporarily disabled due to configuration issues
+    # SortingPhotosByDate\Application\Service\FileCompressionServiceInterface:
+    #     alias: SortingPhotosByDate\Application\Service\FileCompressionService
     
     # Google Photos Application Services
     SortingPhotosByDate\Application\Service\GooglePhotos\:

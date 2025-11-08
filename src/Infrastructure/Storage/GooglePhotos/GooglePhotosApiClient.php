@@ -8,6 +8,7 @@ use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
+use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\OffsetMismatchException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\QuotaExceededException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\SessionExpiredException;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchCreateResponse;
@@ -47,7 +48,7 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
             ->withHeader('X-Goog-Upload-Command', 'start')
             ->withHeader('X-Goog-Upload-Offset', '0')
             ->withHeader('X-Goog-Upload-Protocol', 'resumable')
-            ->withHeader('X-Goog-Upload-Header', "Content-Type: {$mimeType}")
+            ->withHeader('X-Goog-Upload-Content-Type', $mimeType)
             ->withHeader('X-Goog-Upload-Size', (string) $fileSize)
             ->withHeader('Content-Length', '0');
 
@@ -60,7 +61,17 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
         }
 
         if (200 !== $response->getStatusCode()) {
-            throw new \RuntimeException(\sprintf('Failed to initiate resumable upload: %s %s', $response->getStatusCode(), $response->getBody()->getContents()));
+            $body = $response->getBody()->getContents();
+            $headers = $response->getHeaders();
+            $errorDetails = \sprintf(
+                "Failed to initiate resumable upload:\nStatus: %s\nHeaders: %s\nBody: %s\n",
+                $response->getStatusCode(),
+                \json_encode($headers, JSON_PRETTY_PRINT),
+                $body
+            );
+            \fwrite(\STDERR, $errorDetails);
+            \error_log($errorDetails);
+            throw new \RuntimeException(\sprintf('Failed to initiate resumable upload: %s %s', $response->getStatusCode(), $body));
         }
 
         $sessionUri = $response->getHeaderLine('X-Goog-Upload-URL');
@@ -77,6 +88,7 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
         $endOffset = $offset + $chunkLength - 1;
 
         $request = $this->requestFactory->createRequest('PUT', $sessionUri)
+            ->withHeader('X-Goog-Upload-Command', 'upload')
             ->withHeader('Content-Range', "bytes {$offset}-{$endOffset}/{$totalSize}")
             ->withHeader('X-Goog-Upload-Offset', (string) $offset)
             ->withHeader('Content-Length', (string) $chunkLength)
@@ -91,7 +103,15 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
         }
 
         if (!\in_array($response->getStatusCode(), [200, 308], true)) {
-            throw new \RuntimeException(\sprintf('Failed to upload chunk: %s %s', $response->getStatusCode(), $response->getBody()->getContents()));
+            $body = $response->getBody()->getContents();
+
+            // Check for offset mismatch error (400)
+            if (400 === $response->getStatusCode() && \preg_match('/instead of (\d+)/', $body, $matches)) {
+                $expectedOffset = (int) $matches[1];
+                throw new OffsetMismatchException(\sprintf('Failed to upload chunk: %s %s', $response->getStatusCode(), $body), $expectedOffset);
+            }
+
+            throw new \RuntimeException(\sprintf('Failed to upload chunk: %s %s', $response->getStatusCode(), $body));
         }
 
         // Check Range in 308 response to confirm accepted bytes
@@ -141,9 +161,10 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
 
     public function queryUploadStatus(string $sessionUri): UploadStatus
     {
-        // Use GET with X-Goog-Upload-Command: query to check status
-        $request = $this->requestFactory->createRequest('GET', $sessionUri)
-            ->withHeader('X-Goog-Upload-Command', 'query');
+        // Use PUT with X-Goog-Upload-Command: query to check status
+        $request = $this->requestFactory->createRequest('PUT', $sessionUri)
+            ->withHeader('X-Goog-Upload-Command', 'query')
+            ->withHeader('Content-Length', '0');
 
         $response = $this->httpClient->sendRequest($request);
 
@@ -176,7 +197,14 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
             throw new SessionExpiredException('Resumable session expired');
         }
 
-        throw new \RuntimeException(\sprintf('Unexpected status code: %s %s', $response->getStatusCode(), $response->getBody()->getContents()));
+        $body = $response->getBody()->getContents();
+        $errorDetails = \sprintf(
+            "Failed to query upload status:\nStatus: %s\nBody: %s\n",
+            $response->getStatusCode(),
+            $body
+        );
+        \fwrite(\STDERR, $errorDetails);
+        throw new \RuntimeException(\sprintf('Unexpected status code: %s %s', $response->getStatusCode(), $body));
     }
 
     public function batchCreateMediaItems(array $items, ?string $albumId = null): BatchCreateResponse

@@ -23,4 +23,34 @@ parameters:
     app.compression.png_max_pixels: 200000000  # 200 MP (Google Photos limit)
     app.compression.video_max_size_bytes: 10737418240  # 10 GB (Google Photos limit)
 
+    # Google Photos compression parameters
+    google_photos.compression.enabled: true
+    google_photos.compression.quality: 95
+    google_photos.compression.max_width: 4096
+    google_photos.compression.max_height: 4096
+    google_photos.compression.format: 'auto'
+    google_photos.compression.conditions.min_file_size: '1MB'
+    google_photos.compression.conditions.max_compression_ratio: 0.8
+
+    # Google Photos upload parameters
+    google_photos.upload.chunk_size: 262144
+    google_photos.upload.max_retries: 3
+    google_photos.upload.retry_delay: 1000
+
+    # Google Photos batch parameters
+    google_photos.batch.size: 50
+    google_photos.batch.timeout: 30
+
+    # Google Photos quota parameters
+    google_photos.quota.daily_upload: '10GB'
+    google_photos.quota.hourly_upload: '1GB'
+    google_photos.quota.requests_per_minute: 60
+    google_photos.quota.burst_limit: 100
+
+    # Google Photos metrics and monitoring
+    google_photos.metrics.enabled: false
+    google_photos.monitoring.health_check_interval: '60s'
+    google_photos.monitoring.alert_on_quota_exceeded: false
+    google_photos.monitoring.alert_on_upload_failed: false
+
 
