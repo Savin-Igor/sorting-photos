@@ -226,22 +226,10 @@ test-filter: ## Run specific test (usage: make test-filter TEST=TestClassName)
 	${DOCKER_COMPOSE} exec app vendor/bin/phpunit --filter ${TEST}
 .PHONY: test-filter
 
-test-compression: ## Test file compression locally - copies files from source to destination with optional compression (usage: make test-compression SOURCE=/path/to/source DEST=/path/to/dest [RECURSIVE=true] [DRY_RUN=true])
+test-compression: ## Test file compression locally - copies files from source to destination with optional compression (uses SOURCE_DIRECTORY_HOST and DESTINATION_DIRECTORY_HOST from .env by default)
 	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
 		echo "Containers are not running. Starting them..."; \
 		${MAKE} up; \
-	fi
-	@if [ -z "$$SOURCE" ] || [ -z "$$DEST" ]; then \
-		echo "Error: SOURCE and DEST are required"; \
-		echo "Usage: make test-compression SOURCE=/path/to/source DEST=/path/to/dest"; \
-		echo ""; \
-		echo "Options:"; \
-		echo "  RECURSIVE=true  - Process files in subdirectories recursively"; \
-		echo "  DRY_RUN=true    - Show what would be done without actually copying files"; \
-		echo ""; \
-		echo "Example:"; \
-		echo "  make test-compression SOURCE=/var/data/source DEST=/var/data/compressed RECURSIVE=true"; \
-		exit 1; \
 	fi
 	@RECURSIVE_FLAG=""; \
 	if [ "$$RECURSIVE" = "true" ]; then \
@@ -251,7 +239,21 @@ test-compression: ## Test file compression locally - copies files from source to
 	if [ "$$DRY_RUN" = "true" ]; then \
 		DRY_RUN_FLAG="--dry-run"; \
 	fi; \
-	${DOCKER_COMPOSE} exec app php bin/console test:compression $$SOURCE $$DEST $$RECURSIVE_FLAG $$DRY_RUN_FLAG
+	if [ -n "$$SOURCE" ] && [ -n "$$DEST" ]; then \
+		echo "Using provided SOURCE and DEST..."; \
+		${DOCKER_COMPOSE} exec app php bin/console test:compression $$SOURCE $$DEST $$RECURSIVE_FLAG $$DRY_RUN_FLAG; \
+	elif [ -n "$$SOURCE" ]; then \
+		echo "Using provided SOURCE, DEST from .env..."; \
+		${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$$SOURCE_DIRECTORY_HOST" -e DESTINATION_DIRECTORY_HOST="$$DESTINATION_DIRECTORY_HOST" app php bin/console test:compression $$SOURCE $$RECURSIVE_FLAG $$DRY_RUN_FLAG; \
+	elif [ -n "$$DEST" ]; then \
+		echo "Using SOURCE from .env, provided DEST..."; \
+		${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$$SOURCE_DIRECTORY_HOST" -e DESTINATION_DIRECTORY_HOST="$$DESTINATION_DIRECTORY_HOST" app php bin/console test:compression "" $$DEST $$RECURSIVE_FLAG $$DRY_RUN_FLAG; \
+	else \
+		echo "Using SOURCE_DIRECTORY_HOST and DESTINATION_DIRECTORY_HOST from .env..."; \
+		echo "Source: $${SOURCE_DIRECTORY_HOST:-./var/data/source}"; \
+		echo "Destination: $${DESTINATION_DIRECTORY_HOST:-./var/data/destination}"; \
+		${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$$SOURCE_DIRECTORY_HOST" -e DESTINATION_DIRECTORY_HOST="$$DESTINATION_DIRECTORY_HOST" app php bin/console test:compression $$RECURSIVE_FLAG $$DRY_RUN_FLAG; \
+	fi
 .PHONY: test-compression
 
 ##@ Code quality commands

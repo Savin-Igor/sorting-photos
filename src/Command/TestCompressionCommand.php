@@ -14,6 +14,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\Mime\MimeTypes;
 
 #[AsCommand(
@@ -26,6 +27,7 @@ final class TestCompressionCommand extends Command
         private readonly ImageCompressor $imageCompressor,
         private readonly VideoCompressor $videoCompressor,
         private readonly LoggerPort $logger,
+        private readonly ParameterBagInterface $parameterBag,
     ) {
         parent::__construct();
     }
@@ -33,8 +35,8 @@ final class TestCompressionCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('source', InputArgument::REQUIRED, 'Source directory path')
-            ->addArgument('destination', InputArgument::REQUIRED, 'Destination directory path')
+            ->addArgument('source', InputArgument::OPTIONAL, 'Source directory path (uses SOURCE_DIRECTORY_HOST from .env if not provided)')
+            ->addArgument('destination', InputArgument::OPTIONAL, 'Destination directory path (uses DESTINATION_DIRECTORY_HOST from .env if not provided)')
             ->addOption('recursive', 'r', InputOption::VALUE_NONE, 'Process files recursively')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show what would be done without actually copying');
     }
@@ -42,8 +44,27 @@ final class TestCompressionCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
+        
+        // Get source directory from argument or environment variable
         $sourceDir = $input->getArgument('source');
+        if (null === $sourceDir || '' === $sourceDir) {
+            $sourceDir = $this->parameterBag->get('app.source_directory_host');
+            if ('' === $sourceDir) {
+                $io->error('Source directory is required. Provide it as argument or set SOURCE_DIRECTORY_HOST in .env file.');
+                return Command::FAILURE;
+            }
+        }
+        
+        // Get destination directory from argument or environment variable
         $destinationDir = $input->getArgument('destination');
+        if (null === $destinationDir || '' === $destinationDir) {
+            $destinationDir = $this->parameterBag->get('app.destination_directory_host');
+            if ('' === $destinationDir) {
+                $io->error('Destination directory is required. Provide it as argument or set DESTINATION_DIRECTORY_HOST in .env file.');
+                return Command::FAILURE;
+            }
+        }
+        
         $recursive = $input->getOption('recursive');
         $dryRun = $input->getOption('dry-run');
 
@@ -233,4 +254,3 @@ final class TestCompressionCommand extends Command
         return \sprintf('%.2f %s', $bytes, $units[$pow]);
     }
 }
-

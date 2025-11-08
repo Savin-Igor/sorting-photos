@@ -3,6 +3,8 @@ parameters:
     # These will be set from environment variables in index.php if not already set
     app.source_directory: ''
     app.destination_directory: ''
+    app.source_directory_host: ''
+    app.destination_directory_host: ''
     app.organizer_policy: 'date-type'
     app.dry_run: false
     
