@@ -226,6 +226,34 @@ test-filter: ## Run specific test (usage: make test-filter TEST=TestClassName)
 	${DOCKER_COMPOSE} exec app vendor/bin/phpunit --filter ${TEST}
 .PHONY: test-filter
 
+test-compression: ## Test file compression locally - copies files from source to destination with optional compression (usage: make test-compression SOURCE=/path/to/source DEST=/path/to/dest [RECURSIVE=true] [DRY_RUN=true])
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@if [ -z "$$SOURCE" ] || [ -z "$$DEST" ]; then \
+		echo "Error: SOURCE and DEST are required"; \
+		echo "Usage: make test-compression SOURCE=/path/to/source DEST=/path/to/dest"; \
+		echo ""; \
+		echo "Options:"; \
+		echo "  RECURSIVE=true  - Process files in subdirectories recursively"; \
+		echo "  DRY_RUN=true    - Show what would be done without actually copying files"; \
+		echo ""; \
+		echo "Example:"; \
+		echo "  make test-compression SOURCE=/var/data/source DEST=/var/data/compressed RECURSIVE=true"; \
+		exit 1; \
+	fi
+	@RECURSIVE_FLAG=""; \
+	if [ "$$RECURSIVE" = "true" ]; then \
+		RECURSIVE_FLAG="--recursive"; \
+	fi; \
+	DRY_RUN_FLAG=""; \
+	if [ "$$DRY_RUN" = "true" ]; then \
+		DRY_RUN_FLAG="--dry-run"; \
+	fi; \
+	${DOCKER_COMPOSE} exec app php bin/console test:compression $$SOURCE $$DEST $$RECURSIVE_FLAG $$DRY_RUN_FLAG
+.PHONY: test-compression
+
 ##@ Code quality commands
 
 cs-fix: ## Run PHP-CS-Fixer
@@ -303,29 +331,6 @@ redis-flush: ## Flush all Redis data
 	${DOCKER_COMPOSE} exec redis redis-cli FLUSHALL
 	@echo "Redis flushed"
 .PHONY: redis-flush
-
-##@ Testing commands
-
-test-compression: ## Test file compression (usage: make test-compression SOURCE=/path/to/source DEST=/path/to/dest [RECURSIVE=true] [DRY_RUN=true])
-	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
-		echo "Containers are not running. Starting them..."; \
-		${MAKE} up; \
-	fi
-	@if [ -z "$$SOURCE" ] || [ -z "$$DEST" ]; then \
-		echo "Error: SOURCE and DEST are required"; \
-		echo "Usage: make test-compression SOURCE=/path/to/source DEST=/path/to/dest [RECURSIVE=true] [DRY_RUN=true]"; \
-		exit 1; \
-	fi
-	@RECURSIVE_FLAG=""; \
-	if [ "$$RECURSIVE" = "true" ]; then \
-		RECURSIVE_FLAG="--recursive"; \
-	fi; \
-	DRY_RUN_FLAG=""; \
-	if [ "$$DRY_RUN" = "true" ]; then \
-		DRY_RUN_FLAG="--dry-run"; \
-	fi; \
-	${DOCKER_COMPOSE} exec app php bin/console test:compression $$SOURCE $$DEST $$RECURSIVE_FLAG $$DRY_RUN_FLAG
-.PHONY: test-compression
 
 ##@ Google Photos commands
 
@@ -437,6 +442,12 @@ rabbitmq-management: ## Open RabbitMQ management UI in browser (Linux)
 
 ##@ Help
 
-help: ## Help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[.a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
-.PHONY: help
+help: ## Show this help message
+	@echo ""
+	@echo "File Sorter - Makefile Commands"
+	@echo "================================"
+	@echo ""
+	@awk 'BEGIN {FS = ":.*##"; printf ""} /^[.a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "For more information, see: make <command>"
+	@echo ""
