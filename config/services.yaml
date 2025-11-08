@@ -308,11 +308,21 @@ services:
         arguments:
             $connection: '@Doctrine\DBAL\Connection'
     
-    # Google Photos API Client
+    # Google Photos API Client - Using official library
     SortingPhotosByDate\Ports\Storage\GooglePhotos\GooglePhotosApiClientPort:
-        alias: SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\GooglePhotosApiClient
+        alias: SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\OfficialGooglePhotosApiClient
         public: true
     
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\OfficialGooglePhotosApiClient:
+        arguments:
+            $httpClient: '@Psr\Http\Client\ClientInterface'
+            $requestFactory: '@Psr\Http\Message\RequestFactoryInterface'
+            $streamFactory: '@Psr\Http\Message\StreamFactoryInterface'
+            $tokenManager: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenManager'
+            $credentialsFactory: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\CredentialsFactory'
+            $tokenStorage: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenStorage'
+    
+    # Legacy GooglePhotosApiClient (kept for reference, can be removed later)
     SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\GooglePhotosApiClient:
         arguments:
             $httpClient: '@Psr\Http\Client\ClientInterface'

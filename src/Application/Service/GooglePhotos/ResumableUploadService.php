@@ -309,14 +309,17 @@ final readonly class ResumableUploadService
         }
 
         try {
-            // Ensure offset is aligned to CHUNK_SIZE boundary (except for the very start)
+            // Ensure offset is aligned to CHUNK_SIZE boundary (except for the very start and last chunk)
             // This is required by Google Photos API for resumable uploads
-            if ($offset > 0 && 0 !== $offset % self::CHUNK_SIZE) {
-                // Round down to nearest CHUNK_SIZE boundary
+            $remainingBytes = $fileSize - $offset;
+            if ($offset > 0 && 0 !== $offset % self::CHUNK_SIZE && $remainingBytes > self::CHUNK_SIZE) {
+                // Round down to nearest CHUNK_SIZE boundary only if not the last chunk
+                // Last chunk can start at any offset
                 $alignedOffset = (int) (\floor($offset / self::CHUNK_SIZE) * self::CHUNK_SIZE);
                 $this->logger->warning('Offset not aligned to chunk boundary, adjusting', [
                     'original_offset' => $offset,
                     'aligned_offset' => $alignedOffset,
+                    'remaining_bytes' => $remainingBytes,
                 ]);
                 $offset = $alignedOffset;
                 // Update job with aligned offset
