@@ -41,7 +41,7 @@ final class GooglePhotosTestCommand extends Command
 
         $io->title('Google Photos API Test');
 
-        // Проверить наличие refresh token
+        // Check for refresh token
         if (!$this->tokenManager->hasRefreshToken()) {
             $io->error([
                 'No refresh token found. Please authorize first:',
@@ -52,7 +52,7 @@ final class GooglePhotosTestCommand extends Command
         }
 
         try {
-            // Проверить получение access token
+            // Test access token retrieval
             $io->section('Step 1: Testing Access Token');
             $io->writeln('Getting access token...');
 
@@ -69,7 +69,7 @@ final class GooglePhotosTestCommand extends Command
                 return Command::FAILURE;
             }
 
-            // Тест получения данных
+            // Test data retrieval
             $listAlbums = $input->getOption('albums');
             $limit = (int) $input->getOption('limit');
 

@@ -22,8 +22,8 @@ enum UploadState: string
             self::UPLOADED => \in_array($target, [self::IN_BATCH, self::FAILED], true),
             self::IN_BATCH => \in_array($target, [self::COMPLETED, self::FAILED], true),
             self::PAUSED => \in_array($target, [self::UPLOADING, self::FAILED], true),
-            self::COMPLETED => false, // Финальное состояние
-            self::FAILED => self::PENDING === $target, // Можно повторить
+            self::COMPLETED => false, // Final state
+            self::FAILED => self::PENDING === $target, // Can retry
         };
     }
 

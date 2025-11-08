@@ -42,21 +42,21 @@ final class TestCompressionCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        
+
         // Get source directory from argument or environment variable
         // Inside container, use SOURCE_DIRECTORY (container path), not SOURCE_DIRECTORY_HOST (host path)
         $sourceDir = $input->getArgument('source');
         if (null === $sourceDir || '' === $sourceDir) {
             $sourceDir = getenv('SOURCE_DIRECTORY') ?: ($_ENV['SOURCE_DIRECTORY'] ?? '/var/data/source');
         }
-        
+
         // Get destination directory from argument or environment variable
         // Inside container, use DESTINATION_DIRECTORY (container path), not DESTINATION_DIRECTORY_HOST (host path)
         $destinationDir = $input->getArgument('destination');
         if (null === $destinationDir || '' === $destinationDir) {
             $destinationDir = getenv('DESTINATION_DIRECTORY') ?: ($_ENV['DESTINATION_DIRECTORY'] ?? '/var/data/destination');
         }
-        
+
         $recursive = $input->getOption('recursive');
         $dryRun = $input->getOption('dry-run');
 
@@ -69,12 +69,10 @@ final class TestCompressionCommand extends Command
             return Command::FAILURE;
         }
 
-        if (!$dryRun && !\is_dir($destinationDir)) {
-            if (!\mkdir($destinationDir, 0755, true)) {
-                $io->error(\sprintf('Failed to create destination directory: %s', $destinationDir));
+        if (!$dryRun && !\is_dir($destinationDir) && !\mkdir($destinationDir, 0755, true)) {
+            $io->error(\sprintf('Failed to create destination directory: %s', $destinationDir));
 
-                return Command::FAILURE;
-            }
+            return Command::FAILURE;
         }
 
         $io->section('Configuration');
@@ -128,7 +126,7 @@ final class TestCompressionCommand extends Command
                 $compressedPath = $this->compressFile($file, $mimeType);
 
                 if ($compressedPath !== $file) {
-                    $stats['compressed']++;
+                    ++$stats['compressed'];
                     $compressedSize = \filesize($compressedPath);
                     if (false === $compressedSize) {
                         throw new \RuntimeException('Failed to get compressed file size');
@@ -150,7 +148,7 @@ final class TestCompressionCommand extends Command
                         }
                     }
                 } else {
-                    $stats['skipped']++;
+                    ++$stats['skipped'];
                     $stats['compressed_size'] += $originalSize;
 
                     if (!$dryRun) {
@@ -158,9 +156,9 @@ final class TestCompressionCommand extends Command
                     }
                 }
 
-                $stats['processed']++;
+                ++$stats['processed'];
             } catch (\Exception $e) {
-                $stats['errors']++;
+                ++$stats['errors'];
                 $io->error([
                     \sprintf('Failed to process %s:', $file),
                     $e->getMessage(),
@@ -230,48 +228,6 @@ final class TestCompressionCommand extends Command
 
         // Not an image or video, return original
         return $filePath;
-    }
-
-    /**
-     * Detect MIME type of a file.
-     */
-    private function detectMimeType(string $filePath): string
-    {
-        // Try mime_content_type first (if available)
-        if (\function_exists('mime_content_type')) {
-            $mimeType = \mime_content_type($filePath);
-            if (false !== $mimeType && 'application/octet-stream' !== $mimeType) {
-                return $mimeType;
-            }
-        }
-
-        // Fallback to finfo_file
-        if (\function_exists('finfo_open')) {
-            $finfo = \finfo_open(\FILEINFO_MIME_TYPE);
-            if (false !== $finfo) {
-                $mimeType = \finfo_file($finfo, $filePath);
-                \finfo_close($finfo);
-                if (false !== $mimeType && 'application/octet-stream' !== $mimeType) {
-                    return $mimeType;
-                }
-            }
-        }
-
-        // Fallback to extension-based detection
-        $extension = \strtolower(\pathinfo($filePath, \PATHINFO_EXTENSION));
-        $mimeTypes = [
-            'jpg' => 'image/jpeg',
-            'jpeg' => 'image/jpeg',
-            'png' => 'image/png',
-            'gif' => 'image/gif',
-            'webp' => 'image/webp',
-            'mp4' => 'video/mp4',
-            'avi' => 'video/x-msvideo',
-            'mov' => 'video/quicktime',
-            'mkv' => 'video/x-matroska',
-        ];
-
-        return $mimeTypes[$extension] ?? 'application/octet-stream';
     }
 
     /**

@@ -20,8 +20,8 @@ enum BatchState: string
             self::READY => \in_array($target, [self::PROCESSING, self::FAILED], true),
             self::PROCESSING => \in_array($target, [self::COMPLETED, self::PAUSED, self::FAILED], true),
             self::PAUSED => \in_array($target, [self::PROCESSING, self::FAILED], true),
-            self::COMPLETED => false, // Финальное состояние
-            self::FAILED => self::READY === $target, // Можно повторить
+            self::COMPLETED => false, // Final state
+            self::FAILED => self::READY === $target, // Can retry
         };
     }
 }

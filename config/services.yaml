@@ -266,11 +266,12 @@ services:
             $container: '@service_container'
         # This will be replaced with AsyncMessageBus if ASYNC_MODE=true in ContainerFactory::setupMessageBus()
 
-    # ============================================
-    # Google Photos Upload Configuration
-    # ============================================
+    # FileCompressionService
+    SortingPhotosByDate\Application\Service\FileCompressionServiceInterface:
+        alias: SortingPhotosByDate\Application\Service\FileCompressionService
+        public: true
     
-    # Application Services
+    # Google Photos Application Services
     SortingPhotosByDate\Application\Service\GooglePhotos\:
         resource: '../src/Application/Service/GooglePhotos'
         exclude:

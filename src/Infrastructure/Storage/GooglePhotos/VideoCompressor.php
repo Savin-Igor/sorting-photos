@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Storage\GooglePhotos;
 
-final class VideoCompressor
+final readonly class VideoCompressor
 {
     public function __construct(
-        private readonly bool $enabled,
-        private readonly int $maxSizeBytes,
+        private bool $enabled,
+        private int $maxSizeBytes,
     ) {
     }
 
@@ -56,7 +56,7 @@ final class VideoCompressor
         \unlink($tempFile);
         $tempFile .= '.mp4';
 
-        // Использовать ffmpeg для сжатия без потери качества (или с минимальной потерей)
+        // Use ffmpeg for compression without quality loss (or with minimal loss)
         $command = \sprintf(
             'ffmpeg -i %s -c:v libx264 -crf 18 -preset slow -c:a copy %s 2>&1',
             \escapeshellarg($filePath),

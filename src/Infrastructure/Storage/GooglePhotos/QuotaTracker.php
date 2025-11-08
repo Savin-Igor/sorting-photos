@@ -22,7 +22,7 @@ final readonly class QuotaTracker
         );
 
         if (false === $row) {
-            // Инициализировать новый день
+            // Initialize new day
             return $this->initializeNewDay();
         }
 
@@ -30,7 +30,7 @@ final readonly class QuotaTracker
         $date = '' !== $dateStr ? \DateTimeImmutable::createFromFormat('Y-m-d', $dateStr) : false;
         $today = new \DateTimeImmutable('today');
 
-        // Если это не сегодня, сбросить счетчики
+        // If not today, reset counters
         if (false === $date || $date->format('Y-m-d') !== $today->format('Y-m-d')) {
             return $this->initializeNewDay();
         }
@@ -49,7 +49,7 @@ final readonly class QuotaTracker
         $today = new \DateTimeImmutable('today');
         $dateStr = $today->format('Y-m-d');
 
-        // Проверить, существует ли запись
+        // Check if record exists
         $existing = $this->connection->fetchOne(
             'SELECT date FROM '.self::TABLE_NAME.' WHERE date = ?',
             [$dateStr]
@@ -77,7 +77,7 @@ final readonly class QuotaTracker
         $today = new \DateTimeImmutable('today');
         $dateStr = $today->format('Y-m-d');
 
-        // Проверить, существует ли запись
+        // Check if record exists
         $existing = $this->connection->fetchOne(
             'SELECT date FROM '.self::TABLE_NAME.' WHERE date = ?',
             [$dateStr]
@@ -105,7 +105,7 @@ final readonly class QuotaTracker
         $today = new \DateTimeImmutable('today');
         $dateStr = $today->format('Y-m-d');
 
-        // Проверить, существует ли запись
+        // Check if record exists
         $existing = $this->connection->fetchOne(
             'SELECT date FROM '.self::TABLE_NAME.' WHERE date = ?',
             [$dateStr]

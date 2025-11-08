@@ -40,7 +40,7 @@ final readonly class DistributedLockManager
 
             return true;
         } catch (UniqueConstraintViolationException) {
-            // Блокировка уже занята
+            // Lock already acquired
             $this->logger->debug('Lock already acquired by another process', [
                 'lock_name' => $lockName,
             ]);

@@ -15,7 +15,7 @@ use Symfony\Component\Messenger\MessageBusInterface;
 final readonly class BatchCollector
 {
     private const int MAX_BATCH_SIZE = 50;
-    private const int MAX_BATCH_SIZE_BYTES = 1_000_000_000; // 1 ГБ для видео
+    private const int MAX_BATCH_SIZE_BYTES = 1_000_000_000; // 1 GB for videos
 
     public function __construct(
         private UploadJobRepositoryPort $jobRepository,
@@ -27,14 +27,14 @@ final readonly class BatchCollector
 
     public function collectBatch(): ?UploadBatch
     {
-        // 1. Найти готовые Jobs (UPLOADED, batchId = null)
+        // 1. Find ready Jobs (UPLOADED, batchId = null)
         $readyJobs = $this->jobRepository->findReadyForBatch(limit: self::MAX_BATCH_SIZE);
 
         if ([] === $readyJobs) {
             return null;
         }
 
-        // 2. Создать BatchItems с учетом ограничений
+        // 2. Create BatchItems considering constraints
         $items = [];
         $totalSize = 0;
         $hasVideo = false;
@@ -48,15 +48,15 @@ final readonly class BatchCollector
                 $hasVideo = true;
             }
 
-            // Проверить ограничения
+            // Check constraints
             if ($hasVideo && $totalSize > self::MAX_BATCH_SIZE_BYTES) {
-                // Превышен лимит размера для видео
-                \array_pop($items); // Убрать последний
+                // Size limit exceeded for videos
+                \array_pop($items); // Remove last item
                 break;
             }
 
             if (\count($items) >= self::MAX_BATCH_SIZE) {
-                // Максимум 50 файлов
+                // Maximum 50 files
                 break;
             }
         }
@@ -65,10 +65,10 @@ final readonly class BatchCollector
             return null;
         }
 
-        // 3. Создать батч
+        // 3. Create batch
         $batch = UploadBatch::create($items);
 
-        // 4. Привязать Jobs к батчу
+        // 4. Assign Jobs to batch
         foreach ($readyJobs as $job) {
             if ($job->isReadyForBatch()) {
                 $job = $job->assignToBatch($batch->getId());

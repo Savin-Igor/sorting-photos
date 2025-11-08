@@ -42,7 +42,7 @@ final class UploadToGooglePhotosCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        // Инициализация схемы БД
+        // Initialize database schema
         if ($input->getOption('init-schema')) {
             $io->info('Initializing database schema...');
             try {
@@ -58,7 +58,7 @@ final class UploadToGooglePhotosCommand extends Command
             }
         }
 
-        // Только сканирование
+        // Scan only
         if ($input->getOption('scan-only')) {
             $sourcePath = $input->getOption('source');
             if (null === $sourcePath) {
@@ -74,7 +74,7 @@ final class UploadToGooglePhotosCommand extends Command
             return Command::SUCCESS;
         }
 
-        // Запуск оркестратора
+        // Start orchestrator
         $io->info('Starting upload orchestrator...');
         $this->logger->info('Upload orchestrator started');
 

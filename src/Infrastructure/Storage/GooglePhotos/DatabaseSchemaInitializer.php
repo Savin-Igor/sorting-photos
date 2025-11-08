@@ -49,7 +49,7 @@ SQL;
 
         $this->connection->executeStatement($sql);
 
-        // Создать индексы
+        // Create indexes
         $indexes = [
             'CREATE INDEX IF NOT EXISTS idx_upload_jobs_state ON google_photos_upload_jobs(state)',
             'CREATE INDEX IF NOT EXISTS idx_upload_jobs_hash ON google_photos_upload_jobs(file_hash)',
@@ -61,7 +61,7 @@ SQL;
             try {
                 $this->connection->executeStatement($indexSql);
             } catch (\Exception) {
-                // Индекс может уже существовать
+                // Index may already exist
             }
         }
     }
@@ -87,7 +87,7 @@ SQL;
 
         $this->connection->executeStatement($sql);
 
-        // Создать индексы
+        // Create indexes
         $indexes = [
             'CREATE INDEX IF NOT EXISTS idx_upload_batches_state ON google_photos_upload_batches(state)',
             'CREATE INDEX IF NOT EXISTS idx_upload_batches_quota_reset ON google_photos_upload_batches(quota_reset_time)',
@@ -97,7 +97,7 @@ SQL;
             try {
                 $this->connection->executeStatement($indexSql);
             } catch (\Exception) {
-                // Индекс может уже существовать
+                // Index may already exist
             }
         }
     }
@@ -131,13 +131,13 @@ SQL;
 
         $this->connection->executeStatement($sql);
 
-        // Создать индекс
+        // Create index
         try {
             $this->connection->executeStatement(
                 'CREATE INDEX IF NOT EXISTS idx_distributed_locks_expires ON distributed_locks(expires_at)'
             );
         } catch (\Exception) {
-            // Индекс может уже существовать
+            // Index may already exist
         }
     }
 

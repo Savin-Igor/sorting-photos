@@ -30,9 +30,9 @@ final class UploadOrchestrator
     public function run(): void
     {
         $lockName = 'google_photos_upload_orchestrator';
-        $ttl = 3600; // 1 час
+        $ttl = 3600; // 1 hour
 
-        // 1. Получить блокировку
+        // 1. Acquire lock
         if (!$this->lockManager->acquireLock($lockName, $ttl)) {
             $this->logger->warning('Another orchestrator instance is already running');
 
@@ -40,26 +40,26 @@ final class UploadOrchestrator
         }
 
         try {
-            // 2. Запустить heartbeat
+            // 2. Start heartbeat
             $this->startHeartbeat($lockName);
 
-            // 3. Очистить истекшие блокировки
+            // 3. Clean up expired locks
             $this->lockManager->cleanupExpiredLocks();
 
-            // 4. Проверить истекшие сессии
+            // 4. Check expired sessions
             $this->sessionChecker->checkAndRenewExpiredSessions();
 
-            // 5. Основной цикл
+            // 5. Main loop
             $lastHeartbeat = \time();
             while (!$this->shouldStop) {
                 try {
-                    // Обновить блокировку каждые 5 минут
+                    // Refresh lock every 5 minutes
                     if (\time() - $lastHeartbeat > 300) {
                         $this->refreshLockIfNeeded();
                         $lastHeartbeat = \time();
                     }
 
-                    // 5.1. Проверить квоту
+                    // 5.1. Check quota
                     if (!$this->quotaManager->isQuotaAvailable()) {
                         $resetTime = $this->quotaManager->getResetTime();
                         $this->logger->info('Quota exhausted, scheduling resume', [
@@ -68,7 +68,7 @@ final class UploadOrchestrator
                         break;
                     }
 
-                    // 5.2. Приоритет 1: Незавершенные батчи
+                    // 5.2. Priority 1: Incomplete batches
                     $batch = $this->batchRepository->findProcessingOrPaused();
                     if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
                         try {
@@ -79,7 +79,7 @@ final class UploadOrchestrator
                         }
                     }
 
-                    // 5.3. Приоритет 2: Собрать новый батч
+                    // 5.3. Priority 2: Collect new batch
                     $batch = $this->batchCollector->collectBatch();
                     if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
                         try {
@@ -90,7 +90,7 @@ final class UploadOrchestrator
                         }
                     }
 
-                    // 5.4. Приоритет 3: Загрузить следующий файл
+                    // 5.4. Priority 3: Upload next file
                     $job = $this->jobRepository->findNextPendingOrResumable();
                     if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
                         try {
@@ -101,7 +101,7 @@ final class UploadOrchestrator
                         }
                     }
 
-                    // 5.5. Нет работы
+                    // 5.5. No work
                     $this->logger->info('No more work to do');
                     break;
                 } catch (\Exception $e) {
@@ -110,8 +110,8 @@ final class UploadOrchestrator
                         'trace' => $e->getTraceAsString(),
                     ]);
 
-                    // Небольшая задержка перед повтором
-                    \usleep(1_000_000); // 1 секунда
+                    // Small delay before retry
+                    \usleep(1_000_000); // 1 second
                 }
             }
         } finally {
@@ -132,8 +132,8 @@ final class UploadOrchestrator
             $this->lockManager->refreshLock($lockName);
         };
 
-        // Heartbeat будет вызываться в основном цикле
-        // Для долгих операций можно добавить проверку времени
+        // Heartbeat will be called in the main loop
+        // For long operations, time checks can be added
     }
 
     private function stopHeartbeat(): void

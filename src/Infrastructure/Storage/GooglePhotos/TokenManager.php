@@ -55,7 +55,7 @@ final class TokenManager
 
                 $accessToken = $tokenData['access_token'];
                 $this->logger->debug('Access token obtained from UserRefreshCredentials');
-                
+
                 // Log scope from token response if available
                 if (isset($tokenData['scope'])) {
                     $this->logger->info('Access token scope from Google', [

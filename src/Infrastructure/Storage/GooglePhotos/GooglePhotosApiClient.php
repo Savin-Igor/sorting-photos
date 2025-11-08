@@ -32,7 +32,7 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
     }
 
     /**
-     * Получить валидный access token, обновив его при необходимости.
+     * Get valid access token, refreshing it if necessary.
      */
     private function getAccessToken(): string
     {

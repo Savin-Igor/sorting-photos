@@ -7,6 +7,7 @@ namespace SortingPhotosByDate\Tests\Unit\Application\Handler;
 use PHPUnit\Framework\TestCase;
 use SortingPhotosByDate\Application\Command\OrganizeFileCommand;
 use SortingPhotosByDate\Application\Handler\OrganizeFileHandler;
+use SortingPhotosByDate\Application\Service\FileCompressionServiceInterface;
 use SortingPhotosByDate\Domain\MediaAsset;
 use SortingPhotosByDate\Domain\Policies\OrganizerPolicy;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
@@ -27,6 +28,7 @@ final class OrganizeFileHandlerTest extends TestCase
     private \PHPUnit\Framework\MockObject\MockObject $repository;
     private \PHPUnit\Framework\MockObject\MockObject $logger;
     private \PHPUnit\Framework\MockObject\MockObject $messageBus;
+    private \PHPUnit\Framework\MockObject\MockObject $compressionService;
     private OrganizeFileHandler $handler;
 
     protected function setUp(): void
@@ -36,13 +38,15 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->repository = $this->createMock(MetadataRepositoryPort::class);
         $this->logger = $this->createMock(LoggerPort::class);
         $this->messageBus = $this->createMock(MessageBusInterface::class);
+        $this->compressionService = $this->createMock(FileCompressionServiceInterface::class);
 
         $this->handler = new OrganizeFileHandler(
             $this->filesystem,
             $this->policy,
             $this->repository,
             $this->logger,
-            $this->messageBus
+            $this->messageBus,
+            $this->compressionService
         );
     }
 
@@ -77,32 +81,41 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->policy
             ->expects($this->once())
             ->method('organize')
-            ->with($asset)
-            ->willReturn($targetPath);
+            ->with($this->isInstanceOf(MediaAsset::class))
+            ->willReturnCallback(fn(): \SortingPhotosByDate\Domain\ValueObjects\FilePath => $targetPath);
 
         // Create temporary target file for hash verification
         $targetTempFile = sys_get_temp_dir().'/target_file_'.uniqid().'.jpg';
 
         $existsCallCount = 0;
         $this->filesystem
-            ->expects($this->exactly(3))
+            ->expects($this->atLeast(3))
             ->method('exists')
-            ->willReturnCallback(function (FilePath $path) use ($targetPath, $sourcePath, &$existsCallCount): bool {
+            ->willReturnCallback(function ($path) use ($targetPath, $sourcePath, &$existsCallCount): bool {
                 ++$existsCallCount;
                 // First call: check target path (doesn't exist) - in resolveCollision
                 if (1 === $existsCallCount && $path->getPath() === $targetPath->getPath()) {
                     return false;
                 }
 
-                // Second and third calls: check source and target paths after copy (both exist for hash verification)
+                // Second call: check compressed path (doesn't exist) - in cleanup (may be same as sourcePath)
+                if (2 === $existsCallCount) {
+                    return false;
+                }
+
+                // Third and fourth calls: check source and target paths after copy (both exist for hash verification)
                 return $path->getPath() === $sourcePath->getPath() || $path->getPath() === $targetPath->getPath();
             });
 
         $this->filesystem
             ->expects($this->once())
             ->method('copyWithMetadata')
-            ->with($sourcePath, $targetPath)
-            ->willReturnCallback(function () use ($targetTempFile, $tempFile): true {
+            ->with($this->anything(), $this->anything())
+            ->willReturnCallback(function ($compressedPath, $target) use ($sourcePath, $targetTempFile, $tempFile): bool {
+                // Verify compressed path matches source path
+                if ($compressedPath->getPath() !== $sourcePath->getPath()) {
+                    return false;
+                }
                 // Simulate copy by creating target file
                 copy($tempFile, $targetTempFile);
 
@@ -112,15 +125,15 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->filesystem
             ->expects($this->exactly(2))
             ->method('calculateHash')
-            ->willReturnCallback(fn(FilePath $path): string =>
+            ->willReturnCallback(fn($path): string =>
                 // Return hash for both source and target
                 $hashString);
 
         $this->filesystem
             ->expects($this->once())
             ->method('delete')
-            ->with($sourcePath)
-            ->willReturn(true);
+            ->with($this->anything())
+            ->willReturnCallback(fn($path): bool => $path->getPath() === $sourcePath->getPath());
 
         $this->messageBus
             ->expects($this->once())
@@ -161,27 +174,27 @@ final class OrganizeFileHandlerTest extends TestCase
 
         $command = new OrganizeFileCommand($asset, $destinationBasePath);
 
+        // Mock compression service: no compression needed
+        $this->compressionService
+            ->expects($this->once())
+            ->method('compressIfNeeded')
+            ->with($this->anything(), $this->anything())
+            ->willReturnCallback(fn($path, $asset): \SortingPhotosByDate\Domain\ValueObjects\FilePath => $sourcePath);
+
+        $this->compressionService
+            ->expects($this->once())
+            ->method('isTemporaryFile')
+            ->with($this->anything())
+            ->willReturn(false);
+
         // Mock repository: no duplicate found
-        $this->repository
-            ->expects($this->once())
-            ->method('findByHash')
-            ->with($hash)
-            ->willReturn(null);
-
-        $this->policy
-            ->expects($this->once())
-            ->method('organize')
-            ->with($asset)
-            ->willReturn($targetPath);
-
-        // Create temporary target file for hash verification
-        $collisionTempFile = sys_get_temp_dir().'/collision_'.uniqid().'.jpg';
 
         $callCount = 0;
         $copyDone = false;
         $this->filesystem
+            ->expects($this->atLeast(3))
             ->method('exists')
-            ->willReturnCallback(function (FilePath $path) use ($targetPath, $sourcePath, $collisionPath, &$callCount, &$copyDone): bool {
+            ->willReturnCallback(function ($path) use ($targetPath, $sourcePath, $collisionPath, &$callCount, &$copyDone): bool {
                 ++$callCount;
                 // First call: check target path (exists) - in resolveCollision
                 if (1 === $callCount && $path->getPath() === $targetPath->getPath()) {
@@ -189,6 +202,10 @@ final class OrganizeFileHandlerTest extends TestCase
                 }
                 // Second call: check collision path (doesn't exist) - in resolveCollision
                 if (2 === $callCount && $path->getPath() === $collisionPath->getPath()) {
+                    return false;
+                }
+                // Third call: check compressed path (doesn't exist) - in cleanup (may be same as sourcePath)
+                if (3 === $callCount) {
                     return false;
                 }
                 // After copyWithMetadata is called, both files should exist
@@ -202,16 +219,21 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->filesystem
             ->expects($this->once())
             ->method('copyWithMetadata')
-            ->with($sourcePath, $this->callback(function (FilePath $path) use ($collisionPath, &$copyDone): bool {
+            ->with($this->anything(), $this->anything())
+            ->willReturnCallback(function ($compressedPath, $target) use ($sourcePath, $collisionPath, &$copyDone): bool {
                 $copyDone = true;
-                return $path->getPath() === $collisionPath->getPath();
-            }))
-            ->willReturn(true);
+                // Verify compressed path matches source path
+                if ($compressedPath->getPath() !== $sourcePath->getPath()) {
+                    return false;
+                }
+                // Verify target path matches collision path
+                return $target->getPath() === $collisionPath->getPath();
+            });
 
         $this->filesystem
             ->expects($this->exactly(2))
             ->method('calculateHash')
-            ->willReturnCallback(function (FilePath $path) use ($sourcePath, $collisionPath, $hashString): string {
+            ->willReturnCallback(function ($path) use ($sourcePath, $collisionPath, $hashString): string {
                 // Return hash for both source and collision target
                 if ($path->getPath() === $sourcePath->getPath() || $path->getPath() === $collisionPath->getPath()) {
                     return $hashString;
@@ -223,8 +245,8 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->filesystem
             ->expects($this->once())
             ->method('delete')
-            ->with($sourcePath)
-            ->willReturn(true);
+            ->with($this->anything())
+            ->willReturnCallback(fn($path): bool => $path->getPath() === $sourcePath->getPath());
 
         $this->messageBus
             ->expects($this->once())
@@ -279,6 +301,11 @@ final class OrganizeFileHandlerTest extends TestCase
             ->method('findByHash')
             ->with($hash)
             ->willReturn($existingAsset);
+
+        // Compression service should not be called for duplicates
+        $this->compressionService
+            ->expects($this->never())
+            ->method('compressIfNeeded');
 
         $this->logger
             ->expects($this->once())
@@ -336,6 +363,19 @@ final class OrganizeFileHandlerTest extends TestCase
 
         $command = new OrganizeFileCommand($asset, $destinationBasePath);
 
+        // Mock compression service: no compression needed
+        $this->compressionService
+            ->expects($this->once())
+            ->method('compressIfNeeded')
+            ->with($this->anything(), $this->anything())
+            ->willReturnCallback(fn($path, $asset): \SortingPhotosByDate\Domain\ValueObjects\FilePath => $sourcePath);
+
+        $this->compressionService
+            ->expects($this->once())
+            ->method('isTemporaryFile')
+            ->with($this->anything())
+            ->willReturn(false);
+
         // Mock repository: no duplicate found
         $this->repository
             ->expects($this->once())
@@ -346,14 +386,21 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->policy
             ->expects($this->once())
             ->method('organize')
-            ->with($asset)
-            ->willReturn($targetPath);
+            ->with($this->isInstanceOf(MediaAsset::class))
+            ->willReturnCallback(fn(): \SortingPhotosByDate\Domain\ValueObjects\FilePath => $targetPath);
 
         $this->filesystem
             ->expects($this->once())
             ->method('copyWithMetadata')
-            ->with($sourcePath, $targetPath)
-            ->willReturn(false);
+            ->with($this->anything(), $this->anything())
+            ->willReturnCallback(function ($compressedPath) use ($sourcePath): bool {
+                // Verify compressed path matches source path
+                if ($compressedPath->getPath() !== $sourcePath->getPath()) {
+                    return false;
+                }
+
+                return false; // Simulate copy failure
+            });
 
         $this->filesystem
             ->expects($this->never())

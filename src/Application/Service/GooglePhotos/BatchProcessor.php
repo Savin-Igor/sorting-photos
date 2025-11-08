@@ -36,18 +36,18 @@ final readonly class BatchProcessor
         $batch = $batch->startProcessing();
         $this->batchRepository->save($batch);
 
-        // Получить элементы для обработки (начиная с currentIndex)
+        // Get items to process (starting from currentIndex)
         $itemsToProcess = $batch->getItemsToProcess();
 
-        // Разбить на группы по 50 (на случай большого батча)
+        // Split into groups of 50 (for large batches)
         $chunks = \array_chunk($itemsToProcess, self::MAX_ITEMS_PER_REQUEST);
 
         foreach ($chunks as $chunkIndex => $chunk) {
             try {
-                // Проверить квоту
+                // Check quota
                 $this->quotaManager->checkQuota();
 
-                // Создать запросы для API
+                // Create API requests
                 $requests = [];
                 /** @var BatchItem $item */
                 foreach ($chunk as $item) {
@@ -59,7 +59,7 @@ final readonly class BatchProcessor
                     );
                 }
 
-                // Создать медиа-элементы
+                // Create media items
                 $response = $this->apiClient->batchCreateMediaItems(
                     items: $requests,
                     albumId: $this->albumId
@@ -67,11 +67,11 @@ final readonly class BatchProcessor
 
                 $this->quotaManager->recordRequest();
 
-                // Обработать каждый результат индивидуально
+                // Process each result individually
                 $this->processBatchResponse($batch, $response, $chunkIndex);
 
             } catch (QuotaExceededException $e) {
-                // Пауза батча
+                // Pause batch
                 $batch = $batch->pause($e->getResetTime());
                 $this->batchRepository->save($batch);
 
@@ -87,20 +87,20 @@ final readonly class BatchProcessor
                     'error' => $e->getMessage(),
                 ]);
 
-                // Для 4xx ошибок - экспоненциальная задержка
+                // For 4xx errors - exponential backoff
                 if ($e->getCode() >= 400 && $e->getCode() < 500) {
-                    // Ошибка будет обработана планировщиком
+                    // Error will be handled by scheduler
                     throw $e;
                 }
 
-                // Для других ошибок - пометить батч как failed
+                // For other errors - mark batch as failed
                 $batch = $batch->markAsFailed($e->getMessage());
                 $this->batchRepository->save($batch);
                 throw $e;
             }
         }
 
-        // Проверить, все ли элементы обработаны
+        // Check if all items are processed
         if ($batch->allItemsProcessed()) {
             $batch = $batch->complete();
             $this->batchRepository->save($batch);
@@ -130,7 +130,7 @@ final readonly class BatchProcessor
     ): void {
         $globalStartIndex = $batch->getCurrentIndex() + ($chunkIndex * self::MAX_ITEMS_PER_REQUEST);
 
-        // Обработать каждый результат
+        // Process each result
         foreach ($response->getNewMediaItemResults() as $index => $result) {
             $globalIndex = $globalStartIndex + $index;
             $batchItem = $batch->getItems()[$globalIndex];
@@ -145,7 +145,7 @@ final readonly class BatchProcessor
             }
 
             if ($result->getStatus()->isSuccess()) {
-                // Успешно
+                // Success
                 $mediaItem = $result->getMediaItem();
                 if (null === $mediaItem) {
                     $this->logger->warning('Media item is null despite success status', [
@@ -170,12 +170,12 @@ final readonly class BatchProcessor
                     'media_item_id' => $mediaItem->getId(),
                 ]);
             } else {
-                // Ошибка для этого элемента
+                // Error for this item
                 $this->handleItemError($job, $result->getStatus(), $batchItem, $batch, $globalIndex);
             }
         }
 
-        // Обработать общие ошибки батча
+        // Process batch-level errors
         if ([] !== $response->getErrors()) {
             $this->handleBatchErrors($batch, $response->getErrors());
         }
@@ -191,16 +191,16 @@ final readonly class BatchProcessor
         $code = $status->getCode();
 
         match (true) {
-            // Временные ошибки - пометить для повтора
+            // Temporary errors - mark for retry
             \in_array($code, [500, 503], true) => $this->markForRetry($job, $batch, $index),
 
-            // Квота
+            // Quota
             429 === $code => $this->pauseForQuota($batch, $index, $status->getMessage()),
 
-            // Ошибки токена - перезагрузить файл
+            // Token errors - re-upload file
             \in_array($code, [400, 404], true) => $this->markTokenInvalid($job, $item, $batch, $index),
 
-            // Критические ошибки
+            // Critical errors
             default => $this->markAsFailed($job, $status->getMessage(), $batch, $index),
         };
     }
@@ -224,7 +224,7 @@ final readonly class BatchProcessor
         int $index,
         string $message,
     ): void {
-        // Квота будет обработана на уровне батча
+        // Quota will be handled at batch level
         $batch = $batch->markItemFailed($index, $message);
         $this->batchRepository->save($batch);
     }
@@ -240,7 +240,7 @@ final readonly class BatchProcessor
             'token' => $item->getUploadToken(),
         ]);
 
-        // Вернуть Job в состояние UPLOADING
+        // Reset Job to UPLOADING state
         $job = $job->resetToUploading();
         $this->jobRepository->save($job);
 

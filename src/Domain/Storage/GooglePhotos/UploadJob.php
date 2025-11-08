@@ -179,7 +179,7 @@ final readonly class UploadJob
             mimeType: $this->mimeType,
             isVideo: $this->isVideo,
             state: UploadState::UPLOADED,
-            resumableSession: null, // Сессия больше не нужна
+            resumableSession: null, // Session no longer needed
             uploadToken: $uploadToken,
             batchId: $this->batchId,
             creationTime: $this->creationTime,
@@ -305,8 +305,8 @@ final readonly class UploadJob
             fileHash: $this->fileHash,
             mimeType: $this->mimeType,
             isVideo: $this->isVideo,
-            state: UploadState::PENDING, // Вернуть в очередь
-            resumableSession: null, // Сбросить сессию
+            state: UploadState::PENDING, // Return to queue
+            resumableSession: null, // Reset session
             uploadToken: null,
             batchId: null,
             creationTime: $this->creationTime,

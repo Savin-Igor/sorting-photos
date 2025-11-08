@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Application\Handler;
 
 use SortingPhotosByDate\Application\Command\OrganizeFileCommand;
+use SortingPhotosByDate\Application\Service\FileCompressionServiceInterface;
 use SortingPhotosByDate\Domain\Event\FileOrganized;
 use SortingPhotosByDate\Domain\Policies\OrganizerPolicy;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
@@ -27,6 +28,7 @@ final readonly class OrganizeFileHandler
         private MetadataRepositoryPort $repository,
         private LoggerPort $logger,
         private MessageBusInterface $messageBus,
+        private FileCompressionServiceInterface $compressionService,
         private ?RedisStatisticsService $statistics = null,
     ) {
     }
@@ -55,15 +57,26 @@ final readonly class OrganizeFileHandler
             }
         }
 
+        // Compress file if needed (before organizing)
+        $compressedPath = $this->compressionService->compressIfNeeded($sourcePath, $asset);
+        $isTemporaryCompressed = $this->compressionService->isTemporaryFile($compressedPath);
+
         // Apply organizer policy to get target path
         $targetPath = $this->policy->organize($asset);
 
         // Handle file collision: if target exists, append hash prefix
         $finalTargetPath = $this->resolveCollision($targetPath, $asset->getHash());
 
-        // Copy file with metadata preservation
-        if (!$this->filesystem->copyWithMetadata($sourcePath, $finalTargetPath)) {
-            throw new \RuntimeException("Failed to copy file from {$sourcePath->getPath()} to {$finalTargetPath->getPath()}");
+        // Copy compressed file (if compressed) or original file with metadata preservation
+        if (!$this->filesystem->copyWithMetadata($compressedPath, $finalTargetPath)) {
+            throw new \RuntimeException("Failed to copy file from {$compressedPath->getPath()} to {$finalTargetPath->getPath()}");
+        }
+
+        // Clean up temporary compressed file if it was created
+        if ($isTemporaryCompressed && $this->filesystem->exists($compressedPath) && !$this->filesystem->delete($compressedPath)) {
+            $this->logger->warning('Failed to delete temporary compressed file', [
+                'compressed_path' => $compressedPath->getPath(),
+            ]);
         }
 
         // Verify hash after copy (only if both files exist)

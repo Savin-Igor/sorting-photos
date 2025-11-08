@@ -7,49 +7,49 @@ namespace SortingPhotosByDate\Ports\Storage\GooglePhotos;
 interface GooglePhotosApiClientPort
 {
     /**
-     * Инициализировать resumable upload сессию.
+     * Initialize resumable upload session.
      *
      * @return string Resumable session URI
      */
     public function initiateResumableUpload(int $fileSize, string $mimeType): string;
 
     /**
-     * Загрузить чанк файла.
+     * Upload file chunk.
      */
     public function uploadChunk(string $sessionUri, string $chunk, int $offset, int $totalSize): void;
 
     /**
-     * Завершить загрузку и получить upload token.
+     * Complete upload and get upload token.
      */
     public function completeUpload(string $sessionUri): string;
 
     /**
-     * Запросить статус загрузки (для проверки истекших сессий).
+     * Query upload status (for checking expired sessions).
      */
     public function queryUploadStatus(string $sessionUri): UploadStatus;
 
     /**
-     * Создать медиа-элементы батчем.
+     * Create media items in batch.
      *
      * @param array<BatchItemRequest> $items
      */
     public function batchCreateMediaItems(array $items, ?string $albumId = null): BatchCreateResponse;
 
     /**
-     * Получить список медиа-элементов.
+     * Get list of media items.
      *
-     * @param int     $pageSize  Максимальное количество элементов (по умолчанию 25)
-     * @param ?string $pageToken Токен для пагинации
+     * @param int     $pageSize  Maximum number of items (default 25)
+     * @param ?string $pageToken Pagination token
      *
      * @return array{mediaItems: array<MediaItem>, nextPageToken: ?string}
      */
     public function listMediaItems(int $pageSize = 25, ?string $pageToken = null): array;
 
     /**
-     * Получить список альбомов.
+     * Get list of albums.
      *
-     * @param int     $pageSize  Максимальное количество альбомов (по умолчанию 50)
-     * @param ?string $pageToken Токен для пагинации
+     * @param int     $pageSize  Maximum number of albums (default 50)
+     * @param ?string $pageToken Pagination token
      *
      * @return array{albums: array<array{id: string, title: string, productUrl: string}>, nextPageToken: ?string}
      */

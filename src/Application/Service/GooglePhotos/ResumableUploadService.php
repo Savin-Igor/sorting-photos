@@ -18,8 +18,8 @@ use Symfony\Component\Messenger\MessageBusInterface;
 
 final readonly class ResumableUploadService
 {
-    private const int CHUNK_SIZE = 256 * 1024; // 256 КБ
-    private const int CHECKPOINT_INTERVAL = 10 * 1024 * 1024; // 10 МБ
+    private const int CHUNK_SIZE = 256 * 1024; // 256 KB
+    private const int CHECKPOINT_INTERVAL = 10 * 1024 * 1024; // 10 MB
 
     public function __construct(
         private GooglePhotosApiClientPort $apiClient,
@@ -34,10 +34,10 @@ final readonly class ResumableUploadService
 
     public function uploadFile(UploadJob $job): void
     {
-        // 1. Проверить квоту
+        // 1. Check quota
         $this->quotaManager->checkQuota();
 
-        // 2. Проверить истечение сессии
+        // 2. Check session expiration
         $now = new \DateTimeImmutable();
         if ($job->needsSessionRenewal($now)) {
             $this->handleExpiredSession($job);
@@ -47,21 +47,21 @@ final readonly class ResumableUploadService
             }
         }
 
-        // 3. Если сессия есть - возобновить
+        // 3. If session exists - resume
         if ($job->getResumableSession() instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\ResumableSession) {
             $this->resumeUpload($job);
 
             return;
         }
 
-        // 4. Сжать файл если нужно
+        // 4. Compress file if needed
         $filePath = $this->compressIfNeeded($job);
         $fileSize = \filesize($filePath);
         if (false === $fileSize) {
             throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
         }
 
-        // 5. Инициализировать новую сессию
+        // 5. Initialize new session
         $sessionUri = $this->apiClient->initiateResumableUpload(
             fileSize: $fileSize,
             mimeType: $job->getMimeType()
@@ -75,7 +75,7 @@ final readonly class ResumableUploadService
             filePath: $job->getFilePath()->getPath()
         ));
 
-        // 6. Загружать чанками
+        // 6. Upload in chunks
         $handle = \fopen($filePath, 'rb');
         if (false === $handle) {
             throw new \RuntimeException(\sprintf('Failed to open file: %s', $filePath));
@@ -85,7 +85,7 @@ final readonly class ResumableUploadService
             $offset = 0;
 
             while ($offset < $fileSize) {
-                // Проверить квоту перед каждым чанком
+                // Check quota before each chunk
                 try {
                     $this->quotaManager->checkQuota();
                 } catch (QuotaExceededException $e) {
@@ -94,14 +94,14 @@ final readonly class ResumableUploadService
                     throw $e;
                 }
 
-                // Прочитать чанк
+                // Read chunk
                 \fseek($handle, $offset);
                 $chunk = \fread($handle, self::CHUNK_SIZE);
                 if (false === $chunk) {
                     throw new \RuntimeException(\sprintf('Failed to read chunk at offset %d', $offset));
                 }
 
-                // Загрузить чанк
+                // Upload chunk
                 $this->apiClient->uploadChunk(
                     sessionUri: $sessionUri,
                     chunk: $chunk,
@@ -115,7 +115,7 @@ final readonly class ResumableUploadService
                 $job = $job->updateProgress($offset);
                 $this->jobRepository->save($job);
 
-                // Отправить событие прогресса
+                // Dispatch progress event
                 $this->messageBus->dispatch(new UploadProgressed(
                     jobId: $job->getId(),
                     uploadedBytes: $offset,
@@ -136,7 +136,7 @@ final readonly class ResumableUploadService
             \fclose($handle);
         }
 
-        // 7. Получить uploadToken
+        // 7. Get uploadToken
         $uploadToken = $this->apiClient->completeUpload($sessionUri);
         $job = $job->completeUpload($uploadToken);
         $this->jobRepository->save($job);
@@ -161,11 +161,11 @@ final readonly class ResumableUploadService
         ]);
 
         try {
-            // Попытаться запросить статус
+            // Try to query status
             $status = $this->apiClient->queryUploadStatus($session->getSessionUri());
 
             if ($status->isComplete()) {
-                // Файл уже загружен
+                // File already uploaded
                 $uploadToken = $status->getUploadToken();
                 if (null === $uploadToken) {
                     throw new \RuntimeException('Upload complete but no token received');
@@ -178,7 +178,7 @@ final readonly class ResumableUploadService
                     'job_id' => $job->getId()->getId(),
                 ]);
             } else {
-                // Сессия истекла, но файл не загружен
+                // Session expired, but file not uploaded
                 $job = $job->markSessionExpired($status->getUploadedBytes());
                 $this->jobRepository->save($job);
 
@@ -188,7 +188,7 @@ final readonly class ResumableUploadService
                 ]);
             }
         } catch (SessionExpiredException) {
-            // Сессия точно истекла
+            // Session definitely expired
             $job = $job->markSessionExpired(0);
             $this->jobRepository->save($job);
 
@@ -226,7 +226,7 @@ final readonly class ResumableUploadService
 
         try {
             while ($offset < $fileSize) {
-                // Проверить квоту
+                // Check quota
                 try {
                     $this->quotaManager->checkQuota();
                 } catch (QuotaExceededException $e) {
@@ -235,14 +235,14 @@ final readonly class ResumableUploadService
                     throw $e;
                 }
 
-                // Прочитать чанк
+                // Read chunk
                 \fseek($handle, $offset);
                 $chunk = \fread($handle, self::CHUNK_SIZE);
                 if (false === $chunk) {
                     throw new \RuntimeException(\sprintf('Failed to read chunk at offset %d', $offset));
                 }
 
-                // Загрузить чанк
+                // Upload chunk
                 $this->apiClient->uploadChunk(
                     sessionUri: $session->getSessionUri(),
                     chunk: $chunk,
@@ -266,7 +266,7 @@ final readonly class ResumableUploadService
             \fclose($handle);
         }
 
-        // Получить токен
+        // Get token
         $uploadToken = $this->apiClient->completeUpload($session->getSessionUri());
         $job = $job->completeUpload($uploadToken);
         $this->jobRepository->save($job);

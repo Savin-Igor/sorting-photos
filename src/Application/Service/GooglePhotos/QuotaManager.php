@@ -11,7 +11,7 @@ use SortingPhotosByDate\Ports\LoggerPort;
 final readonly class QuotaManager
 {
     private const int REQUESTS_LIMIT = 10_000;
-    private const int BYTES_LIMIT = 75_000_000_000; // 75 GB в байтах (примерно)
+    private const int BYTES_LIMIT = 75_000_000_000; // 75 GB in bytes (approximately)
 
     public function __construct(
         private QuotaTracker $quotaTracker,
@@ -23,7 +23,7 @@ final readonly class QuotaManager
     {
         $status = $this->quotaTracker->getStatus();
 
-        // Проверить лимит запросов
+        // Check request limit
         if ($status->getRequestsUsed() >= self::REQUESTS_LIMIT) {
             $this->logger->warning('Request quota exceeded', [
                 'used' => $status->getRequestsUsed(),
@@ -34,7 +34,7 @@ final readonly class QuotaManager
             throw QuotaExceededException::requestsExceeded($status->getResetTime());
         }
 
-        // Проверить лимит байтов
+        // Check bytes limit
         if ($status->getBytesUsed() >= self::BYTES_LIMIT) {
             $this->logger->warning('Bytes quota exceeded', [
                 'used' => $status->getBytesUsed(),

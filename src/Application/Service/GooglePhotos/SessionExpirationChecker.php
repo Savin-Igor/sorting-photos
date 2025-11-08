@@ -37,11 +37,11 @@ final readonly class SessionExpirationChecker
                     continue;
                 }
 
-                // Попытаться запросить статус
+                // Try to query status
                 $status = $this->apiClient->queryUploadStatus($session->getSessionUri());
 
                 if ($status->isComplete()) {
-                    // Файл уже загружен
+                    // File already uploaded
                     $uploadToken = $status->getUploadToken();
                     if (null === $uploadToken) {
                         $this->logger->warning('Upload complete but no token received', [
@@ -57,7 +57,7 @@ final readonly class SessionExpirationChecker
                         'job_id' => $job->getId()->getId(),
                     ]);
                 } else {
-                    // Сессия истекла, но файл не загружен
+                    // Session expired, but file not uploaded
                     $job = $job->markSessionExpired($status->getUploadedBytes());
                     $this->jobRepository->save($job);
 
@@ -67,7 +67,7 @@ final readonly class SessionExpirationChecker
                     ]);
                 }
             } catch (SessionExpiredException) {
-                // Сессия точно истекла
+                // Session definitely expired
                 $job = $job->markSessionExpired(0);
                 $this->jobRepository->save($job);
 

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Storage\GooglePhotos;
 
-final class ImageCompressor
+final readonly class ImageCompressor
 {
     public function __construct(
-        private readonly bool $enabled,
-        private readonly int $jpegMaxPixels,
-        private readonly int $pngMaxPixels,
+        private bool $enabled,
+        private int $jpegMaxPixels,
+        private int $pngMaxPixels,
     ) {
     }
 
@@ -67,7 +67,7 @@ final class ImageCompressor
             throw new \RuntimeException('Failed to create destination image');
         }
 
-        // Сохранить прозрачность для PNG
+        // Preserve transparency for PNG
         if ('image/png' === $mimeType) {
             \imagealphablending($destination, false);
             \imagesavealpha($destination, true);

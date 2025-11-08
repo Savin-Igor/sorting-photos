@@ -81,16 +81,28 @@ shell: ## Open shell in application container
 
 ##@ Application commands
 
-run: ## Run the application (sort files)
+organize-files: ## Organize files from source to destination directory
 	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
 		echo "Containers are not running. Starting them..."; \
 		${MAKE} up; \
 	fi
-	@echo "Running file sorting application..."
+	@echo "Organizing files..."
 	@echo "Using SOURCE_DIRECTORY_HOST: $${SOURCE_DIRECTORY_HOST:-./var/data/source}"
 	@echo "Using DESTINATION_DIRECTORY_HOST: $${DESTINATION_DIRECTORY_HOST:-./var/data/destination}"
-	@echo "Using ASYNC_MODE: $${ASYNC_MODE:-false}"
-	${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$${SOURCE_DIRECTORY_HOST:-}" -e DESTINATION_DIRECTORY_HOST="$${DESTINATION_DIRECTORY_HOST:-}" -e ASYNC_MODE="$${ASYNC_MODE:-false}" app php index.php
+	${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$${SOURCE_DIRECTORY_HOST:-}" -e DESTINATION_DIRECTORY_HOST="$${DESTINATION_DIRECTORY_HOST:-}" app php bin/console organize:files
+.PHONY: organize-files
+
+organize-files-dry-run: ## Organize files in dry-run mode (no actual changes)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Organizing files (dry-run mode)..."
+	${DOCKER_COMPOSE} exec -e SOURCE_DIRECTORY_HOST="$${SOURCE_DIRECTORY_HOST:-}" -e DESTINATION_DIRECTORY_HOST="$${DESTINATION_DIRECTORY_HOST:-}" app php bin/console organize:files --dry-run
+.PHONY: organize-files-dry-run
+
+run: organize-files ## Alias for organize-files (deprecated, use organize-files)
+	@echo "Warning: 'make run' is deprecated. Use 'make organize-files' instead."
 .PHONY: run
 
 run-with-workers: ## Run the application with workers (usage: make run-with-workers WORKERS=8)

@@ -28,7 +28,7 @@ final readonly class FileScanner
 
         foreach ($this->scanner->scan($sourcePath) as $filePath) {
             try {
-                // 1. Проверить дедупликацию
+                // 1. Check deduplication
                 $hash = FileHash::fromFile($filePath->getPath());
                 $existingJob = $this->jobRepository->findByHash($hash);
 
@@ -41,16 +41,16 @@ final readonly class FileScanner
                     continue;
                 }
 
-                // 2. Извлечь метаданные
+                // 2. Extract metadata
                 $metadata = $this->metadataExtractor->extract($filePath->getPath());
                 $date = $this->metadataExtractor->extractDate($filePath->getPath());
 
-                // 3. Определить тип
+                // 3. Determine type
                 $isVideo = $this->isVideo($metadata->getMimeType());
 
-                // 4. Создать UploadJob
+                // 4. Create UploadJob
                 $creationTime = $date->getDateTime();
-                // MediaDate::getDateTime() всегда возвращает Carbon
+                // MediaDate::getDateTime() always returns Carbon
                 $creationTime = \DateTimeImmutable::createFromMutable($creationTime->toDateTime());
 
                 $job = UploadJob::create(
