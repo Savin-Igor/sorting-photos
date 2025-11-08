@@ -1,471 +1,336 @@
-# Sorting Photos By Date
+# 📸 Sorting Photos By Date
 
-A modern PHP 8.4 application for organizing photos, videos, audio files, and documents by date and type. Built with Hexagonal Architecture, Symfony Messenger, and Docker support.
+Современное PHP 8.4 приложение для организации фотографий, видео, аудиофайлов и документов по дате и типу. Построено на гексагональной архитектуре с поддержкой асинхронной обработки и интеграцией Google Photos.
 
-## Features
+[![PHP Version](https://img.shields.io/badge/PHP-8.4+-blue.svg)](https://php.net/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com/)
 
-- 📸 **Multi-format support**: Images, videos, audio files, and documents
-- 📅 **Smart organization**: Organizes files by date and type (`{year}/{month}/{category}/`)
-- 🔒 **Metadata preservation**: Preserves file permissions, timestamps, and extended attributes
-- 🚀 **Scalable architecture**: Hexagonal Architecture with async message processing
-- 🐳 **Docker ready**: Full Docker Compose setup with Redis/RabbitMQ support
-- ✅ **Quality assurance**: Comprehensive tests and static analysis tools
+## 📋 Содержание
 
-## Requirements
+- [🚀 Быстрый старт](#-быстрый-старт)
+- [🎯 Возможности](#-возможности)
+- [🏗️ Архитектура](#️-архитектура)
+- [📖 Использование](#-использование)
+- [⚙️ Конфигурация](#️-конфигурация)
+- [🔧 Разработка](#-разработка)
+- [📚 Документация](#-документация)
+- [🙋 Поддержка](#-поддержка)
 
-- PHP 8.4+
-- Composer
-- Docker & Docker Compose (for containerized deployment)
-- SQLite extension (for metadata storage)
+## 🚀 Быстрый старт
 
-## Quick Start
+### 🐳 Docker (Рекомендуется)
 
-### Using Docker (Recommended)
-
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd sorting-photos
-   ```
-
-2. **Initialize data directories:**
-   ```bash
-   make data-init
-   ```
-
-3. **Create environment file (optional):**
-   ```bash
-   cp .env.example .env
-   # Edit .env to set SOURCE_DIRECTORY_HOST and DESTINATION_DIRECTORY_HOST if needed
-   ```
-
-4. **Start the application:**
-   ```bash
-   make up
-   ```
-
-5. **Run with your directories:**
-   
-   You can use **any directories** on your host (USB drives, network shares, external drives, etc.):
-   
-   ```bash
-   # Using environment variables
-   SOURCE_DIRECTORY_HOST="/home/user/Pictures" \
-   DESTINATION_DIRECTORY_HOST="/mnt/external/sorted" \
-   make run
-   
-   # Or set in .env file:
-   # SOURCE_DIRECTORY_HOST=/home/user/Pictures
-   # DESTINATION_DIRECTORY_HOST=/mnt/external/sorted
-   ```
-   
-   **Default behavior** (if not specified):
-   - Source: `./var/data/source` (project directory)
-   - Destination: `./var/data/destination` (project directory)
-
-### Async Mode (Parallel Processing)
-
-⚠️ **Current Status**: Application runs in **synchronous mode** by default. Async mode infrastructure is ready but not activated.
-
-For large volumes (2+ TB, thousands of files), **async mode** provides parallel processing:
-
-**Option 1: Using Docker Compose Worker**:
 ```bash
-# Start application with worker
-make up-worker
+# 1. Клонировать репозиторий
+git clone <repository-url>
+cd sorting-photos
 
-# In another terminal, run scanning
-make run
+# 2. Инициализировать директории данных
+make data-init
 
-# Worker will automatically process all messages from queue
-```
-
-**Option 2: Manual Worker**:
-```bash
-# Start application
+# 3. Запустить приложение
 make up
 
-# Run scanning (messages go to queue)
-make run
+# 4. Поместить файлы для сортировки
+cp -r /path/to/your/photos/* var/data/source/
 
-# In another terminal, start worker(s)
-make consume-workers WORKERS=4
+# 5. Запустить сортировку
+make run
 ```
 
-**Performance**:
-- **Sync mode** (default): ~10-50 files/sec
-- **Async mode** (4 workers): ~40-200 files/sec (4× faster)
-- **Async mode** (8 workers): ~80-400 files/sec (8× faster)
+### 📁 Результат работы
 
-See [ASYNC_PROCESSING.md](docs/ASYNC_PROCESSING.md) for detailed information about async processing and how to activate it.
+```
+📁 var/data/destination/
+├── 2023/
+│   ├── 01/
+│   │   ├── images/
+│   │   │   ├── photo1.jpg
+│   │   │   └── photo2.png
+│   │   └── video/
+│   │       └── video1.mp4
+│   └── 12/
+│       ├── images/
+│       │   ├── christmas1.jpg
+│       │   └── christmas2.jpg
+│       └── audio/
+│           └── music.mp3
+└── 2024/
+    ├── 06/
+    │   └── images/
+    │       ├── vacation1.jpg
+    │       └── vacation2.jpg
+    └── 11/
+        └── video/
+            └── birthday.mp4
+```
 
-### Local Installation
+### 🏠 Локальная установка
 
-1. **Install dependencies:**
-   ```bash
-   composer install
-   ```
+```bash
+# Установка зависимостей
+composer install
 
-2. **Configure environment:**
-   ```bash
-   cp .env.docker.example .env
-   # Edit .env with your paths
-   ```
+# Настройка окружения
+cp .env.example .env
 
-3. **Run the application:**
-   ```bash
-   php index.php
-   ```
+# Запуск
+php bin/console organize:files /path/to/source /path/to/destination
+```
 
-## Project Structure
+## 🎯 Возможности
+
+### 📸 Форматы файлов
+- **Изображения**: JPEG, PNG, GIF, WebP, TIFF, BMP, HEIC
+- **Видео**: MP4, AVI, MOV, MKV, WMV, FLV, WebM
+- **Аудио**: MP3, FLAC, WAV, OGG, AAC, WMA
+- **Документы**: PDF, DOC, DOCX, TXT, и другие
+
+### 📅 Организация файлов
+- **По умолчанию**: `{год}/{месяц}/{категория}/`
+- **По дате**: `{год}/{месяц}/`
+- **По типу**: `{категория}/{год}/{месяц}/`
+
+### 🔒 Сохранение метаданных
+- Права доступа к файлам (chmod)
+- Временные метки (mtime, atime)
+- Расширенные атрибуты (xattr)
+- Владелец файла
+
+### 🚀 Производительность
+- **Синхронный режим**: ~10-50 файлов/сек
+- **Асинхронный режим**: ~40-200 файлов/сек (4 воркера)
+- **Масштабирование**: До 8+ параллельных воркеров
+
+### ☁️ Google Photos интеграция
+- Загрузка больших объемов (до 2 ТБ+)
+- Resumable upload с возобновлением
+- Batch processing (до 50 элементов)
+- Управление квотами API
+- Сжатие изображений без потери качества
+
+### ✅ Качество и надежность
+- Полное покрытие тестами
+- Статический анализ (PHPStan, Psalm)
+- Идемпотентность операций
+- Retry и Dead Letter Queue
+- Структурированное логирование
+
+## 🏗️ Архитектура
+
+### 🎯 Гексагональная архитектура (Ports & Adapters)
+
+```mermaid
+graph TB
+    subgraph "🎭 Presentation Layer"
+        CLI[Консольные команды]
+        API[HTTP API]
+    end
+
+    subgraph "📱 Application Layer"
+        CMD[Commands]
+        HDL[Handlers]
+        SVC[Services]
+    end
+
+    subgraph "🎯 Domain Layer"
+        ENT[Entities & Value Objects]
+        EVT[Domain Events]
+        POL[Policies]
+    end
+
+    subgraph "🔌 Ports"
+        SP[ScannerPort]
+        MP[MetadataExtractorPort]
+        FP[FilesystemPort]
+        LP[LoggerPort]
+        RP[RepositoryPort]
+    end
+
+    subgraph "🛠️ Adapters"
+        SF[SymfonyFinder]
+        EXIF[EXIF Adapter]
+        GTID3[getID3 Adapter]
+        LFS[LocalFilesystem]
+        MONO[Monolog]
+        DB[SQLite Repository]
+    end
+
+    subgraph "🏗️ Infrastructure"
+        MSG[Messenger]
+        CONF[Configuration]
+        LOG[Logging]
+    end
+
+    CLI --> CMD
+    CMD --> HDL
+    HDL --> SVC
+    SVC --> ENT
+    ENT --> EVT
+    EVT --> POL
+
+    HDL --> SP
+    HDL --> MP
+    HDL --> FP
+    HDL --> LP
+    HDL --> RP
+
+    SP --> SF
+    MP --> EXIF
+    MP --> GTID3
+    FP --> LFS
+    LP --> MONO
+    RP --> DB
+
+    MSG --> CONF
+    LOG --> CONF
+```
+
+### 🔄 Pipeline обработки
+
+```mermaid
+flowchart TD
+    A[ScanFilesCommand] --> B[FileDiscovered Event]
+    B --> C{Async Mode?}
+
+    C -->|Да| D[Messenger Queue]
+    C -->|Нет| E[IngestFileHandler]
+
+    D --> F[Worker Consumer]
+    F --> E
+
+    E --> G[Detect MIME Type]
+    G --> H[Extract Metadata]
+    H --> I[Calculate SHA-256 Hash]
+    I --> J[FileProcessed Event]
+
+    J --> K[OrganizeFileHandler]
+    K --> L[Apply OrganizerPolicy]
+    L --> M[Copy with Metadata Preservation]
+    M --> N[Verify Hash]
+    N --> O[Delete Source]
+    O --> P[FileOrganized Event]
+
+    P --> Q[Success: Continue]
+    N -->|Hash Mismatch| R[Error: Retry/Dead Letter]
+    M -->|Copy Failed| R
+    O -->|Delete Failed| R
+```
+
+### 📦 Структура проекта
 
 ```
 sorting-photos/
-├── src/
-│   ├── Domain/                      # Domain layer (isolated)
-│   │   ├── MediaAsset.php          # Aggregate Root
-│   │   ├── ValueObjects/           # Value Objects
-│   │   │   ├── FileType.php        # Enum (image, video, audio, other)
-│   │   │   ├── FileCategory.php    # Enum (images, audio, video, other)
-│   │   │   ├── FilePath.php        # Value Object
-│   │   │   ├── FileHash.php        # Value Object
-│   │   │   ├── MediaDate.php       # Value Object
-│   │   │   └── MediaMeta.php       # Value Object
-│   │   ├── Event/                   # Domain Events
-│   │   │   ├── FileDiscovered.php
-│   │   │   ├── FileProcessed.php
-│   │   │   ├── FileOrganized.php
-│   │   │   └── FileError.php
-│   │   └── Policies/                # Policy Pattern
-│   │       ├── OrganizerPolicy.php  # Interface
-│   │       ├── DateTypePolicy.php   # {year}/{month}/{category}/
-│   │       ├── DatePolicy.php       # {year}/{month}/
-│   │       └── TypeDatePolicy.php   # {category}/{year}/{month}/
+├── 📁 src/
+│   ├── 🎯 Domain/           # Домен (бизнес-логика)
+│   │   ├── MediaAsset.php   # Агрегатный корень
+│   │   ├── ValueObjects/    # Value Objects
+│   │   ├── Event/           # Доменные события
+│   │   └── Policies/        # Политики организации
 │   │
-│   ├── Application/                 # Use Cases & CQRS
-│   │   ├── Command/
-│   │   │   ├── IngestFileCommand.php
-│   │   │   └── OrganizeFileCommand.php
-│   │   └── Handler/
-│   │       ├── IngestFileHandler.php
-│   │       └── OrganizeFileHandler.php
+│   ├── 📱 Application/      # Прикладной слой
+│   │   ├── Command/         # Команды CQRS
+│   │   └── Handler/         # Обработчики команд
 │   │
-│   ├── Ports/                       # Interfaces (Hexagonal)
+│   ├── 🔌 Ports/            # Интерфейсы (контракты)
 │   │   ├── ScannerPort.php
 │   │   ├── MetadataExtractorPort.php
-│   │   ├── FilesystemPort.php
-│   │   ├── LoggerPort.php
-│   │   ├── MetadataRepositoryPort.php
-│   │   ├── MimeTypeDetectorInterface.php
-│   │   └── AudioVideoMetadataAnalyzerInterface.php
+│   │   └── FilesystemPort.php
 │   │
-│   ├── Adapters/                    # Port implementations
+│   ├── 🛠️ Adapters/         # Реализации портов
 │   │   ├── Scanner/
-│   │   │   └── SymfonyFinderAdapter.php
 │   │   ├── Metadata/
-│   │   │   ├── ExifAdapter.php
-│   │   │   ├── GetId3Adapter.php
-│   │   │   └── GenericAdapter.php
-│   │   ├── Filesystem/
-│   │   │   └── LocalFilesystemAdapter.php
-│   │   ├── Logger/
-│   │   │   └── MonologAdapter.php
-│   │   └── Repository/
-│   │       └── DatabaseMetadataRepository.php
+│   │   └── Filesystem/
 │   │
-│   ├── Infrastructure/
-│   │   ├── Config/
-│   │   │   ├── ContainerFactory.php      # Container setup factory
-│   │   │   └── ParameterResolver.php    # Environment parameter resolver
-│   │   ├── Helper/
-│   │   │   ├── ByteFormatter.php        # Byte size formatter
-│   │   │   └── DirectorySizeCalculator.php  # Directory size calculator
-│   │   ├── Messenger/
-│   │   │   ├── FileDiscoveredHandler.php
-│   │   │   ├── FileProcessedHandler.php
-│   │   │   ├── FileOrganizedHandler.php
-│   │   │   ├── FileErrorHandler.php
-│   │   │   ├── RetryPolicy.php
-│   │   │   └── SynchronousMessageBus.php
-│   │   ├── Filesystem/
-│   │   │   ├── MetadataPreservingCopier.php
-│   │   │   └── MimeTypeDetectorAdapter.php
-│   │   └── Metadata/
-│   │       ├── MetadataExtractorChain.php
-│   │       └── GetId3Adapter.php
-│   │
-│   └── Command/                     # Console commands
-│       └── ScanFilesCommand.php
+│   └── 🏗️ Infrastructure/   # Инфраструктурный слой
+│       ├── Config/
+│       ├── Messenger/
+│       └── Storage/
 │
-├── config/
-│   ├── packages/
-│   │   ├── messenger.yaml          # Queue configuration
-│   │   └── flysystem.yaml          # Filesystem configuration
-│   ├── parameters.yaml             # Application parameters
-│   └── services.yaml                # DI container
-│
-├── tests/                            # Test suite
-│   └── src/
-│       └── Unit/
-│
-├── var/
-│   ├── data/                        # Data directories
-│   │   ├── source/                  # Source files (read-only)
-│   │   └── destination/            # Organized files
-│   ├── log/                         # Application logs
-│   ├── cache/                       # Cache files
-│   └── database.sqlite              # SQLite database
-│
-├── bin/                             # Executable scripts
-│   └── console                      # Symfony Console entry point
-│
-├── docker-compose.yml               # Docker Compose configuration
-├── Dockerfile                       # Docker image definition
-└── Makefile                         # Make commands
+├── ⚙️ config/               # Конфигурация
+├── 🧪 tests/                # Тесты
+├── 🐳 docker-compose.yml    # Docker
+└── 📖 docs/                 # Документация
 ```
 
-## Docker Commands
+## 📖 Использование
 
-### Basic Commands
+### 🐳 Docker команды
 
-- `make up` - Start application with Redis (default)
-- `make up-rabbitmq` - Start with RabbitMQ instead of Redis
-- `make up-worker` - Start with async worker for message processing
-- `make down` - Stop all containers
-- `make build` - Rebuild Docker images
-- `make logs` - Show logs from all containers
-- `make logs-app` - Show application logs
-- `make shell` - Open shell in application container
+#### Основные команды
+```bash
+make up              # Запустить с Redis
+make up-rabbitmq     # Запустить с RabbitMQ
+make up-worker       # Запустить с воркером
+make down            # Остановить все
+make shell           # Открыть shell в контейнере
+```
 
-### Application Commands
+#### Приложение
+```bash
+make run                    # Синхронная сортировка
+make run-dry-run           # Пробный запуск (без перемещения)
+make scan                  # Сканирование без обработки
+make consume               # Запустить воркер
+make consume-workers WORKERS=4  # Несколько воркеров
+```
 
-- `make run` - Run file sorting (synchronous mode - default)
-- `make run-dry-run` - Run in dry-run mode (no files moved)
-- `make scan` - Scan files and dispatch events (without organizing)
-- `make consume` - Start single worker to consume messages from queue (async mode)
-- `make consume-workers WORKERS=4` - Start multiple workers for parallel processing (async mode)
-- `make metadata-clear` - Clear all metadata from database (reset processing locks)
+#### Управление данными
+```bash
+make data-init             # Создать директории
+make data-clean            # Очистить destination
+make metadata-clear        # Очистить метаданные
+```
 
-### Testing & Quality
+#### Google Photos
+```bash
+make google-photos-authorize      # Авторизация
+make google-photos-test           # Тестирование API
+make google-photos-upload         # Загрузка файлов
+```
 
-- `make test` - Run PHPUnit tests
-- `make test-coverage` - Run tests with coverage report
-- `make cs-fix` - Fix code style (PHP-CS-Fixer)
-- `make phpstan` - Run PHPStan static analysis
-- `make psalm` - Run Psalm static analysis
-- `make grumphp` - Run all code quality checks
-- `make qa` - Run all quality checks and tests
-
-### Data Management
-
-- `make data-init` - Initialize data directories
-- `make data-clean` - Clean destination directory (with confirmation)
-
-### Redis/RabbitMQ
-
-- `make redis-cli` - Open Redis CLI
-- `make redis-flush` - Flush Redis data
-- `make rabbitmq-management` - Open RabbitMQ management UI
-
-## Configuration
-
-### Environment Variables
-
-Create `.env` file from `.env.example`:
+### ⚙️ Переменные окружения
 
 ```bash
-cp .env.example .env
+# Директории (пути на хосте)
+SOURCE_DIRECTORY_HOST=/home/user/Pictures
+DESTINATION_DIRECTORY_HOST=/mnt/external/sorted
+
+# Политика организации
+ORGANIZER_POLICY=date-type  # date-type, date, type-date
+
+# Режим работы
+DRY_RUN=false              # true для тестового запуска
+ASYNC_MODE=false           # true для асинхронной обработки
+
+# Messenger (очереди)
+MESSENGER_TRANSPORT_DSN=redis://redis:6379/messages
+# или
+MESSENGER_TRANSPORT_DSN=amqp://guest:guest@rabbitmq:5672/%2f/messages
 ```
 
-**Note:** The `.env.example` file contains default values for Docker. For local development, adjust paths and Messenger DSN as needed.
+## 🔧 Разработка
 
-Key variables:
-
-**Docker Volume Mounts (Host Paths):**
-- `SOURCE_DIRECTORY_HOST` - Source directory path on **host** (can be any path: USB drive, network share, etc.)
-  - Examples: `/home/user/Pictures`, `/mnt/usb/photos`, `/mnt/network/photos`
-  - Default: `./var/data/source`
-- `DESTINATION_DIRECTORY_HOST` - Destination directory path on **host** (can be any path)
-  - Examples: `/mnt/external/sorted`, `/home/user/Sorted`
-  - Default: `./var/data/destination`
-
-**Container Paths (Fixed - DO NOT change):**
-- `SOURCE_DIRECTORY` - Source directory path **inside container** (fixed: `/var/data/source`)
-- `DESTINATION_DIRECTORY` - Destination directory path **inside container** (fixed: `/var/data/destination`)
-
-**Other Configuration:**
-- `ORGANIZER_POLICY` - Organization policy (`date-type`, `date`, `type-date`)
-- `DRY_RUN` - Dry-run mode (`true`/`false`)
-- `MESSENGER_TRANSPORT_DSN` - Messenger transport:
-  - Redis: `redis://redis:6379/messages`
-  - RabbitMQ: `amqp://guest:guest@rabbitmq:5672/%2f/messages`
-
-**Important:** Use `SOURCE_DIRECTORY_HOST`/`DESTINATION_DIRECTORY_HOST` for host paths. The `SOURCE_DIRECTORY`/`DESTINATION_DIRECTORY` variables are fixed container paths and should not be changed.
-
-### Configuration Files
-
-- `config/parameters.yaml` - Application parameters (can be overridden by environment variables)
-- `config/services.yaml` - Dependency Injection container configuration
-- `config/packages/messenger.yaml` - Symfony Messenger queue configuration
-- `config/packages/flysystem.yaml` - Filesystem adapter configuration
-
-### Organization Policies
-
-- **date-type** (default): `{year}/{month}/{category}/`
-- **date**: `{year}/{month}/`
-- **type-date**: `{category}/{year}/{month}/`
-
-## Architecture
-
-The application follows **Hexagonal Architecture** (Ports & Adapters) combined with **Pipeline Processing**:
-
-- **Domain Layer**: Value Objects, Entities, Domain Events, Policies
-- **Application Layer**: Commands, Handlers, Queries
-- **Infrastructure Layer**: Adapters for filesystem, metadata extraction, messaging
-- **Ports**: Interfaces defining contracts
-
-### Key Patterns
-
-- **Hexagonal Architecture** (Ports/Adapters) — Domain isolation
-- **Pipeline** — Processing pipeline via Messenger
-- **CQRS** — Commands (`IngestFile`, `OrganizeFile`) and Events (`FileOrganized`)
-- **Policy/Strategy** — Flexible file organization rules
-- **Retry/Dead Letter Queue** — Resilience
-- **Queue-based processing** — Scalability
-- **Chain of Responsibility** — Metadata extraction chain
-- **Dependency Injection** — Symfony DI container
-
-### Processing Pipeline
-
-```
-ScanFilesCommand
-    ↓
-FileDiscovered (event)
-    ↓
-Messenger Queue (async)
-    ↓
-IngestFileHandler
-    ├─→ Detect MIME type
-    ├─→ Extract metadata
-    └─→ Calculate hash
-    ↓
-FileProcessed (event)
-    ↓
-OrganizeFileHandler
-    ├─→ Apply OrganizerPolicy
-    ├─→ Copy with metadata preservation
-    ├─→ Verify hash
-    └─→ Delete source
-    ↓
-FileOrganized (event)
-```
-
-### Technology Stack
-
-**Core:**
-- `symfony/console` — Console commands
-- `symfony/messenger` — Async processing and retries
-- `symfony/finder` — File tree scanning
-
-**Detection & Metadata:**
-- `league/mime-type-detection` — Reliable MIME detection (finfo + extension map)
-- `james-heinrich/getid3` — Audio/video metadata extraction
-- `exif` (built-in) — Image metadata
-
-**Storage:**
-- `league/flysystem` — Filesystem abstraction (local/cloud)
-- `doctrine/dbal` — Metadata storage (SQLite/PostgreSQL) for idempotency
-
-**Logging:**
-- `monolog/monolog` — Structured logging
-
-**Queues (optional):**
-- Redis/RabbitMQ via Symfony Messenger transports
-
-### Implementation Details
-
-#### Date Detection (Priority Order)
-
-**Images:**
-1. `EXIF DateTimeOriginal`
-2. `EXIF DateTime`
-3. `mtime` (modification time)
-
-**Audio/Video (getID3):**
-1. `ID3 TDRC` (recording year)
-2. `ID3 TYER` (year)
-3. `mtime`
-
-**Other Files:**
-1. `mtime`
-2. `ctime` (creation time)
-
-#### Metadata Preservation Process
-
-1. Calculate SHA-256 hash of source file
-2. Binary file copy
-3. Verify hash of copy (compare with source)
-4. Restore metadata:
-   - `chmod()` — File permissions
-   - `touch()` — Timestamps (mtime, atime)
-   - `xattr` (if supported) — Extended attributes
-5. Delete source only after successful verification
-
-#### Idempotency
-
-- Database key: `(absolute_path, size, hash)`
-- Pre-processing check: if file already processed — skip
-- Deduplication by content hash
-
-#### Collision Resolution
-
-- If file exists: `{original-name}-{hash-prefix}.{ext}`
-- Hash used for deduplication and integrity verification
-
-#### Retry Mechanism
-
-- Automatic retries on errors (configurable)
-- Dead Letter Queue for problematic files
-- Notifications on critical errors
-- Logging of all attempts
-
-#### Horizontal Scaling
-
-- Multiple workers process queue in parallel
-- Worker count configurable
-- Load balancing via queue
-
-## Development
-
-### Running Tests
+### 🧪 Тестирование
 
 ```bash
-# All tests
-make test
-
-# With coverage
-make test-coverage
-
-# Specific test
-make test-filter TEST=TestClassName
+make test                  # Все тесты
+make test-coverage         # С покрытием
+make test-filter TEST=TestClassName  # Конкретный тест
 ```
 
-### Code Quality Tools
+### ✅ Качество кода
 
 ```bash
-# Fix code style
-make cs-fix
-
-# Static analysis
-make phpstan
-make psalm
-
-# All checks
-make grumphp
-make qa
+make cs-fix               # Исправить стиль
+make phpstan             # PHPStan анализ
+make psalm               # Psalm анализ
+make grumphp             # Все проверки
+make qa                  # Качество + тесты
 ```
 
-### Manual Tool Execution
+### 🔨 Ручные инструменты
 
 ```bash
 # PHP-CS-Fixer
@@ -474,105 +339,102 @@ make qa
 # PHPStan
 ./vendor/bin/phpstan analyse
 
-# Psalm (with PHP 8.4 compatibility)
-php -d error_reporting="E_ALL & ~E_DEPRECATED & ~E_STRICT" ./vendor/bin/psalm --no-cache
+# Psalm
+php -d error_reporting="E_ALL & ~E_DEPRECATED & ~E_STRICT" ./vendor/bin/psalm
 
 # Rector
 ./vendor/bin/rector process src --dry-run
 ```
 
-### Psalm Configuration
+## 📚 Документация
 
-Psalm is configured for PHP 8.4 compatibility. Some vendor dependencies may show deprecation warnings, but these don't affect application functionality.
+- 📖 [Полное руководство пользователя](docs/USER_GUIDE.md)
+- 🏗️ [Архитектура и дизайн](docs/ARCHITECTURE.md)
+- ☁️ [Google Photos API](docs/GOOGLE_PHOTOS_API.md)
+- ⚙️ [Конфигурация и развертывание](docs/DEPLOYMENT.md)
+- 🔧 [Разработка и contribution](docs/DEVELOPMENT.md)
+- 🔄 [Асинхронная обработка](docs/ASYNC_PROCESSING.md)
+- 📊 [Мониторинг и метрики](docs/MONITORING.md)
 
-## Async Processing
+## 🏛️ Требования
 
-For async file processing with workers:
+- **PHP**: 8.4+
+- **Composer**: 2.0+
+- **Docker**: 20.0+ (рекомендуется)
+- **Docker Compose**: 2.0+
+- **SQLite**: расширение (для метаданных)
 
-1. **Start application with worker:**
-   ```bash
-   make up-worker
-   ```
+## 📈 Производительность
 
-2. **In another terminal, scan files:**
-   ```bash
-   make scan
-   ```
+### Синхронный режим
+- **Производительность**: 10-50 файлов/сек
+- **Использование памяти**: ~50-100 MB
+- **Рекомендация**: До 10k файлов
 
-3. **Worker automatically processes messages from queue**
+### Асинхронный режим
+- **Производительность**: 40-200 файлов/сек (4 воркера)
+- **Использование памяти**: ~100-300 MB
+- **Рекомендация**: От 10k файлов, до 2 ТБ+
 
-## Troubleshooting
+### Масштабирование воркеров
+```bash
+# 4 воркера: ~40-200 файлов/сек
+make consume-workers WORKERS=4
 
-### Permission Issues
+# 8 воркеров: ~80-400 файлов/сек
+make consume-workers WORKERS=8
+```
 
+## 🐛 Решение проблем
+
+### Проблемы с правами доступа
 ```bash
 make shell
-# In container:
+# В контейнере:
 sudo chown -R www-data:www-data /var/data /var/www/html/var
 ```
 
-### View Logs
-
+### Просмотр логов
 ```bash
-make logs-app
-# or
-make logs-worker
+make logs-app           # Логи приложения
+make logs-worker        # Логи воркера
+make show-progress      # Прогресс обработки
 ```
 
-### Clear Redis Queue
-
+### Очистка очередей
 ```bash
-make redis-flush
+make redis-flush        # Очистить Redis
+make metadata-clear     # Очистить метаданные
 ```
 
-### Rebuild Images
+## 🙋 Поддержка
 
-```bash
-make build
-```
+### 📞 Контакты
+- **Автор**: Igors Savins
+- **Email**: igor.savin@inbox.lv
+- **GitHub**: [репозиторий проекта]
 
-## File Categories
+### 📋 Сообщение об ошибке
+При создании issue укажите:
+1. Версию PHP и ОС
+2. Docker версии (если используется)
+3. Полные логи ошибки
+4. Шаги для воспроизведения
+5. Конфигурацию (`.env` без секретов)
 
-Files are automatically categorized:
+### 🤝 Вклад в проект
+1. Fork репозиторий
+2. Создать feature branch
+3. Написать тесты
+4. Запустить `make qa`
+5. Создать Pull Request
 
-- **images**: JPEG, PNG, GIF, WebP, etc.
-- **audio**: MP3, FLAC, WAV, OGG, etc.
-- **video**: MP4, AVI, MOV, MKV, etc.
-- **other**: Documents and other file types
+## 📄 Лицензия
 
-## Metadata Preservation
+MIT License - см. [LICENSE](LICENSE) файл для деталей.
 
-The application preserves:
+## 🙏 Благодарности
 
-- File permissions (mode)
-- Timestamps (mtime, atime)
-- Extended attributes (xattr)
-- File ownership (when possible)
-
-## License
-
-MIT License
-
-## Author
-
-Igors Savins - igor.savin@inbox.lv
-
-## Contributing
-
-Contributions are welcome! Please ensure:
-
-1. All tests pass (`make test`)
-2. Code quality checks pass (`make qa`)
-3. Follow PSR-12 coding standards
-4. Add tests for new features
-
-## Architecture Benefits
-
-- ✅ **Scalability** — Parallel processing via Messenger
-- ✅ **Extensibility** — Hexagonal Architecture allows easy adapter swapping
-- ✅ **Resilience** — Retry, DLQ, idempotency
-- ✅ **Flexibility** — Policy Pattern for different organization rules
-- ✅ **Testability** — Easy to mock ports
-- ✅ **Isolation** — Domain doesn't know about concrete implementations
-- ✅ **Cloud-ready** — Easy to add S3/FTP via Flysystem
-- ✅ **Suitable for millions of files** — Horizontal scaling
+- Symfony Framework за компоненты
+- Google Photos API за интеграцию
+- Сообщество PHP за инструменты качества
