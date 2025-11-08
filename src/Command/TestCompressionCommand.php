@@ -33,8 +33,8 @@ final class TestCompressionCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('source', InputArgument::OPTIONAL, 'Source directory path (uses SOURCE_DIRECTORY_HOST from .env if not provided)')
-            ->addArgument('destination', InputArgument::OPTIONAL, 'Destination directory path (uses DESTINATION_DIRECTORY_HOST from .env if not provided)')
+            ->addArgument('source', InputArgument::OPTIONAL, 'Source directory path inside container (uses SOURCE_DIRECTORY from .env if not provided, default: /var/data/source)')
+            ->addArgument('destination', InputArgument::OPTIONAL, 'Destination directory path inside container (uses DESTINATION_DIRECTORY from .env if not provided, default: /var/data/destination)')
             ->addOption('recursive', 'r', InputOption::VALUE_NONE, 'Process files recursively')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show what would be done without actually copying');
     }
@@ -44,23 +44,17 @@ final class TestCompressionCommand extends Command
         $io = new SymfonyStyle($input, $output);
         
         // Get source directory from argument or environment variable
+        // Inside container, use SOURCE_DIRECTORY (container path), not SOURCE_DIRECTORY_HOST (host path)
         $sourceDir = $input->getArgument('source');
         if (null === $sourceDir || '' === $sourceDir) {
-            $sourceDir = getenv('SOURCE_DIRECTORY_HOST') ?: ($_ENV['SOURCE_DIRECTORY_HOST'] ?? '');
-            if ('' === $sourceDir) {
-                $io->error('Source directory is required. Provide it as argument or set SOURCE_DIRECTORY_HOST in .env file.');
-                return Command::FAILURE;
-            }
+            $sourceDir = getenv('SOURCE_DIRECTORY') ?: ($_ENV['SOURCE_DIRECTORY'] ?? '/var/data/source');
         }
         
         // Get destination directory from argument or environment variable
+        // Inside container, use DESTINATION_DIRECTORY (container path), not DESTINATION_DIRECTORY_HOST (host path)
         $destinationDir = $input->getArgument('destination');
         if (null === $destinationDir || '' === $destinationDir) {
-            $destinationDir = getenv('DESTINATION_DIRECTORY_HOST') ?: ($_ENV['DESTINATION_DIRECTORY_HOST'] ?? '');
-            if ('' === $destinationDir) {
-                $io->error('Destination directory is required. Provide it as argument or set DESTINATION_DIRECTORY_HOST in .env file.');
-                return Command::FAILURE;
-            }
+            $destinationDir = getenv('DESTINATION_DIRECTORY') ?: ($_ENV['DESTINATION_DIRECTORY'] ?? '/var/data/destination');
         }
         
         $recursive = $input->getOption('recursive');
