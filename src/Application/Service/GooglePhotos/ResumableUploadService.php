@@ -525,12 +525,30 @@ final readonly class ResumableUploadService
                     $chunkSize = $remainingBytes;
 
                     if ($chunkSize > 0) {
-                        // Read and send last chunk
+                        // Read and send last chunk - ensure we read exactly chunkSize bytes
                         \fseek($handle, $offset);
-                        $chunk = \fread($handle, $chunkSize);
-                        if (false === $chunk) {
-                            throw new \RuntimeException(\sprintf('Failed to read last chunk at offset %d', $offset));
+                        $chunk = '';
+                        $bytesRead = 0;
+                        while ($bytesRead < $chunkSize) {
+                            $bytesToRead = \max(1, $chunkSize - $bytesRead);
+                            $data = \fread($handle, $bytesToRead);
+                            if (false === $data || '' === $data) {
+                                if (0 === $bytesRead) {
+                                    throw new \RuntimeException(\sprintf('Failed to read last chunk at offset %d', $offset));
+                                }
+                                break; // EOF reached
+                            }
+                            $chunk .= $data;
+                            $bytesRead += \strlen($data);
                         }
+
+                        $actualChunkSize = \strlen($chunk);
+                        $this->logger->debug('Last chunk read', [
+                            'offset' => $offset,
+                            'expected_size' => $chunkSize,
+                            'actual_size' => $actualChunkSize,
+                            'file_size' => $fileSize,
+                        ]);
 
                         // Upload last chunk
                         $this->apiClient->uploadChunk(
@@ -539,7 +557,7 @@ final readonly class ResumableUploadService
                             offset: $offset,
                             totalSize: $fileSize
                         );
-                        $offset += \strlen($chunk);
+                        $offset += $actualChunkSize;
                         $job = $job->updateProgress($offset);
                         $this->jobRepository->save($job);
                     }
@@ -554,21 +572,31 @@ final readonly class ResumableUploadService
                     $chunk = '';
                     $bytesRead = 0;
                     while ($bytesRead < $chunkSize) {
-                        $data = \fread($handle, $chunkSize - $bytesRead);
+                        $bytesToRead = \max(1, $chunkSize - $bytesRead);
+                        $data = \fread($handle, $bytesToRead);
                         if (false === $data || '' === $data) {
                             if (0 === $bytesRead) {
                                 throw new \RuntimeException(\sprintf('Failed to read chunk at offset %d', $offset));
                             }
-                            break; // EOF reached
+                            // EOF reached before reading full chunk - this should not happen for non-last chunks
+                            throw new \RuntimeException(\sprintf('Unexpected EOF: expected %d bytes, got %d at offset %d (file size: %d)', $chunkSize, $bytesRead, $offset, $fileSize));
                         }
                         $chunk .= $data;
                         $bytesRead += \strlen($data);
                     }
 
                     $actualChunkSize = \strlen($chunk);
-                    if ($actualChunkSize !== $chunkSize && $offset + $actualChunkSize < $fileSize) {
-                        throw new \RuntimeException(\sprintf('Failed to read full chunk: expected %d bytes, got %d at offset %d', $chunkSize, $actualChunkSize, $offset));
+                    
+                    // CRITICAL: For non-last chunks, we MUST send exactly CHUNK_SIZE bytes
+                    if ($actualChunkSize !== $chunkSize) {
+                        throw new \RuntimeException(\sprintf('Failed to read full chunk: expected %d bytes, got %d at offset %d (file size: %d)', $chunkSize, $actualChunkSize, $offset, $fileSize));
                     }
+                    
+                    $this->logger->debug('Chunk read for resume', [
+                        'offset' => $offset,
+                        'chunk_size' => $actualChunkSize,
+                        'file_size' => $fileSize,
+                    ]);
 
                     // Upload chunk - server will ignore bytes already uploaded
                     try {

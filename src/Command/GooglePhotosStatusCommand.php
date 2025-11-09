@@ -212,4 +212,3 @@ final class GooglePhotosStatusCommand extends Command
         return \round($bytes, 2).' '.$units[$pow];
     }
 }
-
