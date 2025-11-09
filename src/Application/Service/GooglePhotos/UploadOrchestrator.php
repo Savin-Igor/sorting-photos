@@ -49,11 +49,16 @@ final class UploadOrchestrator
             $this->lockManager->cleanupExpiredLocks();
 
             // 4. Check expired sessions
+            $this->logger->debug('Checking expired sessions');
             $this->sessionChecker->checkAndRenewExpiredSessions();
+            $this->logger->debug('Expired sessions check completed');
 
             // 5. Main loop
             $lastHeartbeat = \time();
+            $loopIteration = 0;
             while (!$this->shouldStop) {
+                ++$loopIteration;
+                $this->logger->debug(\sprintf('Orchestrator loop iteration %d', $loopIteration));
                 try {
                     // Refresh lock every 5 minutes
                     if (\time() - $lastHeartbeat > 300) {

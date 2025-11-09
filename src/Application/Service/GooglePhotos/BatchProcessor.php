@@ -42,6 +42,13 @@ final readonly class BatchProcessor
         // Get items to process (starting from currentIndex)
         $itemsToProcess = $batch->getItemsToProcess();
 
+        $this->logger->debug('Processing batch', [
+            'batch_id' => $batch->getId()->getId(),
+            'current_index' => $batch->getCurrentIndex(),
+            'total_items' => \count($batch->getItems()),
+            'items_to_process' => \count($itemsToProcess),
+        ]);
+
         // Split into groups of 50 (for large batches)
         $chunks = \array_chunk($itemsToProcess, self::MAX_ITEMS_PER_REQUEST);
 
@@ -70,8 +77,8 @@ final readonly class BatchProcessor
 
                 $this->quotaManager->recordRequest();
 
-                // Process each result individually
-                $this->processBatchResponse($batch, $response, $chunkIndex);
+                // Process each result individually - CRITICAL: batch is updated inside this method
+                $batch = $this->processBatchResponse($batch, $response, $chunkIndex);
 
             } catch (QuotaExceededException $e) {
                 // Pause batch
@@ -130,7 +137,7 @@ final readonly class BatchProcessor
         UploadBatch $batch,
         \SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchCreateResponse $response,
         int $chunkIndex,
-    ): void {
+    ): UploadBatch {
         $globalStartIndex = $batch->getCurrentIndex() + ($chunkIndex * self::MAX_ITEMS_PER_REQUEST);
 
         // Process each result
@@ -163,6 +170,7 @@ final readonly class BatchProcessor
                     $this->jobRepository->save($job);
                 }
 
+                // CRITICAL: Update batch object after marking item as processed
                 $batch = $batch->markItemProcessed($globalIndex);
                 $this->batchRepository->save($batch);
 
@@ -176,6 +184,8 @@ final readonly class BatchProcessor
                 $this->logger->debug('Media item created successfully', [
                     'job_id' => $job->getId()->getId(),
                     'media_item_id' => $mediaItem->getId(),
+                    'global_index' => $globalIndex,
+                    'current_index' => $batch->getCurrentIndex(),
                 ]);
             } else {
                 // Error for this item
@@ -187,6 +197,8 @@ final readonly class BatchProcessor
         if ([] !== $response->getErrors()) {
             $this->handleBatchErrors($batch, $response->getErrors());
         }
+
+        return $batch;
     }
 
     private function handleItemError(
