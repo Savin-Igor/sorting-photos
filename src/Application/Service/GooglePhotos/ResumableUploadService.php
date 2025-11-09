@@ -78,9 +78,15 @@ final readonly class ResumableUploadService
             // Check if file is smaller than 2*CHUNK_SIZE - if so, delete session and use raw upload
             $filePath = $this->compressIfNeeded($job);
             $fileSize = \filesize($filePath);
-            if (false !== $fileSize && $fileSize < 2 * self::CHUNK_SIZE) {
+            if (false === $fileSize) {
+                throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
+            }
+
+            // CRITICAL: Files smaller than 2*CHUNK_SIZE (512 KB) MUST use raw upload, not resumable
+            if ($fileSize < 2 * self::CHUNK_SIZE) {
                 $this->logger->info('File smaller than 2*CHUNK_SIZE, deleting resumable session and using raw upload', [
                     'file_size' => $fileSize,
+                    'threshold' => 2 * self::CHUNK_SIZE,
                 ]);
                 // Expire session to force raw upload
                 $lastKnownBytes = 0;
@@ -90,9 +96,13 @@ final readonly class ResumableUploadService
                 }
                 $job = $job->markSessionExpired($lastKnownBytes);
                 $this->jobRepository->save($job);
-                // Continue to raw upload logic below
+                // Continue to raw upload logic below - DO NOT return here
             } else {
-                $this->logger->info('Resuming existing upload session');
+                // File is large enough for resumable upload
+                $this->logger->info('Resuming existing upload session for large file', [
+                    'file_size' => $fileSize,
+                    'threshold' => 2 * self::CHUNK_SIZE,
+                ]);
                 $this->resumeUpload($job);
 
                 return;
@@ -410,10 +420,12 @@ final readonly class ResumableUploadService
             throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
         }
 
-        // Check if file is smaller than CHUNK_SIZE - if so, expire session and use raw upload
-        if ($fileSize < self::CHUNK_SIZE) {
-            $this->logger->info('File smaller than CHUNK_SIZE during resume, expiring session and using raw upload', [
+        // CRITICAL: Check if file is smaller than 2*CHUNK_SIZE - if so, expire session and use raw upload
+        // This should not happen if uploadFile logic is correct, but double-check for safety
+        if ($fileSize < 2 * self::CHUNK_SIZE) {
+            $this->logger->warning('File smaller than 2*CHUNK_SIZE during resume, expiring session and using raw upload', [
                 'file_size' => $fileSize,
+                'threshold' => 2 * self::CHUNK_SIZE,
             ]);
             $lastKnownBytes = $session->getUploadedBytes();
             $job = $job->markSessionExpired($lastKnownBytes);
@@ -586,12 +598,12 @@ final readonly class ResumableUploadService
                     }
 
                     $actualChunkSize = \strlen($chunk);
-                    
+
                     // CRITICAL: For non-last chunks, we MUST send exactly CHUNK_SIZE bytes
                     if ($actualChunkSize !== $chunkSize) {
                         throw new \RuntimeException(\sprintf('Failed to read full chunk: expected %d bytes, got %d at offset %d (file size: %d)', $chunkSize, $actualChunkSize, $offset, $fileSize));
                     }
-                    
+
                     $this->logger->debug('Chunk read for resume', [
                         'offset' => $offset,
                         'chunk_size' => $actualChunkSize,
