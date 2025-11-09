@@ -112,22 +112,29 @@ final readonly class BatchProcessor
 
         // Check if all items are processed
         if ($batch->allItemsProcessed()) {
-            $batch = $batch->complete();
-            $this->batchRepository->save($batch);
+            // Only complete if batch is not already completed
+            if ($batch->getState()->value !== \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::COMPLETED->value) {
+                $batch = $batch->complete();
+                $this->batchRepository->save($batch);
 
-            $successfulCount = \count(\array_filter($batch->getItems(), fn (BatchItem $item): bool => $item->isProcessed()));
+                $successfulCount = \count(\array_filter($batch->getItems(), fn (BatchItem $item): bool => $item->isProcessed()));
 
-            $this->messageBus->dispatch(new BatchCompleted(
-                batchId: $batch->getId(),
-                successfulItems: $successfulCount,
-                totalItems: \count($batch->getItems())
-            ));
+                $this->messageBus->dispatch(new BatchCompleted(
+                    batchId: $batch->getId(),
+                    successfulItems: $successfulCount,
+                    totalItems: \count($batch->getItems())
+                ));
 
-            $this->logger->info('Batch completed', [
-                'batch_id' => $batch->getId()->getId(),
-                'successful_items' => $successfulCount,
-                'total_items' => \count($batch->getItems()),
-            ]);
+                $this->logger->info('Batch completed', [
+                    'batch_id' => $batch->getId()->getId(),
+                    'successful_items' => $successfulCount,
+                    'total_items' => \count($batch->getItems()),
+                ]);
+            } else {
+                $this->logger->debug('Batch already completed, skipping completion', [
+                    'batch_id' => $batch->getId()->getId(),
+                ]);
+            }
         } else {
             $this->batchRepository->save($batch);
         }
