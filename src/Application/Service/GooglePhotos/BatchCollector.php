@@ -25,36 +25,28 @@ final readonly class BatchCollector
     }
 
     /**
-     * Collect batch of small files only (for raw upload).
-     */
-    public function collectSmallFilesBatch(): ?UploadBatch
-    {
-        // 1. Find ready small Jobs (UPLOADED, batchId = null, file_size < SMALL_FILE_THRESHOLD)
-        $readyJobs = $this->jobRepository->findReadyForBatchBySize(
-            maxSize: self::SMALL_FILE_THRESHOLD,
-            limit: self::MAX_BATCH_SIZE
-        );
-
-        if ([] === $readyJobs) {
-            return null;
-        }
-
-        return $this->createBatch($readyJobs, 'small');
-    }
-
-    /**
-     * Collect batch of any ready files (legacy method for backward compatibility).
+     * Collect batch of ready files.
      */
     public function collectBatch(): ?UploadBatch
     {
-        // 1. Find ready Jobs (UPLOADED, batchId = null)
+        // Find ready Jobs (UPLOADED, batchId = null)
         $readyJobs = $this->jobRepository->findReadyForBatch(limit: self::MAX_BATCH_SIZE);
 
         if ([] === $readyJobs) {
             return null;
         }
 
-        return $this->createBatch($readyJobs, 'mixed');
+        return $this->createBatch($readyJobs, 'all');
+    }
+
+    /**
+     * Collect batch of small files only (for raw upload).
+     *
+     * @deprecated Use collectBatch() instead - all files use raw upload now
+     */
+    public function collectSmallFilesBatch(): ?UploadBatch
+    {
+        return $this->collectBatch();
     }
 
     /**

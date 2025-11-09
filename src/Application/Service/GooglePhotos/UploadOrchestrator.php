@@ -86,10 +86,10 @@ final class UploadOrchestrator
                         }
                     }
 
-                    // 5.3. Priority 2: Collect new batch of SMALL files only (for raw upload)
-                    $batch = $this->batchCollector->collectSmallFilesBatch();
+                    // 5.3. Priority 2: Collect new batch of files
+                    $batch = $this->batchCollector->collectBatch();
                     if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
-                        $this->logger->debug('Collected new small files batch', ['batch_id' => $batch->getId()]);
+                        $this->logger->debug('Collected new batch', ['batch_id' => $batch->getId()]);
                         try {
                             $this->batchProcessor->processBatch($batch);
                             continue;
@@ -98,46 +98,23 @@ final class UploadOrchestrator
                         }
                     }
 
-                    // 5.4. Priority 3: Upload next file (small files via raw upload, large files via resumable upload)
+                    // 5.4. Priority 3: Upload next file (using raw upload for all files)
                     $job = $this->jobRepository->findNextPendingOrResumable();
                     if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
-                        // Check if this is a large file
-                        $isLargeFile = $job->getFileSize() >= 2 * 256 * 1024; // 512 KB threshold
-
-                        if ($isLargeFile) {
-                            // Large file - process individually via resumable upload
-                            $this->logger->info('Processing large file individually', [
+                        $this->logger->info('Processing file', [
+                            'job_id' => $job->getId(),
+                            'file_path' => $job->getFilePath(),
+                            'file_size' => $job->getFileSize(),
+                            'state' => $job->getState()->value,
+                        ]);
+                        try {
+                            $this->uploadService->uploadFile($job);
+                            $this->logger->info('File upload completed', [
                                 'job_id' => $job->getId(),
-                                'file_path' => $job->getFilePath(),
-                                'file_size' => $job->getFileSize(),
-                                'state' => $job->getState()->value,
                             ]);
-                            try {
-                                $this->uploadService->uploadFile($job);
-                                $this->logger->info('Large file upload completed', [
-                                    'job_id' => $job->getId(),
-                                ]);
-                                continue;
-                            } catch (QuotaExceededException) {
-                                break;
-                            }
-                        } else {
-                            // Small file - upload immediately via raw upload, then it will be picked up by batch collector
-                            $this->logger->info('Processing small file individually (raw upload)', [
-                                'job_id' => $job->getId(),
-                                'file_path' => $job->getFilePath(),
-                                'file_size' => $job->getFileSize(),
-                                'state' => $job->getState()->value,
-                            ]);
-                            try {
-                                $this->uploadService->uploadFile($job);
-                                $this->logger->info('Small file upload completed, will be added to batch', [
-                                    'job_id' => $job->getId(),
-                                ]);
-                                continue;
-                            } catch (QuotaExceededException) {
-                                break;
-                            }
+                            continue;
+                        } catch (QuotaExceededException) {
+                            break;
                         }
                     } else {
                         $this->logger->debug('No pending or resumable jobs found');
