@@ -98,14 +98,14 @@ final class UploadOrchestrator
                         }
                     }
 
-                    // 5.4. Priority 3: Upload next LARGE file (one at a time, using resumable upload)
-                    // Large files are processed individually to avoid chunk size issues
+                    // 5.4. Priority 3: Upload next file (small files via raw upload, large files via resumable upload)
                     $job = $this->jobRepository->findNextPendingOrResumable();
                     if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
-                        // Check if this is a large file - if so, process it individually
-                        $isLargeFile = $job->getFileSize() >= 2 * 256 * 1024; // 512 KB threshold - files >= 512 KB use resumable upload
+                        // Check if this is a large file
+                        $isLargeFile = $job->getFileSize() >= 2 * 256 * 1024; // 512 KB threshold
 
                         if ($isLargeFile) {
+                            // Large file - process individually via resumable upload
                             $this->logger->info('Processing large file individually', [
                                 'job_id' => $job->getId(),
                                 'file_path' => $job->getFilePath(),
@@ -122,13 +122,22 @@ final class UploadOrchestrator
                                 break;
                             }
                         } else {
-                            // Small file - will be picked up by batch collector in next iteration
-                            $this->logger->debug('Small file found, will be processed in batch', [
+                            // Small file - upload immediately via raw upload, then it will be picked up by batch collector
+                            $this->logger->info('Processing small file individually (raw upload)', [
                                 'job_id' => $job->getId(),
+                                'file_path' => $job->getFilePath(),
                                 'file_size' => $job->getFileSize(),
+                                'state' => $job->getState()->value,
                             ]);
-                            // Continue to next iteration to collect batch
-                            continue;
+                            try {
+                                $this->uploadService->uploadFile($job);
+                                $this->logger->info('Small file upload completed, will be added to batch', [
+                                    'job_id' => $job->getId(),
+                                ]);
+                                continue;
+                            } catch (QuotaExceededException) {
+                                break;
+                            }
                         }
                     } else {
                         $this->logger->debug('No pending or resumable jobs found');
