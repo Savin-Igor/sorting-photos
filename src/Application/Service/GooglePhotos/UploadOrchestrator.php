@@ -88,6 +88,7 @@ final class UploadOrchestrator
 
                     // 5.3. Priority 2: Upload next file (using raw upload for all files)
                     // Upload files first, then collect them into batches
+                    $this->logger->debug('Looking for pending or resumable jobs to upload');
                     $job = $this->jobRepository->findNextPendingOrResumable();
                     if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
                         $this->logger->info('Processing file', [
@@ -105,19 +106,24 @@ final class UploadOrchestrator
                         } catch (QuotaExceededException) {
                             break;
                         }
+                    } else {
+                        $this->logger->debug('No pending or resumable jobs found for upload');
                     }
 
                     // 5.4. Priority 3: Collect new batch of uploaded files
                     // Only collect batches when there are no more files to upload
+                    $this->logger->debug('Checking for uploaded files to collect into batch');
                     $batch = $this->batchCollector->collectBatch();
                     if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
-                        $this->logger->debug('Collected new batch', ['batch_id' => $batch->getId()]);
+                        $this->logger->info('Collected new batch', ['batch_id' => $batch->getId()]);
                         try {
                             $this->batchProcessor->processBatch($batch);
                             continue;
                         } catch (QuotaExceededException) {
                             break;
                         }
+                    } else {
+                        $this->logger->debug('No uploaded files found to collect into batch');
                     }
 
                     // 5.5. No work

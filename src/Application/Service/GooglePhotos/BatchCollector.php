@@ -32,6 +32,10 @@ final readonly class BatchCollector
         // Find ready Jobs (UPLOADED, batchId = null)
         $readyJobs = $this->jobRepository->findReadyForBatch(limit: self::MAX_BATCH_SIZE);
 
+        $this->logger->debug('Checking for ready jobs to collect into batch', [
+            'found_count' => \count($readyJobs),
+        ]);
+
         if ([] === $readyJobs) {
             return null;
         }
