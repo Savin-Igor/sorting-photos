@@ -150,6 +150,19 @@ final readonly class BatchProcessor
         // Process each result
         foreach ($response->getNewMediaItemResults() as $index => $result) {
             $globalIndex = $globalStartIndex + $index;
+            
+            // Validate index bounds to prevent array out of bounds
+            if ($globalIndex >= \count($batch->getItems())) {
+                $this->logger->error('Global index out of bounds', [
+                    'global_index' => $globalIndex,
+                    'items_count' => \count($batch->getItems()),
+                    'batch_id' => $batch->getId()->getId(),
+                    'chunk_index' => $chunkIndex,
+                    'global_start_index' => $globalStartIndex,
+                ]);
+                continue;
+            }
+            
             $batchItem = $batch->getItems()[$globalIndex];
             $job = $this->jobRepository->findById($batchItem->getJobId());
 
@@ -195,8 +208,8 @@ final readonly class BatchProcessor
                     'current_index' => $batch->getCurrentIndex(),
                 ]);
             } else {
-                // Error for this item
-                $this->handleItemError($job, $result->getStatus(), $batchItem, $batch, $globalIndex);
+                // Error for this item - update batch with error handling
+                $batch = $this->handleItemError($job, $result->getStatus(), $batchItem, $batch, $globalIndex);
             }
         }
 
@@ -214,10 +227,10 @@ final readonly class BatchProcessor
         BatchItem $item,
         UploadBatch $batch,
         int $index,
-    ): void {
+    ): UploadBatch {
         $code = $status->getCode();
 
-        match (true) {
+        return match (true) {
             // Temporary errors - mark for retry
             \in_array($code, [500, 503], true) => $this->markForRetry($job, $batch, $index),
 
@@ -236,7 +249,7 @@ final readonly class BatchProcessor
         \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob $job,
         UploadBatch $batch,
         int $index,
-    ): void {
+    ): UploadBatch {
         $batch = $batch->markItemFailed($index, 'Temporary error, will retry');
         $this->batchRepository->save($batch);
 
@@ -244,16 +257,20 @@ final readonly class BatchProcessor
             'job_id' => $job->getId()->getId(),
             'batch_id' => $batch->getId()->getId(),
         ]);
+
+        return $batch;
     }
 
     private function pauseForQuota(
         UploadBatch $batch,
         int $index,
         string $message,
-    ): void {
+    ): UploadBatch {
         // Quota will be handled at batch level
         $batch = $batch->markItemFailed($index, $message);
         $this->batchRepository->save($batch);
+
+        return $batch;
     }
 
     private function markTokenInvalid(
@@ -261,7 +278,7 @@ final readonly class BatchProcessor
         BatchItem $item,
         UploadBatch $batch,
         int $index,
-    ): void {
+    ): UploadBatch {
         $this->logger->warning('Upload token invalid, re-uploading file', [
             'job_id' => $job->getId()->getId(),
             'token' => $item->getUploadToken(),
@@ -273,6 +290,8 @@ final readonly class BatchProcessor
 
         $batch = $batch->markItemFailed($index, 'Token invalid, file will be re-uploaded');
         $this->batchRepository->save($batch);
+
+        return $batch;
     }
 
     private function markAsFailed(
@@ -280,7 +299,7 @@ final readonly class BatchProcessor
         string $error,
         UploadBatch $batch,
         int $index,
-    ): void {
+    ): UploadBatch {
         $job = $job->markAsFailed($error);
         $this->jobRepository->save($job);
 
@@ -291,6 +310,8 @@ final readonly class BatchProcessor
             'job_id' => $job->getId()->getId(),
             'error' => $error,
         ]);
+
+        return $batch;
     }
 
     /**

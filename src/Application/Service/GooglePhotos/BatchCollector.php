@@ -95,9 +95,11 @@ final readonly class BatchCollector
         // 3. Create batch
         $batch = UploadBatch::create($items);
 
-        // 4. Assign Jobs to batch
-        foreach ($readyJobs as $job) {
-            if ($job->isReadyForBatch()) {
+        // 4. Assign Jobs to batch - ONLY for jobs that are actually in the batch
+        // Important: $items may contain fewer elements than $readyJobs if constraints were hit
+        foreach ($items as $batchItem) {
+            $job = $this->jobRepository->findById($batchItem->getJobId());
+            if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob && $job->isReadyForBatch()) {
                 $job = $job->assignToBatch($batch->getId());
                 $this->jobRepository->save($job);
             }
