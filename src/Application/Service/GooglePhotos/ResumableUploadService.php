@@ -81,12 +81,29 @@ final readonly class ResumableUploadService
             if (false === $fileSize) {
                 throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
             }
-
+            
+            // CRITICAL: Log file size check before deciding on upload method
+            $threshold = 2 * self::CHUNK_SIZE;
+            $this->logger->info('File size check with existing session', [
+                'file_path' => $filePath,
+                'file_name' => \basename($filePath),
+                'file_size' => $fileSize,
+                'file_size_kb' => \round($fileSize / 1024, 2),
+                'threshold' => $threshold,
+                'threshold_kb' => \round($threshold / 1024, 2),
+                'should_use_raw_upload' => $fileSize < $threshold,
+                'job_file_size' => $job->getFileSize(),
+                'job_file_size_kb' => \round($job->getFileSize() / 1024, 2),
+                'has_session' => true,
+            ]);
+            
             // CRITICAL: Files smaller than 2*CHUNK_SIZE (512 KB) MUST use raw upload, not resumable
             if ($fileSize < 2 * self::CHUNK_SIZE) {
                 $this->logger->info('File smaller than 2*CHUNK_SIZE, deleting resumable session and using raw upload', [
                     'file_size' => $fileSize,
-                    'threshold' => 2 * self::CHUNK_SIZE,
+                    'file_size_kb' => \round($fileSize / 1024, 2),
+                    'threshold' => $threshold,
+                    'threshold_kb' => \round($threshold / 1024, 2),
                 ]);
                 // Expire session to force raw upload
                 $lastKnownBytes = 0;
@@ -101,7 +118,9 @@ final readonly class ResumableUploadService
                 // File is large enough for resumable upload
                 $this->logger->info('Resuming existing upload session for large file', [
                     'file_size' => $fileSize,
-                    'threshold' => 2 * self::CHUNK_SIZE,
+                    'file_size_kb' => \round($fileSize / 1024, 2),
+                    'threshold' => $threshold,
+                    'threshold_kb' => \round($threshold / 1024, 2),
                 ]);
                 $this->resumeUpload($job);
 
@@ -126,7 +145,20 @@ final readonly class ResumableUploadService
         if (false === $fileSize) {
             throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
         }
-        $this->logger->info('File size determined', ['file_size' => $fileSize]);
+
+        // CRITICAL: Log file size and threshold for debugging
+        $threshold = 2 * self::CHUNK_SIZE;
+        $this->logger->info('File size check', [
+            'file_path' => $filePath,
+            'file_name' => \basename($filePath),
+            'file_size' => $fileSize,
+            'file_size_kb' => \round($fileSize / 1024, 2),
+            'threshold' => $threshold,
+            'threshold_kb' => \round($threshold / 1024, 2),
+            'should_use_raw_upload' => $fileSize < $threshold,
+            'job_file_size' => $job->getFileSize(),
+            'job_file_size_kb' => \round($job->getFileSize() / 1024, 2),
+        ]);
 
         // For files smaller than CHUNK_SIZE, use raw upload (single POST)
         // Also use raw upload for files between CHUNK_SIZE and 2*CHUNK_SIZE to avoid chunk size issues
@@ -187,8 +219,14 @@ final readonly class ResumableUploadService
         }
 
         // 5. Initialize new session
-        $this->logger->info('Initiating resumable upload session', [
+        // CRITICAL: This should only happen for files >= 512 KB
+        $this->logger->info('Initiating resumable upload session for LARGE file', [
+            'file_path' => $filePath,
+            'file_name' => \basename($filePath),
             'file_size' => $fileSize,
+            'file_size_kb' => \round($fileSize / 1024, 2),
+            'threshold' => 2 * self::CHUNK_SIZE,
+            'threshold_kb' => \round((2 * self::CHUNK_SIZE) / 1024, 2),
             'mime_type' => $job->getMimeType(),
         ]);
         $sessionUri = $this->apiClient->initiateResumableUpload(
@@ -293,11 +331,29 @@ final readonly class ResumableUploadService
                     ]);
 
                     // CRITICAL: Don't send chunks that are not exactly CHUNK_SIZE unless it's the last chunk
-                    if (self::CHUNK_SIZE !== $actualChunkSize && $offset + $actualChunkSize < $fileSize) {
-                        throw new \RuntimeException(\sprintf('Cannot send non-full chunk: got %d bytes, expected %d at offset %d', $actualChunkSize, self::CHUNK_SIZE, $offset));
+                    $isLastChunk = $offset + $actualChunkSize >= $fileSize;
+                    if (self::CHUNK_SIZE !== $actualChunkSize && !$isLastChunk) {
+                        $this->logger->error('CRITICAL: Attempting to send non-full chunk for non-last chunk', [
+                            'file_path' => $filePath,
+                            'file_name' => \basename($filePath),
+                            'file_size' => $fileSize,
+                            'offset' => $offset,
+                            'actual_chunk_size' => $actualChunkSize,
+                            'expected_chunk_size' => self::CHUNK_SIZE,
+                            'is_last_chunk' => $isLastChunk,
+                            'remaining_bytes' => $fileSize - $offset,
+                        ]);
+                        throw new \RuntimeException(\sprintf('Cannot send non-full chunk: got %d bytes, expected %d at offset %d (file size: %d, is_last: %s)', $actualChunkSize, self::CHUNK_SIZE, $offset, $fileSize, $isLastChunk ? 'yes' : 'no'));
                     }
 
                     // Upload chunk
+                    $this->logger->debug('Uploading chunk', [
+                        'file_name' => \basename($filePath),
+                        'offset' => $offset,
+                        'chunk_size' => $actualChunkSize,
+                        'file_size' => $fileSize,
+                        'is_last_chunk' => $isLastChunk,
+                    ]);
                     $this->apiClient->uploadChunk(
                         sessionUri: $sessionUri,
                         chunk: $chunk,
