@@ -86,19 +86,8 @@ final class UploadOrchestrator
                         }
                     }
 
-                    // 5.3. Priority 2: Collect new batch of files
-                    $batch = $this->batchCollector->collectBatch();
-                    if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
-                        $this->logger->debug('Collected new batch', ['batch_id' => $batch->getId()]);
-                        try {
-                            $this->batchProcessor->processBatch($batch);
-                            continue;
-                        } catch (QuotaExceededException) {
-                            break;
-                        }
-                    }
-
-                    // 5.4. Priority 3: Upload next file (using raw upload for all files)
+                    // 5.3. Priority 2: Upload next file (using raw upload for all files)
+                    // Upload files first, then collect them into batches
                     $job = $this->jobRepository->findNextPendingOrResumable();
                     if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
                         $this->logger->info('Processing file', [
@@ -112,12 +101,23 @@ final class UploadOrchestrator
                             $this->logger->info('File upload completed', [
                                 'job_id' => $job->getId(),
                             ]);
+                            continue; // Continue to upload next file
+                        } catch (QuotaExceededException) {
+                            break;
+                        }
+                    }
+
+                    // 5.4. Priority 3: Collect new batch of uploaded files
+                    // Only collect batches when there are no more files to upload
+                    $batch = $this->batchCollector->collectBatch();
+                    if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
+                        $this->logger->debug('Collected new batch', ['batch_id' => $batch->getId()]);
+                        try {
+                            $this->batchProcessor->processBatch($batch);
                             continue;
                         } catch (QuotaExceededException) {
                             break;
                         }
-                    } else {
-                        $this->logger->debug('No pending or resumable jobs found');
                     }
 
                     // 5.5. No work
