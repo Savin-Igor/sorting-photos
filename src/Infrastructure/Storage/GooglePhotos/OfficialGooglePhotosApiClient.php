@@ -248,8 +248,11 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
 
     public function batchCreateMediaItems(array $items, ?string $albumId = null): BatchCreateResponse
     {
-        // Use JSON API directly to have full control over creationTime
-        // Library doesn't support creationTime field in SimpleMediaItem
+        // Use JSON API directly to have full control over fields
+        // IMPORTANT: Google Photos API does NOT support creationTime field in batchCreateMediaItems.
+        // The creation time is automatically extracted from EXIF metadata (DateTimeOriginal) in the uploaded file.
+        // We set EXIF DateTimeOriginal before upload using ExifDateSetter service.
+        // For videos, creation time is extracted from file metadata if available.
         $url = self::BASE_URL.'/mediaItems:batchCreate';
 
         $newMediaItems = \array_map(
@@ -257,10 +260,9 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                 'description' => $item->getFilename(),
                 'simpleMediaItem' => [
                     'uploadToken' => $item->getUploadToken(),
-                    // Use RFC 3339 format with timezone - IMPORTANT for correct chronology
-                    // 'creationTime' => $item->getCreationTime()->format('Y-m-d\TH:i:s\Z'), - This is not supported by the API on creation
                     // Set filename - priority for display in Google Photos
                     'fileName' => $item->getFilename(),
+                    // Note: creationTime is NOT supported here - it's read from EXIF metadata
                 ],
             ],
             $items
