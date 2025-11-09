@@ -111,6 +111,35 @@ final readonly class DatabaseUploadBatchRepository implements UploadBatchReposit
         return \array_map($this->hydrate(...), $rows);
     }
 
+    public function findIncomplete(): ?UploadBatch
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT * FROM '.self::TABLE_NAME.'
+            WHERE state IN (?, ?)
+            ORDER BY created_at ASC
+            LIMIT 1',
+            [BatchState::READY->value, BatchState::PROCESSING->value]
+        );
+
+        if (false === $row) {
+            return null;
+        }
+
+        return $this->hydrate($row);
+    }
+
+    public function resetStaleProcessingBatches(\DateTimeImmutable $timeout): int
+    {
+        return $this->connection->executeStatement(
+            'UPDATE '.self::TABLE_NAME.' SET state = ? WHERE state = ? AND updated_at < ?',
+            [
+                BatchState::READY->value,
+                BatchState::PROCESSING->value,
+                $timeout->format('Y-m-d H:i:s'),
+            ]
+        );
+    }
+
     private function hydrate(array $row): UploadBatch
     {
         $itemsData = \json_decode((string) $row['items_json'], true, 512, \JSON_THROW_ON_ERROR);

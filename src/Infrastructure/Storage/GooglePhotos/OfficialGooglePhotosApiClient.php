@@ -12,6 +12,7 @@ use Psr\Http\Message\StreamFactoryInterface;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\OffsetMismatchException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\QuotaExceededException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\SessionExpiredException;
+use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\ServiceUnavailableException;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchCreateResponse;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchItemRequest;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\Error;
@@ -29,7 +30,6 @@ use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadStatus;
 final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiClientPort
 {
     private const string BASE_URL = 'https://photoslibrary.googleapis.com/v1';
-    private const int RAW_UPLOAD_MAX_SIZE = 5 * 1024 * 1024; // 5 MB - use raw upload for small files
 
     private PhotosLibraryClient $libraryClient;
 
@@ -75,13 +75,7 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
 
     public function initiateResumableUpload(int $fileSize, string $mimeType): string
     {
-        // For small files, use raw upload via library
-        if ($fileSize <= self::RAW_UPLOAD_MAX_SIZE) {
-            // Return a special marker - we'll handle it in uploadChunk
-            throw new \RuntimeException('Small files should use raw upload, not resumable');
-        }
-
-        // For large files, use resumable upload (our implementation)
+        // Use resumable upload for all files (simpler and more reliable)
         $url = self::BASE_URL.'/uploads';
         $request = $this->requestFactory->createRequest('POST', $url)
             ->withHeader('Authorization', 'Bearer '.$this->getAccessToken())
@@ -237,6 +231,11 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             throw new SessionExpiredException('Resumable session expired');
         }
 
+        // Handle temporary server errors
+        if (503 === $response->getStatusCode()) {
+            throw new ServiceUnavailableException('Service temporarily unavailable');
+        }
+
         $body = $response->getBody()->getContents();
         $errorDetails = \sprintf(
             "Failed to query upload status:\nStatus: %s\nBody: %s\n",
@@ -259,7 +258,9 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                 'simpleMediaItem' => [
                     'uploadToken' => $item->getUploadToken(),
                     // Use RFC 3339 format with timezone - IMPORTANT for correct chronology
-                    'creationTime' => $item->getCreationTime()->format('Y-m-d\TH:i:s\Z'),
+                    // 'creationTime' => $item->getCreationTime()->format('Y-m-d\TH:i:s\Z'), - This is not supported by the API on creation
+                    // Set filename - priority for display in Google Photos
+                    'fileName' => $item->getFilename(),
                 ],
             ],
             $items

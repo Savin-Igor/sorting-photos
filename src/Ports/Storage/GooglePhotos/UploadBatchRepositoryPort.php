@@ -15,8 +15,7 @@ interface UploadBatchRepositoryPort
 
     public function findProcessingOrPaused(): ?UploadBatch;
 
-    /**
-     * @return array<UploadBatch>
-     */
-    public function findPausedReadyToResume(\DateTimeImmutable $now): array;
+    public function findIncomplete(): ?UploadBatch;
+
+    public function resetStaleProcessingBatches(\DateTimeImmutable $timeout): int;
 }

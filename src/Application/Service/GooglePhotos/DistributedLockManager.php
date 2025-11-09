@@ -109,4 +109,83 @@ final readonly class DistributedLockManager
             ]);
         }
     }
+
+    /**
+     * Check if process holding the lock is still alive.
+     */
+    public function isLockOwnerAlive(string $lockName): bool
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT process_id FROM '.self::TABLE_NAME.' WHERE lock_name = ?',
+            [$lockName]
+        );
+
+        if (false === $row) {
+            return false; // No lock exists
+        }
+
+        $processId = (string) $row['process_id'];
+
+        // Check if process exists (Linux/Unix)
+        if (\function_exists('posix_kill')) {
+            return \posix_kill((int) $processId, 0); // Signal 0 just checks if process exists
+        }
+
+        // Fallback: check if process exists using ps (Linux)
+        if (\PHP_OS_FAMILY === 'Linux') {
+            $output = [];
+            $returnCode = 0;
+            @\exec(\sprintf('ps -p %s > /dev/null 2>&1', \escapeshellarg($processId)), $output, $returnCode);
+
+            return 0 === $returnCode;
+        }
+
+        // Windows: check using tasklist
+        if (\PHP_OS_FAMILY === 'Windows') {
+            $output = [];
+            $returnCode = 0;
+            @\exec(\sprintf('tasklist /FI "PID eq %s" 2>NUL | find /I "%s"', $processId, $processId), $output, $returnCode);
+
+            return 0 === $returnCode;
+        }
+
+        // Unknown OS - assume process is alive (conservative approach)
+        return true;
+    }
+
+    /**
+     * Get lock information.
+     *
+     * @return array{process_id: string, acquired_at: string, expires_at: string}|null
+     */
+    public function getLockInfo(string $lockName): ?array
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT process_id, acquired_at, expires_at FROM '.self::TABLE_NAME.' WHERE lock_name = ?',
+            [$lockName]
+        );
+
+        if (false === $row) {
+            return null;
+        }
+
+        return [
+            'process_id' => (string) $row['process_id'],
+            'acquired_at' => (string) $row['acquired_at'],
+            'expires_at' => (string) $row['expires_at'],
+        ];
+    }
+
+    /**
+     * Force release lock (for admin/debug purposes).
+     */
+    public function forceReleaseLock(string $lockName): bool
+    {
+        $affected = $this->connection->delete(
+            self::TABLE_NAME,
+            ['lock_name' => $lockName]
+        );
+
+        return $affected > 0;
+    }
 }

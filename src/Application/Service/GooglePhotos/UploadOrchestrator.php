@@ -40,6 +40,8 @@ final class UploadOrchestrator
         }
 
         try {
+            $this->resetStaleProcessingBatches();
+
             // 2. Start heartbeat
             $this->startHeartbeat($lockName);
 
@@ -71,6 +73,10 @@ final class UploadOrchestrator
                     // 5.2. Priority 1: Incomplete batches
                     $batch = $this->batchRepository->findProcessingOrPaused();
                     if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
+                        // Skip if batch is already completed
+                        if ($batch->getState()->value === \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::COMPLETED->value) {
+                            continue;
+                        }
                         $this->logger->debug('Processing incomplete batch', ['batch_id' => $batch->getId()]);
                         try {
                             $this->batchProcessor->processBatch($batch);
@@ -80,10 +86,10 @@ final class UploadOrchestrator
                         }
                     }
 
-                    // 5.3. Priority 2: Collect new batch
-                    $batch = $this->batchCollector->collectBatch();
+                    // 5.3. Priority 2: Collect new batch of SMALL files only (for raw upload)
+                    $batch = $this->batchCollector->collectSmallFilesBatch();
                     if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
-                        $this->logger->debug('Collected new batch', ['batch_id' => $batch->getId()]);
+                        $this->logger->debug('Collected new small files batch', ['batch_id' => $batch->getId()]);
                         try {
                             $this->batchProcessor->processBatch($batch);
                             continue;
@@ -92,22 +98,37 @@ final class UploadOrchestrator
                         }
                     }
 
-                    // 5.4. Priority 3: Upload next file
+                    // 5.4. Priority 3: Upload next LARGE file (one at a time, using resumable upload)
+                    // Large files are processed individually to avoid chunk size issues
                     $job = $this->jobRepository->findNextPendingOrResumable();
                     if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
-                        $this->logger->info('Processing upload job', [
-                            'job_id' => $job->getId(),
-                            'file_path' => $job->getFilePath(),
-                            'state' => $job->getState()->value,
-                        ]);
-                        try {
-                            $this->uploadService->uploadFile($job);
-                            $this->logger->info('Upload job completed', [
+                        // Check if this is a large file - if so, process it individually
+                        $isLargeFile = $job->getFileSize() >= 2 * 256 * 1024; // 512 KB threshold - files >= 512 KB use resumable upload
+
+                        if ($isLargeFile) {
+                            $this->logger->info('Processing large file individually', [
                                 'job_id' => $job->getId(),
+                                'file_path' => $job->getFilePath(),
+                                'file_size' => $job->getFileSize(),
+                                'state' => $job->getState()->value,
                             ]);
+                            try {
+                                $this->uploadService->uploadFile($job);
+                                $this->logger->info('Large file upload completed', [
+                                    'job_id' => $job->getId(),
+                                ]);
+                                continue;
+                            } catch (QuotaExceededException) {
+                                break;
+                            }
+                        } else {
+                            // Small file - will be picked up by batch collector in next iteration
+                            $this->logger->debug('Small file found, will be processed in batch', [
+                                'job_id' => $job->getId(),
+                                'file_size' => $job->getFileSize(),
+                            ]);
+                            // Continue to next iteration to collect batch
                             continue;
-                        } catch (QuotaExceededException) {
-                            break;
                         }
                     } else {
                         $this->logger->debug('No pending or resumable jobs found');
@@ -169,6 +190,22 @@ final class UploadOrchestrator
     {
         if ($this->heartbeatCallback instanceof \Closure) {
             ($this->heartbeatCallback)();
+        }
+    }
+
+    private function resetStaleProcessingBatches(): void
+    {
+        try {
+            $timeout = new \DateTimeImmutable('-15 minutes');
+            $resetCount = $this->batchRepository->resetStaleProcessingBatches($timeout);
+
+            if ($resetCount > 0) {
+                $this->logger->info(\sprintf('Reset %d stale processing batches.', $resetCount));
+            }
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to reset stale batches', [
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

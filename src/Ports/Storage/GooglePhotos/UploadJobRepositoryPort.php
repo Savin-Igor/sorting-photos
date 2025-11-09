@@ -25,6 +25,16 @@ interface UploadJobRepositoryPort
     public function findReadyForBatch(int $limit): array;
 
     /**
+     * Find ready jobs filtered by file size.
+     *
+     * @param int $maxSize Maximum file size in bytes (exclusive). Files smaller than this will be returned.
+     * @param int $limit   Maximum number of jobs to return
+     *
+     * @return array<UploadJob>
+     */
+    public function findReadyForBatchBySize(int $maxSize, int $limit): array;
+
+    /**
      * @return array<UploadJob>
      */
     public function findWithExpiredSessions(): array;

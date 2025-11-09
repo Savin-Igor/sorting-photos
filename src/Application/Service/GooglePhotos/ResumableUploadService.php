@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Application\Service\GooglePhotos;
 
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\OffsetMismatchException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\QuotaExceededException;
+use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\ServiceUnavailableException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\SessionExpiredException;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob;
+use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ExifDateSetter;
 use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ImageCompressor;
+use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenManager;
 use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\VideoCompressor;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\GooglePhotosApiClientPort;
@@ -25,7 +31,12 @@ final readonly class ResumableUploadService
         private QuotaManager $quotaManager,
         private ImageCompressor $imageCompressor,
         private VideoCompressor $videoCompressor,
+        private ExifDateSetter $exifDateSetter,
         private LoggerPort $logger,
+        private ClientInterface $httpClient,
+        private RequestFactoryInterface $requestFactory,
+        private StreamFactoryInterface $streamFactory,
+        private TokenManager $tokenManager,
     ) {
     }
 
@@ -62,18 +73,40 @@ final readonly class ResumableUploadService
             }
         }
 
-        // 3. If session exists - resume
+        // 3. If session exists - resume (but check file size first)
         if ($job->getResumableSession() instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\ResumableSession) {
-            $this->logger->info('Resuming existing upload session');
-            $this->resumeUpload($job);
+            // Check if file is smaller than 2*CHUNK_SIZE - if so, delete session and use raw upload
+            $filePath = $this->compressIfNeeded($job);
+            $fileSize = \filesize($filePath);
+            if (false !== $fileSize && $fileSize < 2 * self::CHUNK_SIZE) {
+                $this->logger->info('File smaller than 2*CHUNK_SIZE, deleting resumable session and using raw upload', [
+                    'file_size' => $fileSize,
+                ]);
+                // Expire session to force raw upload
+                $lastKnownBytes = 0;
+                $session = $job->getResumableSession();
+                if ($session instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\ResumableSession) {
+                    $lastKnownBytes = $session->getUploadedBytes();
+                }
+                $job = $job->markSessionExpired($lastKnownBytes);
+                $this->jobRepository->save($job);
+                // Continue to raw upload logic below
+            } else {
+                $this->logger->info('Resuming existing upload session');
+                $this->resumeUpload($job);
 
-            return;
+                return;
+            }
         }
 
         // 4. Compress file if needed
         $this->logger->debug('Checking if compression needed');
         $filePath = $this->compressIfNeeded($job);
         $this->logger->debug('File path determined', ['file_path' => $filePath]);
+
+        // 5. Set EXIF creation time if missing
+        $this->logger->debug('Setting EXIF creation time if missing');
+        $this->exifDateSetter->setCreationTime($filePath, $job->getCreationTime());
 
         if (!\file_exists($filePath)) {
             throw new \RuntimeException(\sprintf('File does not exist: %s', $filePath));
@@ -84,6 +117,64 @@ final readonly class ResumableUploadService
             throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
         }
         $this->logger->info('File size determined', ['file_size' => $fileSize]);
+
+        // For files smaller than CHUNK_SIZE, use raw upload (single POST)
+        // Also use raw upload for files between CHUNK_SIZE and 2*CHUNK_SIZE to avoid chunk size issues
+        if ($fileSize < 2 * self::CHUNK_SIZE) {
+            $this->logger->info('File smaller than 2*CHUNK_SIZE, using raw upload', [
+                'file_size' => $fileSize,
+                'chunk_size' => self::CHUNK_SIZE,
+                'threshold' => 2 * self::CHUNK_SIZE,
+            ]);
+
+            // Read entire file
+            $fileContent = \file_get_contents($filePath);
+            if (false === $fileContent) {
+                throw new \RuntimeException(\sprintf('Failed to read file: %s', $filePath));
+            }
+
+            // Raw upload - POST entire file in one request
+            $url = 'https://photoslibrary.googleapis.com/v1/uploads';
+            $request = $this->requestFactory->createRequest('POST', $url)
+                ->withHeader('Authorization', 'Bearer '.$this->tokenManager->getValidAccessToken())
+                ->withHeader('X-Goog-Upload-Protocol', 'raw')
+                ->withHeader('X-Goog-Upload-Content-Type', $job->getMimeType())
+                ->withHeader('Content-Type', $job->getMimeType())
+                ->withHeader('Content-Length', (string) $fileSize)
+                ->withBody($this->streamFactory->createStream($fileContent));
+
+            $response = $this->httpClient->sendRequest($request);
+
+            // Handle quota errors
+            if (429 === $response->getStatusCode()) {
+                $resetTime = $this->extractQuotaResetTime($response);
+                throw QuotaExceededException::requestsExceeded($resetTime);
+            }
+
+            if (200 !== $response->getStatusCode()) {
+                $body = $response->getBody()->getContents();
+                throw new \RuntimeException(\sprintf('Failed to upload file: %s %s', $response->getStatusCode(), $body));
+            }
+
+            $uploadToken = $response->getBody()->getContents();
+
+            // For raw upload, we need to transition through uploading state
+            // Create a virtual session URI for state transition
+            $virtualSessionUri = 'raw://'.$job->getId()->getId();
+            $job = $job->startUpload($virtualSessionUri);
+            $this->jobRepository->save($job);
+
+            // Now complete the upload
+            $job = $job->completeUpload($uploadToken);
+            $this->jobRepository->save($job);
+
+            $this->logger->info('Raw upload completed', [
+                'job_id' => $job->getId()->getId(),
+                'file_path' => $job->getFilePath()->getPath(),
+            ]);
+
+            return;
+        }
 
         // 5. Initialize new session
         $this->logger->info('Initiating resumable upload session', [
@@ -134,31 +225,83 @@ final readonly class ResumableUploadService
                 // All chunks except the last one must be exactly CHUNK_SIZE (262144 bytes)
                 // Last chunk can be any size
                 if ($remainingBytes <= self::CHUNK_SIZE) {
-                    // This is the last chunk - can be any size
+                    // This is the last chunk - send all remaining bytes
                     $chunkSize = $remainingBytes;
+                    $this->logger->debug('Last chunk detected', [
+                        'offset' => $offset,
+                        'file_size' => $fileSize,
+                        'chunk_size' => $chunkSize,
+                    ]);
                 } else {
                     // Not the last chunk - must be exactly CHUNK_SIZE
                     $chunkSize = self::CHUNK_SIZE;
                 }
 
-                // Read chunk
-                \fseek($handle, $offset);
-                $chunk = \fread($handle, $chunkSize);
-                if (false === $chunk) {
-                    throw new \RuntimeException(\sprintf('Failed to read chunk at offset %d', $offset));
+                $this->logger->debug('Chunk calculation', [
+                    'offset' => $offset,
+                    'file_size' => $fileSize,
+                    'remaining_bytes' => $remainingBytes,
+                    'chunk_size' => $chunkSize,
+                ]);
+
+                if ($chunkSize > 0) {
+                    // Read chunk - ensure we read exactly chunkSize bytes
+                    \fseek($handle, $offset);
+                    $chunk = '';
+                    $bytesRead = 0;
+                    while ($bytesRead < $chunkSize) {
+                        $data = \fread($handle, $chunkSize - $bytesRead);
+                        if (false === $data || '' === $data) {
+                            if (0 === $bytesRead) {
+                                throw new \RuntimeException(\sprintf('Failed to read chunk at offset %d', $offset));
+                            }
+                            break; // EOF reached
+                        }
+                        $chunk .= $data;
+                        $bytesRead += \strlen($data);
+                    }
+
+                    // Verify we read the expected amount (or reached EOF)
+                    $actualChunkSize = \strlen($chunk);
+
+                    // CRITICAL: For non-last chunks, we MUST send exactly CHUNK_SIZE bytes
+                    // If we read less than CHUNK_SIZE and it's not the last chunk, this is an error
+                    if ($actualChunkSize !== $chunkSize) {
+                        if ($offset + $actualChunkSize < $fileSize) {
+                            // Not EOF, but didn't read full chunk - this is an error
+                            throw new \RuntimeException(\sprintf('Failed to read full chunk: expected %d bytes, got %d at offset %d (file size: %d)', $chunkSize, $actualChunkSize, $offset, $fileSize));
+                        }
+                        // If we're at EOF, it's OK - this is the last chunk
+                    }
+
+                    $this->logger->debug('Chunk read', [
+                        'offset' => $offset,
+                        'expected_size' => $chunkSize,
+                        'actual_size' => $actualChunkSize,
+                        'file_size' => $fileSize,
+                        'is_last_chunk' => $offset + $actualChunkSize >= $fileSize,
+                    ]);
+
+                    // CRITICAL: Don't send chunks that are not exactly CHUNK_SIZE unless it's the last chunk
+                    if (self::CHUNK_SIZE !== $actualChunkSize && $offset + $actualChunkSize < $fileSize) {
+                        throw new \RuntimeException(\sprintf('Cannot send non-full chunk: got %d bytes, expected %d at offset %d', $actualChunkSize, self::CHUNK_SIZE, $offset));
+                    }
+
+                    // Upload chunk
+                    $this->apiClient->uploadChunk(
+                        sessionUri: $sessionUri,
+                        chunk: $chunk,
+                        offset: $offset,
+                        totalSize: $fileSize
+                    );
+
+                    $this->quotaManager->recordBytesUploaded($actualChunkSize);
+                    $offset += $actualChunkSize;
+                } else {
+                    // No more bytes to read
+                    break;
                 }
 
-                // Upload chunk
-                $this->apiClient->uploadChunk(
-                    sessionUri: $sessionUri,
-                    chunk: $chunk,
-                    offset: $offset,
-                    totalSize: $fileSize
-                );
-
-                $this->quotaManager->recordBytesUploaded(\strlen($chunk));
-
-                $offset += \strlen($chunk);
                 $job = $job->updateProgress($offset);
                 $this->jobRepository->save($job);
 
@@ -257,10 +400,28 @@ final readonly class ResumableUploadService
             throw new \RuntimeException('Cannot resume: no resumable session');
         }
 
-        $filePath = $job->getFilePath()->getPath();
+        $filePath = $this->compressIfNeeded($job);
+
+        // Set EXIF creation time if missing
+        $this->exifDateSetter->setCreationTime($filePath, $job->getCreationTime());
+
         $fileSize = \filesize($filePath);
         if (false === $fileSize) {
             throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
+        }
+
+        // Check if file is smaller than CHUNK_SIZE - if so, expire session and use raw upload
+        if ($fileSize < self::CHUNK_SIZE) {
+            $this->logger->info('File smaller than CHUNK_SIZE during resume, expiring session and using raw upload', [
+                'file_size' => $fileSize,
+            ]);
+            $lastKnownBytes = $session->getUploadedBytes();
+            $job = $job->markSessionExpired($lastKnownBytes);
+            $this->jobRepository->save($job);
+            // Recursively call uploadFile to use raw upload
+            $this->uploadFile($job);
+
+            return;
         }
 
         $offset = $session->getUploadedBytes();
@@ -289,12 +450,30 @@ final readonly class ResumableUploadService
                 $job = $job->updateProgress($offset);
                 $this->jobRepository->save($job);
             }
+        } catch (ServiceUnavailableException $e) {
+            $this->logger->warning('Google Photos API is temporarily unavailable, pausing job.', [
+                'job_id' => $job->getId()->getId(),
+                'error' => $e->getMessage(),
+            ]);
+            // Pause the job, the orchestrator will pick it up later
+            $job = $job->pause();
+            $this->jobRepository->save($job);
+
+            return; // Exit the upload process for this job
         } catch (\Exception $e) {
             $this->logger->warning('Failed to query upload status, using stored offset', [
-                'error' => $e->getMessage(),
+                'error' => $e::class,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'offset' => $offset,
             ]);
-            // Continue with stored offset if query fails
+            // If we cannot determine the exact number of bytes uploaded,
+            // we must pause the job to avoid corruption or infinite loops.
+            $job = $job->pause();
+            $this->jobRepository->save($job);
+
+            return;
         }
 
         $this->logger->info('Resuming upload', [
@@ -309,20 +488,18 @@ final readonly class ResumableUploadService
         }
 
         try {
-            // Ensure offset is aligned to CHUNK_SIZE boundary (except for the very start and last chunk)
-            // This is required by Google Photos API for resumable uploads
-            $remainingBytes = $fileSize - $offset;
-            if ($offset > 0 && 0 !== $offset % self::CHUNK_SIZE && $remainingBytes > self::CHUNK_SIZE) {
-                // Round down to nearest CHUNK_SIZE boundary only if not the last chunk
-                // Last chunk can start at any offset
+            // Google Photos API requires all chunks (except last) to be exactly CHUNK_SIZE
+            // If offset is not aligned to CHUNK_SIZE boundary, we need to align it
+            // Server ignores duplicate bytes (confirmed via Range header), so it's safe to re-upload
+            if ($offset > 0 && 0 !== $offset % self::CHUNK_SIZE) {
                 $alignedOffset = (int) (\floor($offset / self::CHUNK_SIZE) * self::CHUNK_SIZE);
-                $this->logger->warning('Offset not aligned to chunk boundary, adjusting', [
+                $this->logger->info('Offset not aligned to chunk boundary, aligning down', [
                     'original_offset' => $offset,
                     'aligned_offset' => $alignedOffset,
-                    'remaining_bytes' => $remainingBytes,
+                    'file_size' => $fileSize,
+                    'note' => 'Server will ignore duplicate bytes via Range header',
                 ]);
                 $offset = $alignedOffset;
-                // Update job with aligned offset
                 $job = $job->updateProgress($offset);
                 $this->jobRepository->save($job);
             }
@@ -337,69 +514,102 @@ final readonly class ResumableUploadService
                     throw $e;
                 }
 
-                // Calculate chunk size - must be exactly CHUNK_SIZE except for last chunk
+                // Calculate chunk size
                 $remainingBytes = $fileSize - $offset;
 
-                // All chunks except the last one must be exactly CHUNK_SIZE (262144 bytes)
-                // Last chunk can be any size
-                if ($remainingBytes <= self::CHUNK_SIZE) {
-                    // This is the last chunk - can be any size
+                // Check if this is the last chunk
+                $isLastChunk = $remainingBytes <= self::CHUNK_SIZE;
+
+                if ($isLastChunk) {
+                    // This is the last chunk - send all remaining bytes
                     $chunkSize = $remainingBytes;
+
+                    if ($chunkSize > 0) {
+                        // Read and send last chunk
+                        \fseek($handle, $offset);
+                        $chunk = \fread($handle, $chunkSize);
+                        if (false === $chunk) {
+                            throw new \RuntimeException(\sprintf('Failed to read last chunk at offset %d', $offset));
+                        }
+
+                        // Upload last chunk
+                        $this->apiClient->uploadChunk(
+                            sessionUri: $session->getSessionUri(),
+                            chunk: $chunk,
+                            offset: $offset,
+                            totalSize: $fileSize
+                        );
+                        $offset += \strlen($chunk);
+                        $job = $job->updateProgress($offset);
+                        $this->jobRepository->save($job);
+                    }
+                    // Break loop - last chunk sent (or was 0), now complete upload
+                    break;
                 } else {
                     // Not the last chunk - must be exactly CHUNK_SIZE
                     $chunkSize = self::CHUNK_SIZE;
-                }
 
-                // Read chunk
-                \fseek($handle, $offset);
-                $chunk = \fread($handle, $chunkSize);
-                if (false === $chunk) {
-                    throw new \RuntimeException(\sprintf('Failed to read chunk at offset %d', $offset));
-                }
-
-                // Upload chunk
-                try {
-                    $this->apiClient->uploadChunk(
-                        sessionUri: $session->getSessionUri(),
-                        chunk: $chunk,
-                        offset: $offset,
-                        totalSize: $fileSize
-                    );
-                } catch (OffsetMismatchException $e) {
-                    // Server expects different offset - update and retry
-                    $expectedOffset = $e->getExpectedOffset();
-                    $this->logger->warning('Offset mismatch detected, updating offset', [
-                        'current_offset' => $offset,
-                        'expected_offset' => $expectedOffset,
-                    ]);
-                    $offset = $expectedOffset;
-                    // Ensure offset is aligned to CHUNK_SIZE boundary
-                    if (0 !== $offset % self::CHUNK_SIZE) {
-                        $offset = (int) (\floor($offset / self::CHUNK_SIZE) * self::CHUNK_SIZE);
+                    // Read chunk from file - ensure we read exactly chunkSize bytes
+                    \fseek($handle, $offset);
+                    $chunk = '';
+                    $bytesRead = 0;
+                    while ($bytesRead < $chunkSize) {
+                        $data = \fread($handle, $chunkSize - $bytesRead);
+                        if (false === $data || '' === $data) {
+                            if (0 === $bytesRead) {
+                                throw new \RuntimeException(\sprintf('Failed to read chunk at offset %d', $offset));
+                            }
+                            break; // EOF reached
+                        }
+                        $chunk .= $data;
+                        $bytesRead += \strlen($data);
                     }
+
+                    $actualChunkSize = \strlen($chunk);
+                    if ($actualChunkSize !== $chunkSize && $offset + $actualChunkSize < $fileSize) {
+                        throw new \RuntimeException(\sprintf('Failed to read full chunk: expected %d bytes, got %d at offset %d', $chunkSize, $actualChunkSize, $offset));
+                    }
+
+                    // Upload chunk - server will ignore bytes already uploaded
+                    try {
+                        $this->apiClient->uploadChunk(
+                            sessionUri: $session->getSessionUri(),
+                            chunk: $chunk,
+                            offset: $offset,
+                            totalSize: $fileSize
+                        );
+                    } catch (OffsetMismatchException $e) {
+                        // Server expects different offset - query status and update
+                        $this->logger->warning('Offset mismatch detected, querying server status', [
+                            'current_offset' => $offset,
+                            'expected_offset' => $e->getExpectedOffset(),
+                        ]);
+
+                        try {
+                            $uploadStatus = $this->apiClient->queryUploadStatus($session->getSessionUri());
+                            $offset = $uploadStatus->getUploadedBytes();
+                            $this->logger->info('Updated offset from server', [
+                                'new_offset' => $offset,
+                            ]);
+                            $job = $job->updateProgress($offset);
+                            $this->jobRepository->save($job);
+                            // Continue loop to retry with correct offset
+                            continue;
+                        } catch (\Exception) {
+                            // If query fails, use expected offset from exception
+                            $offset = $e->getExpectedOffset();
+                            $job = $job->updateProgress($offset);
+                            $this->jobRepository->save($job);
+                            continue;
+                        }
+                    }
+
+                    $this->quotaManager->recordBytesUploaded(\strlen($chunk));
+
+                    $offset += \strlen($chunk);
                     $job = $job->updateProgress($offset);
                     $this->jobRepository->save($job);
-                    // Continue loop to retry with correct offset
-                    continue;
                 }
-
-                $this->quotaManager->recordBytesUploaded(\strlen($chunk));
-
-                $offset += \strlen($chunk);
-                $job = $job->updateProgress($offset);
-                $this->jobRepository->save($job);
-
-                // Dispatch progress event (temporarily disabled - no handler registered)
-                // $this->messageBus->dispatch(new UploadProgressed(
-                //     jobId: $job->getId(),
-                //     uploadedBytes: $offset,
-                //     totalBytes: $fileSize
-                // ));
-                $this->logger->debug('Upload progress', [
-                    'job_id' => $job->getId(),
-                    'uploaded_bytes' => $offset,
-                    'total_bytes' => $fileSize,
-                ]);
             }
         } finally {
             \fclose($handle);
@@ -424,5 +634,18 @@ final readonly class ResumableUploadService
         }
 
         return $this->imageCompressor->compressIfNeeded($filePath, $job->getMimeType());
+    }
+
+    /**
+     * Extract quota reset time from HTTP response.
+     */
+    private function extractQuotaResetTime(\Psr\Http\Message\ResponseInterface $response): \DateTimeImmutable
+    {
+        $retryAfter = $response->getHeaderLine('Retry-After');
+        if ('' !== $retryAfter && \is_numeric($retryAfter)) {
+            return new \DateTimeImmutable()->add(new \DateInterval(\sprintf('PT%sS', $retryAfter)));
+        }
+
+        return new \DateTimeImmutable()->add(new \DateInterval('PT60S')); // Default 60 seconds
     }
 }

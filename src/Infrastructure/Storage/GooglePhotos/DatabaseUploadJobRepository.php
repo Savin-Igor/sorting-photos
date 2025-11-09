@@ -114,6 +114,19 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
         return \array_map($this->hydrate(...), $rows);
     }
 
+    public function findReadyForBatchBySize(int $maxSize, int $limit): array
+    {
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT * FROM '.self::TABLE_NAME.'
+            WHERE state = ? AND batch_id IS NULL AND file_size < ?
+            ORDER BY created_at ASC
+            LIMIT ?',
+            [UploadState::UPLOADED->value, $maxSize, $limit]
+        );
+
+        return \array_map($this->hydrate(...), $rows);
+    }
+
     public function findWithExpiredSessions(): array
     {
         $now = new \DateTimeImmutable();

@@ -267,6 +267,31 @@ final readonly class UploadJob
         );
     }
 
+    public function pause(): self
+    {
+        $this->assertValidTransition(UploadState::PAUSED);
+
+        return new self(
+            id: $this->id,
+            filePath: $this->filePath,
+            fileSize: $this->fileSize,
+            fileHash: $this->fileHash,
+            mimeType: $this->mimeType,
+            isVideo: $this->isVideo,
+            state: UploadState::PAUSED,
+            resumableSession: $this->resumableSession,
+            uploadToken: $this->uploadToken,
+            batchId: $this->batchId,
+            creationTime: $this->creationTime,
+            retryCount: $this->retryCount,
+            lastError: null,
+            lastKnownUploadedBytes: $this->lastKnownUploadedBytes,
+            sessionExpirationCount: $this->sessionExpirationCount,
+            createdAt: $this->createdAt,
+            updatedAt: new \DateTimeImmutable(),
+        );
+    }
+
     public function resume(): self
     {
         if (UploadState::PAUSED !== $this->state) {

@@ -33,8 +33,11 @@ final readonly class BatchProcessor
 
     public function processBatch(UploadBatch $batch): void
     {
-        $batch = $batch->startProcessing();
-        $this->batchRepository->save($batch);
+        // Only start processing if batch is not already processing
+        if ($batch->getState()->value !== \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::PROCESSING->value) {
+            $batch = $batch->startProcessing();
+            $this->batchRepository->save($batch);
+        }
 
         // Get items to process (starting from currentIndex)
         $itemsToProcess = $batch->getItemsToProcess();
@@ -154,16 +157,21 @@ final readonly class BatchProcessor
                     continue;
                 }
 
-                $job = $job->markCompleted();
-                $this->jobRepository->save($job);
+                // Only mark as completed if not already completed
+                if ('completed' !== $job->getState()->value) {
+                    $job = $job->markCompleted();
+                    $this->jobRepository->save($job);
+                }
 
                 $batch = $batch->markItemProcessed($globalIndex);
                 $this->batchRepository->save($batch);
 
-                $this->messageBus->dispatch(new UploadCompleted(
-                    jobId: $job->getId(),
-                    mediaItemId: $mediaItem->getId()
-                ));
+                // Dispatch event
+                // $this->messageBus->dispatch(new UploadCompleted(
+                //     jobId: $job->getId(),
+                //     filePath: $job->getFilePath()->getPath(),
+                //     uploadedAt: new \DateTimeImmutable()
+                // ));
 
                 $this->logger->debug('Media item created successfully', [
                     'job_id' => $job->getId()->getId(),
