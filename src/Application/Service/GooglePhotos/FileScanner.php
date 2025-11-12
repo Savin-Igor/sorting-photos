@@ -59,8 +59,9 @@ final readonly class FileScanner
                 $metadata = $this->metadataExtractor->extract($filePath->getPath());
 
                 // 4. Check if file is a media file (image or video) - Google Photos only supports these
-                if (!$this->isMediaFile($metadata->getMimeType())) {
-                    $this->logger->info('Skipping non-media file during scan (by MIME type)', [
+                // Use extension as fallback if MIME type is not properly detected (e.g., application/octet-stream)
+                if (!$this->isMediaFile($metadata->getMimeType(), $filePath->getPath())) {
+                    $this->logger->info('Skipping non-media file during scan (by MIME type and extension)', [
                         'file_path' => $filePath->getPath(),
                         'mime_type' => $metadata->getMimeType(),
                         'extension' => \strtolower(\pathinfo($filePath->getPath(), \PATHINFO_EXTENSION)),
@@ -71,10 +72,25 @@ final readonly class FileScanner
 
                 $date = $this->metadataExtractor->extractDate($filePath->getPath());
 
-                // 5. Determine type
-                $isVideo = $this->isVideo($metadata->getMimeType());
+                // 5. Determine type (use extension fallback if MIME type is generic)
+                $isVideo = $this->isVideo($metadata->getMimeType(), $filePath->getPath());
 
-                // 6. Create UploadJob
+                // 6. Normalize MIME type if it was detected incorrectly (application/octet-stream)
+                // Use extension-based MIME type mapping as fallback
+                $mimeType = $metadata->getMimeType();
+                if ('application/octet-stream' === $mimeType || '' === $mimeType) {
+                    $normalizedMimeType = $this->getMimeTypeFromExtension($filePath->getPath());
+                    if (null !== $normalizedMimeType) {
+                        $mimeType = $normalizedMimeType;
+                        $this->logger->debug('Normalized MIME type from extension', [
+                            'file_path' => $filePath->getPath(),
+                            'original_mime_type' => $metadata->getMimeType(),
+                            'normalized_mime_type' => $mimeType,
+                        ]);
+                    }
+                }
+
+                // 7. Create UploadJob
                 $creationTime = $date->getDateTime();
                 // MediaDate::getDateTime() always returns Carbon
                 $creationTime = \DateTimeImmutable::createFromMutable($creationTime->toDateTime());
@@ -83,7 +99,7 @@ final readonly class FileScanner
                     filePath: $filePath,
                     fileSize: $metadata->getFileSize(),
                     fileHash: $hash,
-                    mimeType: $metadata->getMimeType(),
+                    mimeType: $mimeType,
                     isVideo: $isVideo,
                     creationTime: $creationTime,
                 );
@@ -112,18 +128,164 @@ final readonly class FileScanner
         return $createdCount;
     }
 
-    private function isVideo(string $mimeType): bool
+    /**
+     * Check if file is a video.
+     *
+     * @param string      $mimeType Detected MIME type
+     * @param string|null $filePath Optional file path for extension-based fallback
+     *
+     * @return bool True if file is a video
+     */
+    private function isVideo(string $mimeType, ?string $filePath = null): bool
     {
-        return \str_starts_with($mimeType, 'video/');
+        // Primary check: MIME type
+        if (\str_starts_with($mimeType, 'video/')) {
+            return true;
+        }
+
+        // Fallback: if MIME type is generic, check extension
+        if (('application/octet-stream' === $mimeType || '' === $mimeType) && null !== $filePath) {
+            $extension = \strtolower(\pathinfo($filePath, \PATHINFO_EXTENSION));
+            $videoExtensions = [
+                'mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', 'm4v',
+                'mpg', 'mpeg', '3gp', '3g2', 'asf', 'rm', 'rmvb', 'vob',
+                'ogv', 'divx', 'xvid', 'mts', 'm2ts', 'ts', 'f4v',
+            ];
+
+            return \in_array($extension, $videoExtensions, true);
+        }
+
+        return false;
     }
 
     /**
      * Check if file is a media file supported by Google Photos API.
      * Google Photos only supports images and videos.
+     *
+     * @param string      $mimeType Detected MIME type
+     * @param string|null $filePath Optional file path for extension-based fallback
+     *
+     * @return bool True if file is a media file
      */
-    private function isMediaFile(string $mimeType): bool
+    private function isMediaFile(string $mimeType, ?string $filePath = null): bool
     {
-        return \str_starts_with($mimeType, 'image/') || \str_starts_with($mimeType, 'video/');
+        // Primary check: MIME type
+        if (\str_starts_with($mimeType, 'image/') || \str_starts_with($mimeType, 'video/')) {
+            return true;
+        }
+
+        // Fallback: if MIME type is generic (application/octet-stream) or unknown,
+        // check file extension to determine if it's a media file
+        if (('application/octet-stream' === $mimeType || '' === $mimeType) && null !== $filePath) {
+            return $this->isMediaExtension($filePath);
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if file extension indicates a media file (image or video).
+     * Used as fallback when MIME type detection fails.
+     *
+     * @param string $filePath Full path to the file
+     *
+     * @return bool True if extension indicates a media file
+     */
+    private function isMediaExtension(string $filePath): bool
+    {
+        $extension = \strtolower(\pathinfo($filePath, \PATHINFO_EXTENSION));
+
+        // Image formats supported by Google Photos
+        $imageExtensions = [
+            'jpg', 'jpeg', 'jpe', 'jfif', 'jif', 'jfi',
+            'png', 'gif', 'bmp', 'webp', 'heic', 'heif',
+            'tiff', 'tif', 'raw', 'cr2', 'nef', 'orf', 'sr2',
+            'arw', 'dng', 'rw2', 'raf', '3fr', 'dcr', 'kdc', 'mef',
+            'mos', 'mrw', 'pef', 'srw', 'x3f',
+        ];
+
+        // Video formats supported by Google Photos
+        $videoExtensions = [
+            'mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', 'm4v',
+            'mpg', 'mpeg', '3gp', '3g2', 'asf', 'rm', 'rmvb', 'vob',
+            'ogv', 'divx', 'xvid', 'mts', 'm2ts', 'ts', 'f4v',
+        ];
+
+        return \in_array($extension, \array_merge($imageExtensions, $videoExtensions), true);
+    }
+
+    /**
+     * Get MIME type from file extension as fallback when MIME detection fails.
+     *
+     * @param string $filePath Full path to the file
+     *
+     * @return string|null MIME type or null if extension is not recognized
+     */
+    private function getMimeTypeFromExtension(string $filePath): ?string
+    {
+        $extension = \strtolower(\pathinfo($filePath, \PATHINFO_EXTENSION));
+
+        $mimeTypeMap = [
+            // Images
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'jpe' => 'image/jpeg',
+            'jfif' => 'image/jpeg',
+            'jif' => 'image/jpeg',
+            'jfi' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'bmp' => 'image/bmp',
+            'webp' => 'image/webp',
+            'heic' => 'image/heif',
+            'heif' => 'image/heif',
+            'tiff' => 'image/tiff',
+            'tif' => 'image/tiff',
+            'raw' => 'image/x-raw',
+            'cr2' => 'image/x-canon-cr2',
+            'nef' => 'image/x-nikon-nef',
+            'orf' => 'image/x-olympus-orf',
+            'sr2' => 'image/x-sony-sr2',
+            'arw' => 'image/x-sony-arw',
+            'dng' => 'image/x-adobe-dng',
+            'rw2' => 'image/x-panasonic-rw2',
+            'raf' => 'image/x-fuji-raf',
+            '3fr' => 'image/x-hasselblad-3fr',
+            'dcr' => 'image/x-kodak-dcr',
+            'kdc' => 'image/x-kodak-kdc',
+            'mef' => 'image/x-mamiya-mef',
+            'mos' => 'image/x-creative-mos',
+            'mrw' => 'image/x-minolta-mrw',
+            'pef' => 'image/x-pentax-pef',
+            'srw' => 'image/x-samsung-srw',
+            'x3f' => 'image/x-sigma-x3f',
+            // Videos
+            'mp4' => 'video/mp4',
+            'avi' => 'video/x-msvideo',
+            'mov' => 'video/quicktime',
+            'wmv' => 'video/x-ms-wmv',
+            'flv' => 'video/x-flv',
+            'webm' => 'video/webm',
+            'mkv' => 'video/x-matroska',
+            'm4v' => 'video/x-m4v',
+            'mpg' => 'video/mpeg',
+            'mpeg' => 'video/mpeg',
+            '3gp' => 'video/3gpp',
+            '3g2' => 'video/3gpp2',
+            'asf' => 'video/x-ms-asf',
+            'rm' => 'video/vnd.rn-realvideo',
+            'rmvb' => 'video/vnd.rn-realvideo',
+            'vob' => 'video/dvd',
+            'ogv' => 'video/ogg',
+            'divx' => 'video/x-divx',
+            'xvid' => 'video/x-xvid',
+            'mts' => 'video/mp2t',
+            'm2ts' => 'video/mp2t',
+            'ts' => 'video/mp2t',
+            'f4v' => 'video/x-f4v',
+        ];
+
+        return $mimeTypeMap[$extension] ?? null;
     }
 
     /**
