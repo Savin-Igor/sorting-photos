@@ -95,16 +95,19 @@ final class UploadOrchestrator
                         break;
                     }
 
-                    // 5.2. Priority 1: Incomplete batches
+                    // 5.2. Priority 1: Incomplete batches (READY or PROCESSING)
                     $batchBackoffActive = $this->batchBackoffUntil instanceof \DateTimeImmutable && $now < $this->batchBackoffUntil;
                     if (!$batchBackoffActive) {
-                        $batch = $this->batchRepository->findProcessingOrPaused();
+                        $batch = $this->batchRepository->findIncomplete();
                         if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
                             // Skip if batch is already completed
                             if ($batch->getState()->value === \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::COMPLETED->value) {
                                 continue;
                             }
-                            $this->logger->debug('Processing incomplete batch', ['batch_id' => $batch->getId()]);
+                            $this->logger->debug('Processing incomplete batch', [
+                                'batch_id' => $batch->getId()->getId(),
+                                'state' => $batch->getState()->value,
+                            ]);
                             try {
                                 $this->batchProcessor->processBatch($batch);
                                 continue;
