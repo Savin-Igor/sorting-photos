@@ -47,6 +47,10 @@ services:
       - GOOGLE_PHOTOS_CREDENTIALS_PATH=${GOOGLE_PHOTOS_CREDENTIALS_PATH:-/var/www/html/config/credentials/credentials.json}
       - GOOGLE_PHOTOS_ALBUM_ID=${GOOGLE_PHOTOS_ALBUM_ID:-}
       - GOOGLE_PHOTOS_FULL_ACCESS=${GOOGLE_PHOTOS_FULL_ACCESS:-false}
+      # Logging configuration
+      - LOG_FILE_ENABLED=${LOG_FILE_ENABLED:-true}
+      - LOG_FILE_LEVEL=${LOG_FILE_LEVEL:-DEBUG}
+      - LOG_CONSOLE_LEVEL=${LOG_CONSOLE_LEVEL:-INFO}
     depends_on:
       redis:
         condition: service_healthy
@@ -130,6 +134,10 @@ services:
       - GOOGLE_PHOTOS_CREDENTIALS_PATH=${GOOGLE_PHOTOS_CREDENTIALS_PATH:-/var/www/html/config/credentials/credentials.json}
       - GOOGLE_PHOTOS_ALBUM_ID=${GOOGLE_PHOTOS_ALBUM_ID:-}
       - GOOGLE_PHOTOS_FULL_ACCESS=${GOOGLE_PHOTOS_FULL_ACCESS:-false}
+      # Logging configuration
+      - LOG_FILE_ENABLED=${LOG_FILE_ENABLED:-true}
+      - LOG_FILE_LEVEL=${LOG_FILE_LEVEL:-DEBUG}
+      - LOG_CONSOLE_LEVEL=${LOG_CONSOLE_LEVEL:-INFO}
     depends_on:
       redis:
         condition: service_healthy

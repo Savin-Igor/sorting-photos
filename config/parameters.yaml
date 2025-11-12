@@ -53,4 +53,9 @@ parameters:
     google_photos.monitoring.alert_on_quota_exceeded: false
     google_photos.monitoring.alert_on_upload_failed: false
 
+    # Logging parameters
+    app.logging.file_enabled: true
+    app.logging.file_level: 'DEBUG'  # DEBUG, INFO, WARNING, ERROR, or OFF to disable file logging
+    app.logging.console_level: 'INFO'  # DEBUG, INFO, WARNING, ERROR
+
 

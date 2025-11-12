@@ -33,6 +33,10 @@ final readonly class ParameterResolver
             'app.compression.jpeg_max_pixels' => (int) self::getEnv('COMPRESSION_JPEG_MAX_PIXELS', '75000000'),
             'app.compression.png_max_pixels' => (int) self::getEnv('COMPRESSION_PNG_MAX_PIXELS', '200000000'),
             'app.compression.video_max_size_bytes' => (int) self::getEnv('COMPRESSION_VIDEO_MAX_SIZE_BYTES', '10737418240'), // 10 GB
+            // Logging settings
+            'app.logging.file_enabled' => filter_var(self::getEnv('LOG_FILE_ENABLED', 'true'), FILTER_VALIDATE_BOOLEAN),
+            'app.logging.file_level' => strtoupper(self::getEnv('LOG_FILE_LEVEL', 'DEBUG')),
+            'app.logging.console_level' => strtoupper(self::getEnv('LOG_CONSOLE_LEVEL', 'INFO')),
         ];
     }
 

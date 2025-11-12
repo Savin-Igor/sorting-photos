@@ -11,6 +11,7 @@ use SortingPhotosByDate\Domain\Policies\TypeDatePolicy;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 /**
@@ -113,6 +114,9 @@ final readonly class ContainerFactory
         // Configure storage adapters based on DSN if provided
         $this->configureStorageAdapters($container);
 
+        // Configure logging handlers based on parameters
+        $this->configureLogging($container);
+
         // If async mode is enabled, override MessageBusInterface definition
         $asyncMode = getenv('ASYNC_MODE') ?: ($_ENV['ASYNC_MODE'] ?? 'false');
         $asyncMode = filter_var($asyncMode, FILTER_VALIDATE_BOOLEAN);
@@ -136,7 +140,7 @@ final readonly class ContainerFactory
             $definition = new \Symfony\Component\DependencyInjection\Definition();
             $definition->setFactory([\SortingPhotosByDate\Infrastructure\Messenger\AsyncMessageBusFactory::class, 'create']);
             $definition->setArguments([
-                new \Symfony\Component\DependencyInjection\Reference('service_container'),
+                new Reference('service_container'),
                 $transportDsn,
                 $messageRouting,
             ]);
@@ -347,8 +351,8 @@ final readonly class ContainerFactory
             \SortingPhotosByDate\Infrastructure\Storage\RateLimiting\RateLimitedFilesystemPort::class
         );
         $wrapperDefinition->setArguments([
-            new \Symfony\Component\DependencyInjection\Reference($originalFilesystemId),
-            new \Symfony\Component\DependencyInjection\Reference($rateLimiterId),
+            new Reference($originalFilesystemId),
+            new Reference($rateLimiterId),
         ]);
         $wrapperDefinition->setPublic(true);
 
@@ -378,8 +382,8 @@ final readonly class ContainerFactory
 
         $wrapperDefinition = new \Symfony\Component\DependencyInjection\Definition($wrapperClass);
         $wrapperDefinition->setArguments([
-            new \Symfony\Component\DependencyInjection\Reference($adapterId),
-            new \Symfony\Component\DependencyInjection\Reference($rateLimiterId),
+            new Reference($adapterId),
+            new Reference($rateLimiterId),
         ]);
         $wrapperDefinition->setPublic(true);
 
@@ -520,6 +524,82 @@ final readonly class ContainerFactory
             'type-date' => TypeDatePolicy::class,
             default => DateTypePolicy::class,
         };
+    }
+
+    /**
+     * Configure logging handlers based on parameters.
+     */
+    private function configureLogging(ContainerBuilder $container): void
+    {
+        // Get logging parameters with defaults
+        $fileEnabled = $container->hasParameter('app.logging.file_enabled')
+            ? (bool) $container->getParameter('app.logging.file_enabled')
+            : true;
+        $fileLevelParam = $container->hasParameter('app.logging.file_level')
+            ? $container->getParameter('app.logging.file_level')
+            : 'DEBUG';
+        $fileLevel = strtoupper(is_string($fileLevelParam) ? $fileLevelParam : 'DEBUG');
+        $consoleLevelParam = $container->hasParameter('app.logging.console_level')
+            ? $container->getParameter('app.logging.console_level')
+            : 'INFO';
+        $consoleLevel = strtoupper(is_string($consoleLevelParam) ? $consoleLevelParam : 'INFO');
+
+        // Convert level strings to Monolog constants
+        $levelMap = [
+            'DEBUG' => \Monolog\Logger::DEBUG,
+            'INFO' => \Monolog\Logger::INFO,
+            'WARNING' => \Monolog\Logger::WARNING,
+            'ERROR' => \Monolog\Logger::ERROR,
+            'CRITICAL' => \Monolog\Logger::CRITICAL,
+            'ALERT' => \Monolog\Logger::ALERT,
+            'EMERGENCY' => \Monolog\Logger::EMERGENCY,
+        ];
+
+        $consoleLevelInt = $levelMap[$consoleLevel] ?? \Monolog\Logger::INFO;
+        $fileLevelInt = $levelMap[$fileLevel] ?? \Monolog\Logger::DEBUG;
+
+        // Update console handler level
+        if ($container->hasDefinition('monolog.handler.console')) {
+            $consoleHandler = $container->getDefinition('monolog.handler.console');
+            $arguments = $consoleHandler->getArguments();
+            $arguments['$level'] = $consoleLevelInt;
+            $consoleHandler->setArguments($arguments);
+        }
+
+        // Configure file handler
+        if ($container->hasDefinition('monolog.handler.file')) {
+            if (!$fileEnabled || 'OFF' === $fileLevel) {
+                // File handler will be excluded from logger handlers list
+                // but we keep the definition in case it's needed elsewhere
+            } else {
+                // Update file handler level
+                $fileHandler = $container->getDefinition('monolog.handler.file');
+                $arguments = $fileHandler->getArguments();
+                $arguments['$level'] = $fileLevelInt;
+                $fileHandler->setArguments($arguments);
+            }
+        }
+
+        // Update Logger to only include enabled handlers
+        if ($container->hasDefinition(\Monolog\Logger::class)) {
+            $loggerDef = $container->getDefinition(\Monolog\Logger::class);
+            $handlers = [];
+
+            // Always include console handler
+            if ($container->hasDefinition('monolog.handler.console')) {
+                $handlers[] = new Reference('monolog.handler.console');
+            }
+
+            // Include file handler only if enabled
+            if ($fileEnabled && 'OFF' !== $fileLevel && $container->hasDefinition('monolog.handler.file')) {
+                $handlers[] = new Reference('monolog.handler.file');
+            }
+
+            $loggerDef->setArguments([
+                'file-sorter',
+                $handlers,
+            ]);
+        }
     }
 
     /**
