@@ -369,6 +369,29 @@ final readonly class UploadJob
 
     public function markAsFailed(string $error): self
     {
+        // Idempotent: if already failed, just update error/updatedAt and return
+        if (UploadState::FAILED === $this->state) {
+            return new self(
+                id: $this->id,
+                filePath: $this->filePath,
+                fileSize: $this->fileSize,
+                fileHash: $this->fileHash,
+                mimeType: $this->mimeType,
+                isVideo: $this->isVideo,
+                state: UploadState::FAILED,
+                resumableSession: $this->resumableSession,
+                uploadToken: $this->uploadToken,
+                batchId: $this->batchId,
+                creationTime: $this->creationTime,
+                retryCount: $this->retryCount,
+                lastError: $error,
+                lastKnownUploadedBytes: $this->resumableSession?->getUploadedBytes(),
+                sessionExpirationCount: $this->sessionExpirationCount,
+                createdAt: $this->createdAt,
+                updatedAt: new \DateTimeImmutable(),
+            );
+        }
+
         $this->assertValidTransition(UploadState::FAILED);
 
         return new self(
