@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Command;
 
 use Doctrine\DBAL\Connection;
-use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadState;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -29,61 +28,42 @@ final class GooglePhotosStatusCommand extends Command
         $io = new SymfonyStyle($input, $output);
 
         $stats = $this->getStatistics();
-        $recentJobs = $this->getRecentJobs(10);
+        $sizeStats = $this->getSizeStatistics();
+        $fileTypeStats = $this->getFileTypeStatistics();
+        $batchStats = $this->getBatchStatistics();
 
         // Display statistics
         $io->title('Upload Statistics');
         $io->table(
-            ['State', 'Count', 'Percentage'],
+            ['State', 'Count', 'Percentage', 'Total Size'],
             [
-                ['Pending', $stats['pending'], $this->formatPercentage($stats['pending'], $stats['total'])],
-                ['Uploading', $stats['uploading'], $this->formatPercentage($stats['uploading'], $stats['total'])],
-                ['Uploaded', $stats['uploaded'], $this->formatPercentage($stats['uploaded'], $stats['total'])],
-                ['In Batch', $stats['in_batch'], $this->formatPercentage($stats['in_batch'], $stats['total'])],
-                ['Completed', $stats['completed'], $this->formatPercentage($stats['completed'], $stats['total'])],
-                ['Paused', $stats['paused'], $this->formatPercentage($stats['paused'], $stats['total'])],
-                ['Failed', $stats['failed'], $this->formatPercentage($stats['failed'], $stats['total'])],
-                ['---', '---', '---'],
-                ['<fg=cyan>Total</>', '<fg=cyan>'.$stats['total'].'</>', '<fg=cyan>100%</>'],
+                ['Pending', $stats['pending'], $this->formatPercentage($stats['pending'], $stats['total']), $this->formatBytes($sizeStats['pending'])],
+                ['Uploading', $stats['uploading'], $this->formatPercentage($stats['uploading'], $stats['total']), $this->formatBytes($sizeStats['uploading'])],
+                ['Uploaded', $stats['uploaded'], $this->formatPercentage($stats['uploaded'], $stats['total']), $this->formatBytes($sizeStats['uploaded'])],
+                ['In Batch', $stats['in_batch'], $this->formatPercentage($stats['in_batch'], $stats['total']), $this->formatBytes($sizeStats['in_batch'])],
+                ['Completed', $stats['completed'], $this->formatPercentage($stats['completed'], $stats['total']), $this->formatBytes($sizeStats['completed'])],
+                ['Paused', $stats['paused'], $this->formatPercentage($stats['paused'], $stats['total']), $this->formatBytes($sizeStats['paused'])],
+                ['Failed', $stats['failed'], $this->formatPercentage($stats['failed'], $stats['total']), $this->formatBytes($sizeStats['failed'])],
+                ['---', '---', '---', '---'],
+                ['<fg=cyan>Total</>', '<fg=cyan>'.$stats['total'].'</>', '<fg=cyan>100%</>', '<fg=cyan>'.$this->formatBytes($sizeStats['total']).'</>'],
             ]
         );
 
-        // Display progress for uploading files
-        $uploadingJobs = $this->getUploadingJobs();
-        if ([] !== $uploadingJobs) {
-            $io->section('Currently Uploading');
-            $rows = [];
-            foreach ($uploadingJobs as $job) {
-                $progress = $job['file_size'] > 0
-                    ? \round(($job['uploaded_bytes'] / $job['file_size']) * 100, 1)
-                    : 0;
-                $rows[] = [
-                    \basename($job['file_path']),
-                    $this->formatBytes($job['uploaded_bytes']).' / '.$this->formatBytes($job['file_size']),
-                    $progress.'%',
-                    $job['state'],
-                ];
-            }
-            $io->table(['File', 'Progress', 'Percentage', 'State'], $rows);
-        }
-
-        // Display recent jobs
-        if ([] !== $recentJobs) {
-            $io->section('Recent Jobs (Last 10)');
-            $rows = [];
-            foreach ($recentJobs as $job) {
-                $rows[] = [
-                    \basename($job['file_path']),
-                    $this->formatBytes($job['file_size']),
-                    $job['state'],
-                    $job['updated_at'],
-                ];
-            }
-            $io->table(['File', 'Size', 'State', 'Last Updated'], $rows);
+        // Display file type statistics
+        if ($fileTypeStats['total'] > 0) {
+            $io->section('File Type Statistics');
+            $io->table(
+                ['Type', 'Count', 'Percentage', 'Total Size'],
+                [
+                    ['Images', $fileTypeStats['images'], $this->formatPercentage($fileTypeStats['images'], $fileTypeStats['total']), $this->formatBytes($fileTypeStats['images_size'])],
+                    ['Videos', $fileTypeStats['videos'], $this->formatPercentage($fileTypeStats['videos'], $fileTypeStats['total']), $this->formatBytes($fileTypeStats['videos_size'])],
+                    ['---', '---', '---', '---'],
+                    ['<fg=cyan>Total</>', '<fg=cyan>'.$fileTypeStats['total'].'</>', '<fg=cyan>100%</>', '<fg=cyan>'.$this->formatBytes($fileTypeStats['total_size']).'</>'],
+                ]
+            );
         }
 
         // Display batch statistics
-        $batchStats = $this->getBatchStatistics();
         if ($batchStats['total'] > 0) {
             $io->section('Batch Statistics');
             $io->table(
@@ -99,6 +79,14 @@ final class GooglePhotosStatusCommand extends Command
                 ]
             );
         }
+
+        // Display progress summary
+        $progressPercent = $stats['total'] > 0
+            ? \round(($stats['completed'] / $stats['total']) * 100, 1)
+            : 0;
+        $io->section('Overall Progress');
+        $io->writeln(\sprintf('Completed: <fg=green>%s</> / %s (<fg=green>%s%%</>)', $stats['completed'], $stats['total'], $progressPercent));
+        $io->writeln(\sprintf('Remaining: <fg=yellow>%s</> files (<fg=yellow>%s</>)', $stats['total'] - $stats['completed'], $this->formatBytes($sizeStats['total'] - $sizeStats['completed'])));
 
         return Command::SUCCESS;
     }
@@ -134,32 +122,72 @@ final class GooglePhotosStatusCommand extends Command
     }
 
     /**
-     * @return array<int, array{file_path: string, file_size: int, uploaded_bytes: int, state: string}>
+     * @return array{pending: int, uploading: int, uploaded: int, in_batch: int, completed: int, paused: int, failed: int, total: int}
      */
-    private function getUploadingJobs(): array
+    private function getSizeStatistics(): array
     {
-        return $this->connection->fetchAllAssociative(
-            'SELECT file_path, file_size, uploaded_bytes, state
-             FROM google_photos_upload_jobs
-             WHERE state IN (?, ?)
-             ORDER BY updated_at DESC
-             LIMIT 10',
-            [UploadState::PENDING->value, UploadState::UPLOADING->value]
+        $result = $this->connection->fetchAllAssociative(
+            'SELECT state, COALESCE(SUM(file_size), 0) as total_size FROM google_photos_upload_jobs GROUP BY state'
         );
+
+        $stats = [
+            'pending' => 0,
+            'uploading' => 0,
+            'uploaded' => 0,
+            'in_batch' => 0,
+            'completed' => 0,
+            'paused' => 0,
+            'failed' => 0,
+            'total' => 0,
+        ];
+
+        foreach ($result as $row) {
+            $state = \is_string($row['state']) ? $row['state'] : '';
+            $size = (int) ($row['total_size'] ?? 0);
+            if (isset($stats[$state])) {
+                $stats[$state] = $size;
+                $stats['total'] += $size;
+            }
+        }
+
+        return $stats;
     }
 
     /**
-     * @return array<int, array{file_path: string, file_size: int, state: string, updated_at: string}>
+     * @return array{images: int, videos: int, images_size: int, videos_size: int, total: int, total_size: int}
      */
-    private function getRecentJobs(int $limit): array
+    private function getFileTypeStatistics(): array
     {
-        return $this->connection->fetchAllAssociative(
-            'SELECT file_path, file_size, state, updated_at
-             FROM google_photos_upload_jobs
-             ORDER BY updated_at DESC
-             LIMIT ?',
-            [$limit]
+        $result = $this->connection->fetchAssociative(
+            'SELECT 
+                SUM(CASE WHEN is_video = 0 THEN 1 ELSE 0 END) as images_count,
+                SUM(CASE WHEN is_video = 1 THEN 1 ELSE 0 END) as videos_count,
+                COALESCE(SUM(CASE WHEN is_video = 0 THEN file_size ELSE 0 END), 0) as images_size,
+                COALESCE(SUM(CASE WHEN is_video = 1 THEN file_size ELSE 0 END), 0) as videos_size,
+                COUNT(*) as total_count,
+                COALESCE(SUM(file_size), 0) as total_size
+             FROM google_photos_upload_jobs'
         );
+
+        if (false === $result) {
+            return [
+                'images' => 0,
+                'videos' => 0,
+                'images_size' => 0,
+                'videos_size' => 0,
+                'total' => 0,
+                'total_size' => 0,
+            ];
+        }
+
+        return [
+            'images' => isset($result['images_count']) && \is_numeric($result['images_count']) ? (int) $result['images_count'] : 0,
+            'videos' => isset($result['videos_count']) && \is_numeric($result['videos_count']) ? (int) $result['videos_count'] : 0,
+            'images_size' => isset($result['images_size']) && \is_numeric($result['images_size']) ? (int) $result['images_size'] : 0,
+            'videos_size' => isset($result['videos_size']) && \is_numeric($result['videos_size']) ? (int) $result['videos_size'] : 0,
+            'total' => isset($result['total_count']) && \is_numeric($result['total_count']) ? (int) $result['total_count'] : 0,
+            'total_size' => isset($result['total_size']) && \is_numeric($result['total_size']) ? (int) $result['total_size'] : 0,
+        ];
     }
 
     /**
@@ -181,12 +209,12 @@ final class GooglePhotosStatusCommand extends Command
         ];
 
         foreach ($result as $row) {
-            $state = $row['state'];
-            $count = (int) $row['count'];
+            $state = \is_string($row['state']) ? $row['state'] : '';
+            $count = isset($row['count']) && \is_numeric($row['count']) ? (int) $row['count'] : 0;
             if (isset($stats[$state])) {
                 $stats[$state] = $count;
+                $stats['total'] += $count;
             }
-            $stats['total'] += $count;
         }
 
         return $stats;

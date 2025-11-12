@@ -10,6 +10,7 @@ use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
 use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface;
 use SortingPhotosByDate\Ports\FilesystemPort;
+use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
@@ -20,6 +21,7 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
         private AudioVideoMetadataAnalyzerInterface $metadataAnalyzer,
         private FilesystemPort $filesystem,
         private FilenameDateExtractor $filenameDateExtractor,
+        private LoggerPort $logger,
     ) {
     }
 
@@ -41,6 +43,7 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
         $fileInfo = $this->metadataAnalyzer->analyze($filePath);
         $fileInfoObj = new \SplFileInfo($filePath);
         $mimeType = $this->mimeTypeDetector->detectMimeType($filePath);
+        $fileSize = $this->filesystem->getSize($filePathObj);
 
         $width = null;
         $height = null;
@@ -93,7 +96,7 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
         return new MediaMeta(
             $fileInfoObj->getFilename(),
             $mimeType,
-            $fileInfoObj->getSize(),
+            $fileSize,
             $width,
             $height,
             $duration,
@@ -115,6 +118,17 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
         // Priority 1: Extract from filename (most reliable - filename changes less often than metadata)
         $filenameDate = $this->filenameDateExtractor->extract($filePath);
         if ($filenameDate instanceof Carbon) {
+            // Determine if this is a video file for logging
+            $mimeType = $this->mimeTypeDetector->detectMimeType($filePath);
+            $isVideo = str_starts_with($mimeType, 'video/');
+
+            $this->logger->info('Date extracted from filename', [
+                'file_path' => $filePath,
+                'is_video' => $isVideo,
+                'extracted_date' => $filenameDate->format('Y-m-d H:i:s'),
+                'source' => 'filename',
+            ]);
+
             return new MediaDate($filenameDate);
         }
 

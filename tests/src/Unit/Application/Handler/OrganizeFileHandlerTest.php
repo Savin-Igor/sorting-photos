@@ -113,10 +113,7 @@ final class OrganizeFileHandlerTest extends TestCase
                     return false;
                 }
                 // Otherwise, report that source and target exist for verification
-                if ($path->getPath() === $sourcePath->getPath() || $path->getPath() === $targetPath->getPath()) {
-                    return true;
-                }
-                return false;
+                return $path->getPath() === $sourcePath->getPath() || $path->getPath() === $targetPath->getPath();
             });
 
         $this->filesystem
@@ -213,7 +210,7 @@ final class OrganizeFileHandlerTest extends TestCase
         $this->filesystem
             ->expects($this->atLeast(3))
             ->method('exists')
-            ->willReturnCallback(function ($path) use ($targetPath, $sourcePath, $collisionPath, &$callCount, &$copyDone): bool {
+            ->willReturnCallback(function ($path) use ($targetPath, $collisionPath, &$callCount, &$copyDone): bool {
                 ++$callCount;
                 // First call: check target path (exists) - in resolveCollision
                 if (1 === $callCount && $path->getPath() === $targetPath->getPath()) {
@@ -228,11 +225,7 @@ final class OrganizeFileHandlerTest extends TestCase
                     return false;
                 }
                 // After copyWithMetadata is called, both files should exist
-                if ($copyDone) {
-                    return true;
-                }
-
-                return false;
+                return $copyDone;
             });
 
         $this->filesystem

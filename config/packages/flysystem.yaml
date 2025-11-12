@@ -84,3 +84,4 @@ services:
             $metadataAnalyzer: '@SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface'
             $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
             $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'

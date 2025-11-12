@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Application\Service\GooglePhotos;
 
+use Carbon\Carbon;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
+use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 use SortingPhotosByDate\Ports\ScannerPort;
@@ -18,6 +20,7 @@ final readonly class FileScanner
         private MetadataExtractorPort $metadataExtractor,
         private UploadJobRepositoryPort $jobRepository,
         private LoggerPort $logger,
+        private FilenameDateExtractor $filenameDateExtractor,
     ) {
     }
 
@@ -74,6 +77,42 @@ final readonly class FileScanner
 
                 // 5. Determine type (use extension fallback if MIME type is generic)
                 $isVideo = $this->isVideo($metadata->getMimeType(), $filePath->getPath());
+
+                // Check if date was extracted from filename (especially for videos)
+                $filenameDate = $this->filenameDateExtractor->extract($filePath->getPath());
+                if ($filenameDate instanceof Carbon) {
+                    $extractedDate = $date->getDateTime();
+
+                    // Compare dates: check if dates match (considering different formats)
+                    // Some filename formats only have date without time (00:00:00), so we compare:
+                    // 1. If filename date has time (not 00:00:00), compare with full precision (within 1 second)
+                    // 2. If filename date has no time (00:00:00), compare only date part (year, month, day)
+                    $filenameHasTime = !(0 === $filenameDate->hour && 0 === $filenameDate->minute && 0 === $filenameDate->second);
+
+                    $datesMatch = false;
+                    if ($filenameHasTime) {
+                        // Full date-time comparison (allow 1 second difference)
+                        $dateDiff = abs($extractedDate->diffInSeconds($filenameDate));
+                        $datesMatch = $dateDiff <= 1;
+                    } else {
+                        // Date-only comparison (compare year, month, day)
+                        $datesMatch = $extractedDate->year === $filenameDate->year
+                            && $extractedDate->month === $filenameDate->month
+                            && $extractedDate->day === $filenameDate->day;
+                    }
+
+                    if ($datesMatch) {
+                        // Date matches filename date
+                        $this->logger->info('Date extracted from filename during scan', [
+                            'file_path' => $filePath->getPath(),
+                            'is_video' => $isVideo,
+                            'extracted_date' => $extractedDate->format('Y-m-d H:i:s'),
+                            'filename_date' => $filenameDate->format('Y-m-d H:i:s'),
+                            'date_only_match' => !$filenameHasTime,
+                            'source' => 'filename',
+                        ]);
+                    }
+                }
 
                 // 6. Normalize MIME type if it was detected incorrectly (application/octet-stream)
                 // Use extension-based MIME type mapping as fallback
