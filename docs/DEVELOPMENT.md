@@ -152,7 +152,7 @@ make test
 make qa
 
 # Функциональный тест
-make run-dry-run
+make organize-files-dry-run
 ```
 
 ## 📦 Структура проекта
@@ -319,7 +319,7 @@ final readonly class FileDiscovered
 {
     public function __construct(
         public FilePath $filePath,
-        public \DateTimeImmutable $discoveredAt,
+        public int $fileSize,
     ) {}
 }
 
@@ -567,18 +567,52 @@ services:
 
 ```yaml
 parameters:
-    app.source_directory: '%env(SOURCE_DIRECTORY)%'
-    app.destination_directory: '%env(DESTINATION_DIRECTORY)%'
-    app.organizer_policy: '%env(ORGANIZER_POLICY)%'
-    app.dry_run: '%env(bool:DRY_RUN)%'
+    # Application parameters (overridden by env via ParameterResolver)
+    app.source_directory: ''
+    app.destination_directory: ''
+    app.source_directory_host: ''
+    app.destination_directory_host: ''
+    app.organizer_policy: 'date-type'
+    app.dry_run: false
 
-    # Messenger
-    messenger.retry.max_retries: '%env(int:MESSENGER_MAX_RETRIES)%'
-    messenger.retry.delay: '%env(int:MESSENGER_RETRY_DELAY)%'
+    # Filesystem parameters
+    app.filesystem.default_dir_permissions: 493  # 0755 в десятичном
 
-    # Database
-    database.url: '%env(DATABASE_URL)%'
+    # Google Photos API
+    app.google_photos.access_token: ''
+    app.google_photos.album_id: null
+    app.google_photos.credentials_path: ''
+    app.google_photos.full_access: false
+
+    # Compression
+    app.compression.enabled: false
+    app.compression.jpeg_max_pixels: 75000000
+    app.compression.png_max_pixels: 200000000
+    app.compression.video_max_size_bytes: 10737418240
+
+    # Google Photos (доп. параметры)
+    google_photos.compression.enabled: true
+    google_photos.compression.quality: 95
+    google_photos.compression.max_width: 4096
+    google_photos.compression.max_height: 4096
+    google_photos.compression.format: 'auto'
+    google_photos.compression.conditions.min_file_size: '1MB'
+    google_photos.compression.conditions.max_compression_ratio: 0.8
+    google_photos.upload.chunk_size: 262144
+    google_photos.upload.max_retries: 3
+    google_photos.upload.retry_delay: 1000
+    google_photos.batch.size: 50
+    google_photos.batch.timeout: 30
+    google_photos.quota.daily_upload: '1000GB'
+    google_photos.quota.hourly_upload: '100GB'
+    google_photos.quota.requests_per_minute: 60
+    google_photos.quota.burst_limit: 100
+    google_photos.metrics.enabled: false
+    google_photos.monitoring.health_check_interval: '60s'
+    google_photos.monitoring.alert_on_quota_exceeded: false
 ```
+
+Примечание: значения из `parameters.yaml` могут быть переопределены переменными окружения через `ParameterResolver` (см. `src/Infrastructure/Config/ParameterResolver.php`). Для обязательных путей (`SOURCE_DIRECTORY`, `DESTINATION_DIRECTORY`) переопределение применяется только если переменная окружения непуста.
 
 ### 🔄 Messenger (Очереди)
 

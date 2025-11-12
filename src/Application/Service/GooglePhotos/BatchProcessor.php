@@ -49,6 +49,38 @@ final readonly class BatchProcessor
             'items_to_process' => \count($itemsToProcess),
         ]);
 
+        // Short-circuit: nothing to process
+        if ([] === $itemsToProcess) {
+            if ($batch->allItemsProcessed()) {
+                // Batch is effectively done but not marked yet
+                if ($batch->getState()->value !== \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::COMPLETED->value) {
+                    $batch = $batch->complete();
+                    $this->batchRepository->save($batch);
+                    $successfulCount = \count(\array_filter($batch->getItems(), fn (BatchItem $item): bool => $item->isProcessed()));
+                    $this->logger->info('Batch completed (nothing left to process)', [
+                        'batch_id' => $batch->getId()->getId(),
+                        'successful_items' => $successfulCount,
+                        'total_items' => \count($batch->getItems()),
+                    ]);
+                }
+
+                return;
+            }
+
+            // Stuck batch: no items left but not all processed (likely failed items)
+            $failedItems = $batch->getFailedItems();
+            $this->logger->warning('Stuck batch detected: no items to process, but not all processed. Marking as failed.', [
+                'batch_id' => $batch->getId()->getId(),
+                'failed_count' => \count($failedItems),
+                'current_index' => $batch->getCurrentIndex(),
+                'total_items' => \count($batch->getItems()),
+            ]);
+            $batch = $batch->markAsFailed('No items to process, but not all processed. Skipping batch.');
+            $this->batchRepository->save($batch);
+
+            return;
+        }
+
         // Split into groups of 50 (for large batches)
         $chunks = \array_chunk($itemsToProcess, self::MAX_ITEMS_PER_REQUEST);
 
@@ -79,6 +111,47 @@ final readonly class BatchProcessor
 
                 // Process each result individually - CRITICAL: batch is updated inside this method
                 $batch = $this->processBatchResponse($batch, $response, $chunkIndex);
+
+                // Log summary for this chunk
+                $results = $response->getNewMediaItemResults();
+                $errors = $response->getErrors();
+                $successCount = 0;
+                foreach ($results as $r) {
+                    if ($r->getStatus()->isSuccess()) {
+                        ++$successCount;
+                    }
+                }
+                $failed = \count($results) - $successCount + \count($errors);
+                $failedItems = [];
+                foreach ($results as $idx => $r) {
+                    if (!$r->getStatus()->isSuccess()) {
+                        $filename = $chunk[$idx]->getFilename() ?? null;
+                        $failedItems[] = [
+                            'index' => $idx,
+                            'filename' => $filename,
+                            'code' => $r->getStatus()->getCode(),
+                            'message' => $r->getStatus()->getMessage(),
+                        ];
+                    }
+                }
+                // Add batch-level errors too
+                foreach ($errors as $e) {
+                    $failedItems[] = [
+                        'index' => null,
+                        'filename' => null,
+                        'code' => $e->getCode(),
+                        'message' => $e->getMessage(),
+                    ];
+                }
+
+                $this->logger->info('Batch chunk processed', [
+                    'batch_id' => $batch->getId()->getId(),
+                    'chunk_index' => $chunkIndex,
+                    'chunk_size' => \count($chunk),
+                    'success' => $successCount,
+                    'failed' => $failed,
+                    'failed_items' => \array_slice($failedItems, 0, 10),
+                ]);
 
             } catch (QuotaExceededException $e) {
                 // Pause batch
@@ -150,7 +223,7 @@ final readonly class BatchProcessor
         // Process each result
         foreach ($response->getNewMediaItemResults() as $index => $result) {
             $globalIndex = $globalStartIndex + $index;
-            
+
             // Validate index bounds to prevent array out of bounds
             if ($globalIndex >= \count($batch->getItems())) {
                 $this->logger->error('Global index out of bounds', [
@@ -162,7 +235,7 @@ final readonly class BatchProcessor
                 ]);
                 continue;
             }
-            
+
             $batchItem = $batch->getItems()[$globalIndex];
             $job = $this->jobRepository->findById($batchItem->getJobId());
 

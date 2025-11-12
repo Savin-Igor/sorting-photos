@@ -38,6 +38,59 @@ final readonly class MimeTypeDetectorAdapter implements MimeTypeDetectorInterfac
 
         $mimeType = $this->detector->detectMimeTypeFromFile($filePath);
 
+        // Fallbacks for when detector returns null or generic mime
+        if (null === $mimeType || 'application/octet-stream' === $mimeType) {
+            // 1) Try exif_imagetype for images (more reliable for JPEG/PNG/etc.)
+            if (\function_exists('exif_imagetype')) {
+                /** @var int|false $imgType */
+                $imgType = @\exif_imagetype($filePath);
+                if (false !== $imgType) {
+                    return match ($imgType) {
+                        \IMAGETYPE_JPEG => 'image/jpeg',
+                        \IMAGETYPE_PNG => 'image/png',
+                        \IMAGETYPE_GIF => 'image/gif',
+                        \IMAGETYPE_BMP => 'image/bmp',
+                        \IMAGETYPE_WEBP => 'image/webp',
+                        \IMAGETYPE_TIFF_II, \IMAGETYPE_TIFF_MM => 'image/tiff',
+                        default => 'application/octet-stream',
+                    };
+                }
+            }
+
+            // 2) Extension-based heuristic fallback
+            $ext = \strtolower(\pathinfo($filePath, \PATHINFO_EXTENSION));
+            $byExt = [
+                // Images
+                'jpg' => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'png' => 'image/png',
+                'gif' => 'image/gif',
+                'webp' => 'image/webp',
+                'bmp' => 'image/bmp',
+                'tif' => 'image/tiff',
+                'tiff' => 'image/tiff',
+                'heif' => 'image/heif',
+                'heic' => 'image/heic',
+                // Video
+                'mp4' => 'video/mp4',
+                'mov' => 'video/quicktime',
+                'mkv' => 'video/x-matroska',
+                'webm' => 'video/webm',
+                'avi' => 'video/x-msvideo',
+                'wmv' => 'video/x-ms-wmv',
+                // Audio
+                'mp3' => 'audio/mpeg',
+                'flac' => 'audio/flac',
+                'wav' => 'audio/wav',
+                'ogg' => 'audio/ogg',
+                'aac' => 'audio/aac',
+                'wma' => 'audio/x-ms-wma',
+            ];
+            if (isset($byExt[$ext])) {
+                return $byExt[$ext];
+            }
+        }
+
         return $mimeType ?? 'application/octet-stream';
     }
 

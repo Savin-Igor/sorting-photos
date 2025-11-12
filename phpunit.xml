@@ -8,6 +8,7 @@
          convertWarningsToExceptions="true"
          processIsolation="false"
          stopOnFailure="false"
+         beStrictAboutMockingFinalClasses="false"
          cacheResultFile="./var/.phpunit.result.cache">
 <testsuites>
     <testsuite name="Unit Tests">

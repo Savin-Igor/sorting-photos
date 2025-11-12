@@ -7,7 +7,6 @@ services:
     SortingPhotosByDate\Command\:
         resource: '../src/Command/*'
         exclude:
-            - '../src/Command/OrganizeFilesCommand.php'
             - '../src/Command/ScanFilesCommand.php'
             - '../src/Command/TestCompressionCommand.php'
         tags: ['console.command']
@@ -273,6 +272,10 @@ services:
             $container: '@service_container'
         # This will be replaced with AsyncMessageBus if ASYNC_MODE=true in ContainerFactory::setupMessageBus()
 
+    # Application Services
+    SortingPhotosByDate\Application\Service\FileOrganizingService:
+        public: true
+    
     # FileCompressionService - temporarily disabled due to configuration issues
     # SortingPhotosByDate\Application\Service\FileCompressionServiceInterface:
     #     alias: SortingPhotosByDate\Application\Service\FileCompressionService
@@ -321,6 +324,7 @@ services:
             $tokenManager: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenManager'
             $credentialsFactory: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\CredentialsFactory'
             $tokenStorage: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenStorage'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
     
     # Legacy GooglePhotosApiClient (kept for reference, can be removed later)
     SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\GooglePhotosApiClient:

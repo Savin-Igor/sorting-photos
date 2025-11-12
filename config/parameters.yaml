@@ -42,8 +42,8 @@ parameters:
     google_photos.batch.timeout: 30
 
     # Google Photos quota parameters
-    google_photos.quota.daily_upload: '10GB'
-    google_photos.quota.hourly_upload: '1GB'
+    google_photos.quota.daily_upload: '1000GB'
+    google_photos.quota.hourly_upload: '100GB'
     google_photos.quota.requests_per_minute: 60
     google_photos.quota.burst_limit: 100
 

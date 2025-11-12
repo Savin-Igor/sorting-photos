@@ -44,7 +44,7 @@ make up
 cp -r ~/Pictures/* var/data/source/
 
 # 5. Запустить сортировку
-make run
+make organize-files
 ```
 
 **Результат:**
@@ -111,9 +111,9 @@ make up-rabbitmq
 #### Шаг 4: Проверка работы
 
 ```bash
-# Должен показать "Hello World!"
+# Проверка доступности CLI
 make shell
-php bin/console --version
+php bin/console --version  # Должно вывести версию приложения (например, "File Sorter 1.0.0")
 ```
 
 ### 📁 Подготовка файлов
@@ -161,7 +161,7 @@ make down && make up
 ls -la var/data/source/
 
 # Запустить сортировку
-make run
+make organize-files
 ```
 
 ## 🏠 Локальная установка
@@ -230,8 +230,18 @@ DRY_RUN=false
 # Асинхронный режим (с очередью)
 ASYNC_MODE=false
 
-# Максимальное количество воркеров
-MESSENGER_MAX_WORKERS=4
+# Для параллельной обработки используйте:
+# make consume-workers WORKERS=4
+```
+
+#### Ограничение скорости I/O (опционально)
+
+```bash
+# Ограничение количества операций ввода-вывода
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_PER_SECONDS=1
+# Допустимый burst (опционально)
+RATE_LIMIT_BURST=50
 ```
 
 ## 📸 Использование
@@ -242,10 +252,10 @@ MESSENGER_MAX_WORKERS=4
 
 ```bash
 # Синхронная сортировка (рекомендуется для начала)
-make run
+make organize-files
 
 # Сортировка в режиме dry-run (без изменений)
-make run-dry-run
+make organize-files-dry-run
 
 # Только сканирование (без обработки)
 make scan
@@ -282,7 +292,7 @@ make show-progress
 
 ```bash
 # Docker
-make run
+make organize-files
 
 # Или напрямую
 docker compose exec app php bin/console organize:files
@@ -291,14 +301,14 @@ docker compose exec app php bin/console organize:files
 #### Расширенные опции
 
 ```bash
-# С указанием конкретных директорий
-docker compose exec app php bin/console organize:files /custom/source /custom/destination
-
-# С конкретной политикой
-docker compose exec app php bin/console organize:files --policy=date-type
+# С указанием конкретных директорий (в контейнере)
+docker compose exec app php bin/console organize:files --source=/custom/source --destination=/custom/destination
 
 # В режиме dry-run
 docker compose exec app php bin/console organize:files --dry-run
+
+# Политика организации задается переменной окружения:
+# ORGANIZER_POLICY=date|date-type|type-date
 ```
 
 #### Работа с очередью
@@ -590,6 +600,87 @@ GOOGLE_PHOTOS_ALBUM_ID=your_album_id
 GOOGLE_PHOTOS_FULL_ACCESS=false
 ```
 
+### 🔄 Процесс загрузки файлов в Google Photos
+
+Процесс загрузки состоит из **двух этапов**, которые выполняются последовательно:
+
+#### Этап 1: Загрузка файла (Upload)
+
+1. **`PENDING`** - Задача создана, файл готов к загрузке
+2. **`UPLOADING`** - Файл загружается на сервер Google через API `/uploads`
+   - Используется **raw upload** (весь файл загружается одним запросом)
+   - Файл сжимается при необходимости
+   - Устанавливается EXIF дата создания (если отсутствует)
+3. **`UPLOADED`** - Файл успешно загружен, получен `uploadToken`
+   - ⚠️ **ВАЖНО**: На этом этапе файл **НЕ виден в Google Photos**!
+   - Файл находится на серверах Google, но еще не создан как медиа-элемент
+
+#### Этап 2: Создание медиа-элемента (Batch Create)
+
+4. **`IN_BATCH`** - Файл добавлен в батч (до 50 файлов)
+   - `BatchCollector` собирает файлы со статусом `UPLOADED` в батчи
+   - Максимум 50 файлов или 1 GB на батч
+5. **`COMPLETED`** - Медиа-элемент создан в Google Photos
+   - Выполняется API запрос `mediaItems:batchCreate` с `uploadToken`
+   - Только после этого файл **появляется в Google Photos**!
+
+#### Диаграмма переходов статусов
+
+```
+PENDING → UPLOADING → UPLOADED → IN_BATCH → COMPLETED
+   ↓         ↓           ↓           ↓
+ FAILED   FAILED      FAILED      FAILED
+```
+
+#### Почему файлы со статусом `UPLOADED` не видны в Google Photos?
+
+**Это нормальное поведение!** Процесс работает так:
+
+1. **Загрузка файла** (`UPLOADED`) - файл загружен на сервер Google, получен токен
+2. **Создание медиа-элемента** (`COMPLETED`) - файл "зарегистрирован" в библиотеке Google Photos
+
+Файлы со статусом `UPLOADED` находятся в промежуточном состоянии - они загружены, но еще не созданы как медиа-элементы. Они появятся в Google Photos только после выполнения `batchCreateMediaItems`.
+
+#### Как проверить статус загрузки?
+
+```bash
+# Просмотр статистики по статусам
+make google-photos-status
+
+# Детальная информация о файлах
+make google-photos-dump-state
+```
+
+#### Что делать, если файлы "застряли" в статусе `UPLOADED`?
+
+1. **Проверьте, работает ли оркестратор:**
+   ```bash
+   make google-photos-upload SOURCE=/path/to/photos
+   ```
+
+2. **Проверьте квоты API:**
+   - Google Photos API имеет лимиты на количество запросов
+   - При превышении квоты процесс автоматически приостанавливается
+
+3. **Проверьте логи:**
+   ```bash
+   make logs-app | grep -i "batch\|quota\|error"
+   ```
+
+4. **Ручной запуск обработки батчей:**
+   - Оркестратор автоматически обрабатывает батчи
+   - Если батчи не обрабатываются, проверьте логи на ошибки
+
+#### Приоритеты обработки в оркестраторе
+
+Оркестратор обрабатывает задачи в следующем порядке:
+
+1. **Приоритет 1**: Обработка незавершенных батчей (`PROCESSING`, `PAUSED`)
+2. **Приоритет 2**: Загрузка новых файлов (`PENDING`, `UPLOADING`)
+3. **Приоритет 3**: Сбор новых батчей из загруженных файлов (`UPLOADED`)
+
+Это означает, что сначала загружаются файлы, а затем они собираются в батчи и обрабатываются.
+
 ## 📊 Мониторинг и статистика
 
 ### 📈 Просмотр прогресса
@@ -685,7 +776,7 @@ make metadata-clear
 
 # Пересоздать базу
 rm var/database.sqlite
-make run  # База создастся автоматически
+make organize-files  # База создастся автоматически
 ```
 
 ## 🐛 Решение проблем
@@ -783,7 +874,7 @@ ls -la var/data/source/
 find var/data/source/ -type f | wc -l
 
 # Запустить с verbose
-make run VERBOSE=1
+make organize-files VERBOSE=1
 ```
 
 #### Проблема: Воркеры не запускаются
@@ -819,7 +910,7 @@ make show-progress
 make metadata-clear
 
 # 3. Перезапустить обработку
-make run
+make organize-files
 ```
 
 #### После изменения конфигурации

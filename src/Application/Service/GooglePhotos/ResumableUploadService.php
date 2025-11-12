@@ -38,7 +38,7 @@ final readonly class ResumableUploadService
 
     public function uploadFile(UploadJob $job): void
     {
-        $this->logger->info('Starting file upload', [
+        $this->logger->debug('Starting file upload', [
             'job_id' => $job->getId(),
             'file_path' => $job->getFilePath()->getPath(),
             'file_size' => $job->getFileSize(),
@@ -80,7 +80,7 @@ final readonly class ResumableUploadService
             throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
         }
 
-        $this->logger->info('Uploading file using raw upload', [
+        $this->logger->info('Uploading to Google Photos (raw)', [
             'file_path' => $filePath,
             'file_name' => \basename($filePath),
             'file_size' => $fileSize,
@@ -104,6 +104,19 @@ final readonly class ResumableUploadService
             ->withHeader('Content-Length', (string) $fileSize)
             ->withBody($this->streamFactory->createStream($fileContent));
 
+        // Log request metadata (without Authorization header)
+        $this->logger->debug('Google Photos upload request', [
+            'method' => 'POST',
+            'url' => $url,
+            'headers' => [
+                // Safe subset, without Authorization
+                'X-Goog-Upload-Protocol' => 'raw',
+                'X-Goog-Upload-Content-Type' => $job->getMimeType(),
+                'Content-Type' => $job->getMimeType(),
+                'Content-Length' => (string) $fileSize,
+            ],
+        ]);
+
         $response = $this->httpClient->sendRequest($request);
 
         // Handle quota errors
@@ -114,10 +127,25 @@ final readonly class ResumableUploadService
 
         if (200 !== $response->getStatusCode()) {
             $body = $response->getBody()->getContents();
+            $this->logger->error('Google Photos raw upload failed', [
+                'status' => $response->getStatusCode(),
+                'headers' => $response->getHeaders(),
+                'body_preview' => \substr($body, 0, 2048),
+                'body_length' => \strlen($body),
+            ]);
             throw new \RuntimeException(\sprintf('Failed to upload file: %s %s', $response->getStatusCode(), $body));
         }
 
         $uploadToken = $response->getBody()->getContents();
+        $this->logger->info('Google Photos raw upload response (token received)', [
+            'status' => $response->getStatusCode(),
+            'headers' => [
+                // Log a safe subset of headers
+                'X-Goog-Upload-Status' => $response->getHeaderLine('X-Goog-Upload-Status'),
+            ],
+            'token_length' => \strlen($uploadToken),
+            'token_preview' => \substr($uploadToken, 0, 16).'...',
+        ]);
 
         // 7. Update job state - mark as uploaded
         // Create a virtual session URI for state transition

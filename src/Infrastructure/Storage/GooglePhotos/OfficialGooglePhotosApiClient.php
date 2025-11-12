@@ -40,6 +40,7 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
         private TokenManager $tokenManager,
         private CredentialsFactory $credentialsFactory,
         private TokenStorage $tokenStorage,
+        private \SortingPhotosByDate\Ports\LoggerPort $logger,
     ) {
         // Create PhotosLibraryClient with our credentials
         $credentials = $this->createLibraryCredentials();
@@ -86,6 +87,17 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             ->withHeader('X-Goog-Upload-Size', (string) $fileSize)
             ->withHeader('Content-Length', '0');
 
+        $this->logger->debug('Initiate resumable upload request', [
+            'method' => 'POST',
+            'url' => $url,
+            'headers' => [
+                'X-Goog-Upload-Command' => 'start',
+                'X-Goog-Upload-Protocol' => 'resumable',
+                'X-Goog-Upload-Content-Type' => $mimeType,
+                'X-Goog-Upload-Size' => (string) $fileSize,
+            ],
+        ]);
+
         $response = $this->httpClient->sendRequest($request);
 
         // Handle quota errors
@@ -96,15 +108,12 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
 
         if (200 !== $response->getStatusCode()) {
             $body = $response->getBody()->getContents();
-            $headers = $response->getHeaders();
-            $errorDetails = \sprintf(
-                "Failed to initiate resumable upload:\nStatus: %s\nHeaders: %s\nBody: %s\n",
-                $response->getStatusCode(),
-                \json_encode($headers, JSON_PRETTY_PRINT),
-                $body
-            );
-            \fwrite(\STDERR, $errorDetails);
-            \error_log($errorDetails);
+            $this->logger->error('Failed to initiate resumable upload', [
+                'status' => $response->getStatusCode(),
+                'headers' => $response->getHeaders(),
+                'body_preview' => \substr($body, 0, 2048),
+                'body_length' => \strlen($body),
+            ]);
             throw new \RuntimeException(\sprintf('Failed to initiate resumable upload: %s %s', $response->getStatusCode(), $body));
         }
 
@@ -112,6 +121,11 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
         if ('' === $sessionUri) {
             throw new \RuntimeException('No X-Goog-Upload-URL header in response');
         }
+
+        $this->logger->info('Resumable upload session created', [
+            'status' => $response->getStatusCode(),
+            'session_url_preview' => \substr($sessionUri, 0, 32).'...',
+        ]);
 
         return $sessionUri;
     }
@@ -128,6 +142,14 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             ->withHeader('Content-Length', (string) $chunkLength)
             ->withBody($this->streamFactory->createStream($chunk));
 
+        $this->logger->debug('Uploading chunk', [
+            'offset' => $offset,
+            'end_offset' => $endOffset,
+            'chunk_length' => $chunkLength,
+            'total_size' => $totalSize,
+            'session_url_preview' => \substr($sessionUri, 0, 32).'...',
+        ]);
+
         $response = $this->httpClient->sendRequest($request);
 
         // Handle quota errors
@@ -142,9 +164,18 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             // Check for offset mismatch error (400)
             if (400 === $response->getStatusCode() && \preg_match('/instead of (\d+)/', $body, $matches)) {
                 $expectedOffset = (int) $matches[1];
+                $this->logger->error('Chunk upload offset mismatch', [
+                    'status' => $response->getStatusCode(),
+                    'body_preview' => \substr($body, 0, 1024),
+                    'expected_offset' => $expectedOffset,
+                ]);
                 throw new OffsetMismatchException(\sprintf('Failed to upload chunk: %s %s', $response->getStatusCode(), $body), $expectedOffset);
             }
 
+            $this->logger->error('Chunk upload failed', [
+                'status' => $response->getStatusCode(),
+                'body_preview' => \substr($body, 0, 1024),
+            ]);
             throw new \RuntimeException(\sprintf('Failed to upload chunk: %s %s', $response->getStatusCode(), $body));
         }
 
@@ -160,6 +191,10 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             if ($confirmedBytes < $offset + $chunkLength) {
                 throw new \RuntimeException(\sprintf('Range mismatch: expected at least %d bytes, got %d', $offset + $chunkLength, $confirmedBytes));
             }
+            $this->logger->debug('Chunk acknowledged (308)', [
+                'range' => $range,
+                'confirmed_bytes' => $confirmedBytes,
+            ]);
         }
     }
 
@@ -187,9 +222,19 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                 throw new \RuntimeException('Empty upload token in response');
             }
 
+            $this->logger->info('Upload session finalized', [
+                'status' => $response->getStatusCode(),
+                'token_length' => \strlen($token),
+                'token_preview' => \substr($token, 0, 16).'...',
+            ]);
+
             return $token;
         }
 
+        $this->logger->error('Upload not complete', [
+            'status' => $response->getStatusCode(),
+            'body_preview' => \substr($response->getBody()->getContents(), 0, 2048),
+        ]);
         throw new \RuntimeException(\sprintf('Upload not complete: %s %s', $response->getStatusCode(), $response->getBody()->getContents()));
     }
 
@@ -211,6 +256,11 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                 throw new \RuntimeException('No uploadToken in response');
             }
 
+            $this->logger->debug('Upload status: completed', [
+                'status' => 200,
+                'token_length' => isset($data['uploadToken']) ? \strlen((string) $data['uploadToken']) : 0,
+            ]);
+
             return UploadStatus::complete($data['uploadToken']);
         }
 
@@ -223,26 +273,36 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
 
             $uploadedBytes = $this->parseRange($range);
 
+            $this->logger->debug('Upload status: in-progress', [
+                'status' => 308,
+                'range' => $range,
+                'uploaded_bytes' => $uploadedBytes,
+            ]);
+
             return UploadStatus::incomplete($uploadedBytes);
         }
 
         // 404/410 - session expired
         if (\in_array($response->getStatusCode(), [404, 410], true)) {
+            $this->logger->warning('Upload session expired', [
+                'status' => $response->getStatusCode(),
+            ]);
             throw new SessionExpiredException('Resumable session expired');
         }
 
         // Handle temporary server errors
         if (503 === $response->getStatusCode()) {
+            $this->logger->warning('Google Photos service temporarily unavailable', [
+                'status' => 503,
+            ]);
             throw new ServiceUnavailableException('Service temporarily unavailable');
         }
 
         $body = $response->getBody()->getContents();
-        $errorDetails = \sprintf(
-            "Failed to query upload status:\nStatus: %s\nBody: %s\n",
-            $response->getStatusCode(),
-            $body
-        );
-        \fwrite(\STDERR, $errorDetails);
+        $this->logger->error('Failed to query upload status', [
+            'status' => $response->getStatusCode(),
+            'body_preview' => \substr($body, 0, 1024),
+        ]);
         throw new \RuntimeException(\sprintf('Unexpected status code: %s %s', $response->getStatusCode(), $body));
     }
 
@@ -282,6 +342,10 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             ->withBody($this->streamFactory->createStream(\json_encode($body, \JSON_THROW_ON_ERROR)));
 
         try {
+            $this->logger->info('Creating media items (batch)', [
+                'items' => \count($items),
+                'album_id' => $body['albumId'] ?? null,
+            ]);
             $response = $this->httpClient->sendRequest($request);
 
             // Handle quota errors
@@ -292,6 +356,11 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
 
             if (200 !== $response->getStatusCode()) {
                 $errorBody = $response->getBody()->getContents();
+                $this->logger->error('Batch create media items failed', [
+                    'status' => $response->getStatusCode(),
+                    'body_preview' => \substr($errorBody, 0, 4096),
+                    'body_length' => \strlen($errorBody),
+                ]);
                 throw new \RuntimeException(\sprintf('Failed to batch create media items: %s %s', $response->getStatusCode(), $errorBody));
             }
 
@@ -300,6 +369,15 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             if (false === $data) {
                 throw new \RuntimeException('Invalid JSON response from API');
             }
+
+            // Optional: debug preview of Google response
+            $this->logger->debug('Batch create response preview', [
+                'has_newMediaItemResults' => isset($data['newMediaItemResults']),
+                'first_result' => isset($data['newMediaItemResults'][0]) ? \array_intersect_key(
+                    $data['newMediaItemResults'][0],
+                    ['uploadToken' => true, 'status' => true, 'mediaItem' => true]
+                ) : null,
+            ]);
 
             // Convert API response to our format
             $results = [];
@@ -344,8 +422,29 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                 );
             }
 
+            // Summary log
+            $successCount = 0;
+            foreach ($results as $r) {
+                if ($r->getStatus()->isSuccess()) {
+                    ++$successCount;
+                }
+            }
+            $this->logger->info('Batch create media items result', [
+                'status' => 200,
+                'total' => \count($results),
+                'success' => $successCount,
+                'failed' => \count($errors),
+                'failed_items' => \array_map(
+                    fn (Error $e): array => ['code' => $e->getCode(), 'message' => $e->getMessage(), 'domain' => $e->getDomain()],
+                    $errors
+                ),
+            ]);
+
             return new BatchCreateResponse($results, $errors);
         } catch (\JsonException $e) {
+            $this->logger->error('Failed to decode JSON response from Google Photos', [
+                'error' => $e->getMessage(),
+            ]);
             throw new \RuntimeException('Failed to decode JSON response: '.$e->getMessage(), 0, $e);
         }
     }

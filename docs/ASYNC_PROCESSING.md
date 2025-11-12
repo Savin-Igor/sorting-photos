@@ -69,7 +69,7 @@
 make up-worker
 
 # 2. В другом терминале запустить сканирование
-make run
+make scan
 
 # Worker автоматически обработает все сообщения из очереди
 ```
@@ -81,7 +81,7 @@ make run
 make up
 
 # 2. Запустить сканирование (сообщения попадут в очередь)
-make run
+make scan
 
 # 3. В другом терминале запустить worker
 make consume
@@ -136,7 +136,7 @@ make up-worker
 
 # 2. В другом терминале запустить сканирование
 # Сообщения будут автоматически обрабатываться worker'ом
-make run
+make scan
 
 # Для мониторинга очереди:
 make redis-cli
@@ -150,7 +150,7 @@ make redis-cli
 make up
 
 # 2. Запустить сканирование (сообщения попадут в очередь)
-make run
+make scan
 
 # 3. В другом терминале запустить 8 worker'ов для параллельной обработки
 make consume-workers WORKERS=8
@@ -166,7 +166,7 @@ make consume-workers WORKERS=8
 make up
 
 # 2. Запустить сканирование
-make run
+make scan
 
 # 3. В другом терминале запустить один worker
 make consume
@@ -186,7 +186,7 @@ ASYNC_MODE=false  # Отключить асинхронный режим (син
 
 Для переопределения при запуске:
 ```bash
-ASYNC_MODE=false make run
+ASYNC_MODE=false make scan
 ```
 
 ## 🔒 Защита от дубликатов и race conditions

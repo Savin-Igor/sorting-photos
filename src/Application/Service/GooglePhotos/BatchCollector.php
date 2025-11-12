@@ -14,8 +14,7 @@ use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort;
 final readonly class BatchCollector
 {
     private const int MAX_BATCH_SIZE = 50;
-    private const int MAX_BATCH_SIZE_BYTES = 1_000_000_000; // 1 GB for videos
-    private const int SMALL_FILE_THRESHOLD = 2 * 256 * 1024; // 512 KB - files smaller than this use raw upload in batches
+    private const int MAX_BATCH_SIZE_BYTES = 1_000_000_000; // 512 KB - files smaller than this use raw upload in batches
 
     public function __construct(
         private UploadJobRepositoryPort $jobRepository,
@@ -45,9 +44,8 @@ final readonly class BatchCollector
 
     /**
      * Collect batch of small files only (for raw upload).
-     *
-     * @deprecated Use collectBatch() instead - all files use raw upload now
      */
+    #[\Deprecated(message: 'Use collectBatch() instead - all files use raw upload now')]
     public function collectSmallFilesBatch(): ?UploadBatch
     {
         return $this->collectBatch();

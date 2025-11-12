@@ -1,0 +1,865 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Offset ''duplicate_files'' on array\{total_files\: int, unique_files\: int, duplicate_files\: int, duplicate_size\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: src/Application/Service/FileOrganizingService.php
+
+		-
+			message: '#^Offset ''duplicate_size'' on array\{total_files\: int, unique_files\: int, duplicate_files\: int, duplicate_size\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: src/Application/Service/FileOrganizingService.php
+
+		-
+			message: '#^Cannot call method getFilename\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Application/Service/GooglePhotos/BatchProcessor.php
+
+		-
+			message: '#^Cannot call method format\(\) on DateTimeImmutable\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Application/Service/GooglePhotos/UploadOrchestrator.php
+
+		-
+			message: '#^Parameter \#1 \$fullAccess of method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\CredentialsFactory\:\:getAuthorizationUrl\(\) expects bool, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/GooglePhotosAuthorizeCommand.php
+
+		-
+			message: '#^Parameter \#2 \$code of method SortingPhotosByDate\\Command\\GooglePhotosAuthorizeCommand\:\:handleCallback\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/GooglePhotosAuthorizeCommand.php
+
+		-
+			message: '#^Parameter \#3 \$fullAccess of method SortingPhotosByDate\\Command\\GooglePhotosAuthorizeCommand\:\:handleCallback\(\) expects bool, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/GooglePhotosAuthorizeCommand.php
+
+		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Binary operation "\." between mixed and '' / '' results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 2
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Binary operation "\." between mixed and ''%%'' results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Binary operation "\." between non\-falsy\-string and mixed results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 3
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Binary operation "/" between mixed and mixed results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Cannot cast mixed to float\.$#'
+			identifier: cast.double
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 20
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#1 \$array of function array_slice expects array, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#1 \$bytes of method SortingPhotosByDate\\Command\\GooglePhotosDumpStateCommand\:\:formatBytes\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 6
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(mixed\)\: mixed\)\|null, Closure\(array\)\: array\{mixed, mixed, mixed, mixed\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(mixed\)\: mixed\)\|null, Closure\(array\)\: array\{mixed, mixed, string, string\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(mixed\)\: mixed\)\|null, Closure\(array\)\: array\{mixed, mixed\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(mixed\)\: mixed\)\|null, Closure\(array\)\: array\{non\-falsy\-string, mixed, non\-falsy\-string, string, mixed, mixed\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(mixed\)\: mixed\)\|null, Closure\(array\)\: array\{string, string, mixed, non\-falsy\-string, mixed\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#1 \$messages of method Symfony\\Component\\Console\\Output\\OutputInterface\:\:writeln\(\) expects iterable\|string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#1 \$value of function count expects array\|Countable, mixed given\.$#'
+			identifier: argument.type
+			count: 4
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#2 \$array of function array_map expects array, mixed given\.$#'
+			identifier: argument.type
+			count: 3
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Parameter \#2 \.\.\.\$values of function sprintf expects bool\|float\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Possibly invalid array key type float\|int\.$#'
+			identifier: offsetAccess.invalidOffset
+			count: 1
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Possibly invalid array key type mixed\.$#'
+			identifier: offsetAccess.invalidOffset
+			count: 3
+			path: src/Command/GooglePhotosDumpStateCommand.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 3
+			path: src/Command/GooglePhotosResetCommand.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 2
+			path: src/Command/GooglePhotosStatusCommand.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Command\\GooglePhotosStatusCommand\:\:getRecentJobs\(\) should return array\<int, array\{file_path\: string, file_size\: int, state\: string, updated_at\: string\}\> but returns list\<array\<string, mixed\>\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Command/GooglePhotosStatusCommand.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Command\\GooglePhotosStatusCommand\:\:getStatistics\(\) should return array\{pending\: int, uploading\: int, uploaded\: int, in_batch\: int, completed\: int, paused\: int, failed\: int, total\: int\} but returns non\-empty\-array\<int\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Command/GooglePhotosStatusCommand.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Command\\GooglePhotosStatusCommand\:\:getUploadingJobs\(\) should return array\<int, array\{file_path\: string, file_size\: int, uploaded_bytes\: int, state\: string\}\> but returns list\<array\<string, mixed\>\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Command/GooglePhotosStatusCommand.php
+
+		-
+			message: '#^Possibly invalid array key type float\|int\.$#'
+			identifier: offsetAccess.invalidOffset
+			count: 1
+			path: src/Command/GooglePhotosStatusCommand.php
+
+		-
+			message: '#^Possibly invalid array key type mixed\.$#'
+			identifier: offsetAccess.invalidOffset
+			count: 2
+			path: src/Command/GooglePhotosStatusCommand.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 1
+			path: src/Command/GooglePhotosTestCommand.php
+
+		-
+			message: '#^Binary operation "\." between ''Destination…'' and mixed results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 2
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Binary operation "\." between ''Source Directory …'' and mixed results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 2
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Offset ''already_processed'' on array\{total\: int\<1, max\>, processed\: int, skipped\: int\<1, max\>, duplicates\: int, already_processed\: int, errors\: int\} in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Offset ''duplicates'' on array\{total\: int\<1, max\>, processed\: int, skipped\: int\<1, max\>, duplicates\: int, already_processed\: int, errors\: int\} in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Parameter \#1 \$filename of function is_dir expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Parameter \#1 \$path of class SortingPhotosByDate\\Domain\\ValueObjects\\FilePath constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Parameter \#1 \$sourceDirectory of method SortingPhotosByDate\\Application\\Service\\FileOrganizingService\:\:organize\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Parameter \#2 \$destinationDirectory of method SortingPhotosByDate\\Application\\Service\\FileOrganizingService\:\:organize\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Parameter \#2 \.\.\.\$values of function sprintf expects bool\|float\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 5
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Parameter \#3 \$dryRun of method SortingPhotosByDate\\Application\\Service\\FileOrganizingService\:\:organize\(\) expects bool, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Property SortingPhotosByDate\\Command\\OrganizeFilesCommand\:\:\$repository is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: src/Command/OrganizeFilesCommand.php
+
+		-
+			message: '#^Binary operation "\." between mixed and ''/''\|''\\\\'' results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 2
+			path: src/Command/TestCompressionCommand.php
+
+		-
+			message: '#^Cannot call method getPathname\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Command/TestCompressionCommand.php
+
+		-
+			message: '#^Cannot call method isFile\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Command/TestCompressionCommand.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Command\\TestCompressionCommand\:\:findFiles\(\) should return array\<string\> but returns list\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Command/TestCompressionCommand.php
+
+		-
+			message: '#^Parameter \#1 \$directory of function mkdir expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/TestCompressionCommand.php
+
+		-
+			message: '#^Parameter \#1 \$directory of method SortingPhotosByDate\\Command\\TestCompressionCommand\:\:findFiles\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/TestCompressionCommand.php
+
+		-
+			message: '#^Parameter \#1 \$filename of function is_dir expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Command/TestCompressionCommand.php
+
+		-
+			message: '#^Parameter \#2 \$recursive of method SortingPhotosByDate\\Command\\TestCompressionCommand\:\:findFiles\(\) expects bool, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Command/TestCompressionCommand.php
+
+		-
+			message: '#^Parameter \#2 \.\.\.\$values of function sprintf expects bool\|float\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 4
+			path: src/Command/TestCompressionCommand.php
+
+		-
+			message: '#^Possibly invalid array key type float\|int\.$#'
+			identifier: offsetAccess.invalidOffset
+			count: 1
+			path: src/Command/TestCompressionCommand.php
+
+		-
+			message: '#^Parameter \#1 \$sourcePath of method SortingPhotosByDate\\Application\\Service\\GooglePhotos\\FileScanner\:\:scanAndCreateJobs\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Command/UploadToGooglePhotosCommand.php
+
+		-
+			message: '#^Parameter \#2 \.\.\.\$values of function sprintf expects bool\|float\|int\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Command/UploadToGooglePhotosCommand.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between '''' and mixed~\(0\|0\.0\|''''\|''0''\|array\{\}\|false\|null\) will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: src/Command/UploadToGooglePhotosCommand.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between '''' and mixed~\(0\|0\.0\|''''\|''0''\|array\{\}\|false\|null\) will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: src/Command/UploadToGooglePhotosCommand.php
+
+		-
+			message: '#^Comparison operation "\<\=" between int\<1, max\> and 0 is always false\.$#'
+			identifier: smallerOrEqual.alwaysFalse
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/ResumableSession.php
+
+		-
+			message: '#^Cannot call method markFailed\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Cannot call method markProcessed\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 2
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:__construct\(\) has parameter \$items with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:allItemsProcessed\(\) has parameter \$items with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:create\(\) has parameter \$items with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:getFailedItems\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:getItems\(\) should return array\<SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\BatchItem\> but returns array\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:getItemsToProcess\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(mixed\)\: mixed\)\|null, Closure\(SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\BatchItem\)\: int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Parameter \#1 \$id of static method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatchId\:\:fromString\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Parameter \#1 \$value of static method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\BatchState\:\:from\(\) expects int\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Parameter \#2 \$callback of function array_filter expects \(callable\(mixed\)\: bool\)\|null, Closure\(SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\BatchItem\)\: bool given\.$#'
+			identifier: argument.type
+			count: 3
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Parameter \#2 \$datetime of static method DateTimeImmutable\:\:createFromFormat\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 5
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Parameter \$completedAt of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch constructor expects DateTimeImmutable\|null, DateTimeImmutable\|false\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Parameter \$errorMessage of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch constructor expects string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Parameter \$quotaResetTime of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch constructor expects DateTimeImmutable\|null, DateTimeImmutable\|false\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Parameter \$startedAt of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch constructor expects DateTimeImmutable\|null, DateTimeImmutable\|false\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 6
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Parameter \#1 \$hash of class SortingPhotosByDate\\Domain\\ValueObjects\\FileHash constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Parameter \#1 \$id of static method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatchId\:\:fromString\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Parameter \#1 \$id of static method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadJobId\:\:fromString\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Parameter \#1 \$path of class SortingPhotosByDate\\Domain\\ValueObjects\\FilePath constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Parameter \#1 \$value of static method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadState\:\:from\(\) expects int\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Parameter \#2 \$datetime of static method DateTimeImmutable\:\:createFromFormat\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 3
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Parameter \$lastError of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadJob constructor expects string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Parameter \$mimeType of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadJob constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Parameter \$sessionUri of static method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\ResumableSession\:\:create\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Parameter \$uploadToken of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadJob constructor expects string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadJob.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadState\:\:getNextValidStates\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Domain/Storage/GooglePhotos/UploadState.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/CredentialsFactory.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\CredentialsFactory\:\:exchangeCodeForTokens\(\) should return array\{access_token\: string, refresh_token\: string, expires_in\: int\} but returns array\{access_token\: mixed, refresh_token\: mixed, expires_in\: int\}\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/CredentialsFactory.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\CredentialsFactory\:\:loadCredentials\(\) should return array\<string, mixed\> but returns mixed\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/CredentialsFactory.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\DatabaseUploadBatchRepository\:\:findPausedReadyToResume\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\DatabaseUploadBatchRepository\:\:hydrate\(\) has parameter \$row with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\DatabaseUploadBatchRepository\:\:resetStaleProcessingBatches\(\) should return int but returns int\|string\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(mixed\)\: mixed\)\|null, Closure\(array\)\: SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\BatchItem given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:fromArray\(\) expects array\<string, mixed\>, array given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Parameter \#1 \$id of static method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadJobId\:\:fromString\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Parameter \#2 \$array of function array_map expects array, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Parameter \#2 \$datetime of static method DateTimeImmutable\:\:createFromFormat\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Parameter \$error of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\BatchItem constructor expects string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Parameter \$filename of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\BatchItem constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Parameter \$mimeType of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\BatchItem constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Parameter \$uploadToken of class SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\BatchItem constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\DatabaseUploadJobRepository\:\:hydrate\(\) has parameter \$row with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadJobRepository.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadJob\:\:fromArray\(\) expects array\<string, mixed\>, array given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadJobRepository.php
+
+		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 4
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\GooglePhotosApiClient\:\:completeUpload\(\) should return string but returns mixed\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\GooglePhotosApiClient\:\:listAlbums\(\) should return array\{albums\: array\<array\{id\: string, title\: string, productUrl\: string\}\>, nextPageToken\: string\|null\} but returns array\{albums\: list\<array\{id\: mixed, title\: mixed, productUrl\: mixed\}\>, nextPageToken\: mixed\}\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\GooglePhotosApiClient\:\:listMediaItems\(\) should return array\{mediaItems\: array\<SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\MediaItem\>, nextPageToken\: string\|null\} but returns array\{mediaItems\: list\<SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\MediaItem\>, nextPageToken\: mixed\}\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$uploadToken of static method SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\UploadStatus\:\:complete\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$code of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\Error constructor expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$code of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\Status constructor expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$domain of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\Error constructor expects string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$id of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\MediaItem constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$message of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\Error constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$message of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\Status constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$productUrl of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\MediaItem constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$uploadToken of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\NewMediaItemResult constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/GooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$width of function imagecreatetruecolor expects int\<1, max\>, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/ImageCompressor.php
+
+		-
+			message: '#^Parameter \#2 \$height of function imagecreatetruecolor expects int\<1, max\>, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/ImageCompressor.php
+
+		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 2
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Cannot call method getId\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Cannot call method getProductUrl\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Cannot call method getTitle\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\OfficialGooglePhotosApiClient\:\:createLibraryCredentials\(\) should return Google\\Auth\\Credentials\\UserRefreshCredentials but returns Google\\Auth\\Credentials\\UserRefreshCredentials\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\OfficialGooglePhotosApiClient\:\:listAlbums\(\) should return array\{albums\: array\<array\{id\: string, title\: string, productUrl\: string\}\>, nextPageToken\: string\|null\} but returns array\{albums\: list\<array\{id\: mixed, title\: mixed, productUrl\: mixed\}\>, nextPageToken\: non\-empty\-string\|null\}\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$array of function array_intersect_key expects array, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$id of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\MediaItem constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \#1 \$uploadToken of static method SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\UploadStatus\:\:complete\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \#2 \$productUrl of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\MediaItem constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$code of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\Error constructor expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$code of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\Status constructor expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$domain of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\Error constructor expects string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$id of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\MediaItem constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$message of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\Error constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$message of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\Status constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$productUrl of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\MediaItem constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Parameter \$uploadToken of class SortingPhotosByDate\\Ports\\Storage\\GooglePhotos\\NewMediaItemResult constructor expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/OfficialGooglePhotosApiClient.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\TokenManager\:\:getValidAccessToken\(\) should return string but returns mixed\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/TokenManager.php
+
+		-
+			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\TokenStorage\:\:getRefreshToken\(\) should return string\|null but returns mixed\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Storage/GooglePhotos/TokenStorage.php

@@ -352,29 +352,40 @@ make google-photos-authorize
 
 ## ⚙️ Конфигурация приложения
 
-### 📄 Переменные окружения
+### 📄 Настройки в parameters.yaml
 
-```bash
-# Пути к файлам
-GOOGLE_PHOTOS_CREDENTIALS_PATH=/var/www/html/config/credentials/credentials.json
-GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST=/host/path/to/credentials
+Основные параметры конфигурации задаются в `config/parameters.yaml`:
 
-# Настройки API
-GOOGLE_PHOTOS_ALBUM_ID=your_album_id
-GOOGLE_PHOTOS_FULL_ACCESS=false
+```yaml
+# Путь к credentials
+app.google_photos.credentials_path: 'config/credentials/credentials.json'
+# ID альбома (опционально)
+app.google_photos.album_id: null
+# Полный доступ (создание альбомов и т.п.)
+app.google_photos.full_access: false
 
 # Настройки загрузки
-UPLOAD_CHUNK_SIZE=262144
-UPLOAD_MAX_RETRIES=3
-UPLOAD_RETRY_DELAY=1000
+google_photos.upload.chunk_size: 262144
+google_photos.upload.max_retries: 3
+google_photos.upload.retry_delay: 1000
 
-# Batch настройки
-BATCH_SIZE=50
-BATCH_MAX_WAIT_TIME=30000
+# Параметры batch
+google_photos.batch.size: 50
+google_photos.batch.timeout: 30
 
 # Квоты
-QUOTA_DAILY_UPLOAD_LIMIT=10737418240  # 10 GB
-QUOTA_HOURLY_UPLOAD_LIMIT=1073741824   # 1 GB
+google_photos.quota.daily_upload: '1000GB'
+google_photos.quota.hourly_upload: '100GB'
+google_photos.quota.requests_per_minute: 60
+google_photos.quota.burst_limit: 100
+```
+
+Также можно указать путь к credentials через переменную окружения:
+
+```bash
+GOOGLE_PHOTOS_CREDENTIALS_PATH=/var/www/html/config/credentials/credentials.json
+# Для проброса директории с хоста (в Docker):
+GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST=/absolute/host/path/to/credentials
 ```
 
 ### 📊 Конфигурация квот

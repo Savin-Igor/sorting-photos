@@ -57,7 +57,7 @@ final class GooglePhotosDumpStateCommand extends Command
     private function collectState(int $limit): array
     {
         return [
-            'timestamp' => (new \DateTimeImmutable())->format('c'),
+            'timestamp' => new \DateTimeImmutable()->format('c'),
             'statistics' => $this->getStatistics(),
             'upload_jobs' => $this->getUploadJobs($limit),
             'upload_batches' => $this->getUploadBatches(),
@@ -149,7 +149,7 @@ final class GooglePhotosDumpStateCommand extends Command
             fn (array $row): array => [
                 'id' => $row['id'],
                 'file_path' => $row['file_path'],
-                'file_name' => \basename($row['file_path']),
+                'file_name' => \basename((string) $row['file_path']),
                 'file_size' => (int) $row['file_size'],
                 'file_hash' => $row['file_hash'],
                 'mime_type' => $row['mime_type'],
@@ -308,7 +308,7 @@ final class GooglePhotosDumpStateCommand extends Command
         return \array_map(
             fn (array $row): array => [
                 'file_path' => $row['file_path'],
-                'file_name' => \basename($row['file_path']),
+                'file_name' => \basename((string) $row['file_path']),
                 'file_size' => (int) $row['file_size'],
                 'file_hash' => $row['file_hash'],
                 'mime_type' => $row['mime_type'],
@@ -409,7 +409,7 @@ final class GooglePhotosDumpStateCommand extends Command
                 ['ID', 'State', 'Items', 'Size', 'Error', 'Created'],
                 \array_map(
                     fn (array $batch): array => [
-                        \substr($batch['id'], 0, 8).'...',
+                        \substr((string) $batch['id'], 0, 8).'...',
                         $batch['state'],
                         $batch['current_index'].' / '.$batch['total_items'],
                         $this->formatBytes($batch['total_size']),
@@ -434,7 +434,7 @@ final class GooglePhotosDumpStateCommand extends Command
                 ['File', 'Size', 'State', 'Progress', 'Updated'],
                 \array_map(
                     fn (array $job): array => [
-                        \substr($job['file_name'], 0, 40),
+                        \substr((string) $job['file_name'], 0, 40),
                         $this->formatBytes($job['file_size']),
                         $job['state'],
                         'uploading' === $job['state'] ? $job['upload_progress_percent'].'%' : '-',

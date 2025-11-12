@@ -13,6 +13,25 @@ final class UploadOrchestrator
 {
     private bool $shouldStop = false;
     private ?\Closure $heartbeatCallback = null;
+    private ?\DateTimeImmutable $uploadBackoffUntil = null;
+    private ?\DateTimeImmutable $batchBackoffUntil = null;
+
+    /**
+     * Read minimal batch size from env (GOOGLE_PHOTOS_BATCH_MIN_SIZE), default 40.
+     * Clamped to [1, 50].
+     */
+    private function getMinBatchSize(): int
+    {
+        $value = getenv('GOOGLE_PHOTOS_BATCH_MIN_SIZE') ?: ($_ENV['GOOGLE_PHOTOS_BATCH_MIN_SIZE'] ?? null);
+        $min = \is_numeric($value) ? (int) $value : 40;
+        if ($min < 1) {
+            $min = 1;
+        } elseif ($min > 50) {
+            $min = 50;
+        }
+
+        return $min;
+    }
 
     public function __construct(
         private readonly DistributedLockManager $lockManager,
@@ -59,6 +78,7 @@ final class UploadOrchestrator
             while (!$this->shouldStop) {
                 ++$loopIteration;
                 $this->logger->debug(\sprintf('Orchestrator loop iteration %d', $loopIteration));
+                $now = new \DateTimeImmutable();
                 try {
                     // Refresh lock every 5 minutes
                     if (\time() - $lastHeartbeat > 300) {
@@ -69,26 +89,36 @@ final class UploadOrchestrator
                     // 5.1. Check quota
                     if (!$this->quotaManager->isQuotaAvailable()) {
                         $resetTime = $this->quotaManager->getResetTime();
-                        $this->logger->info('Quota exhausted, scheduling resume', [
+                        $this->logger->warning('Quota exhausted, scheduling resume', [
                             'reset_time' => $resetTime->format('Y-m-d H:i:s'),
                         ]);
                         break;
                     }
 
                     // 5.2. Priority 1: Incomplete batches
-                    $batch = $this->batchRepository->findProcessingOrPaused();
-                    if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
-                        // Skip if batch is already completed
-                        if ($batch->getState()->value === \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::COMPLETED->value) {
-                            continue;
+                    $batchBackoffActive = $this->batchBackoffUntil instanceof \DateTimeImmutable && $now < $this->batchBackoffUntil;
+                    if (!$batchBackoffActive) {
+                        $batch = $this->batchRepository->findProcessingOrPaused();
+                        if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
+                            // Skip if batch is already completed
+                            if ($batch->getState()->value === \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::COMPLETED->value) {
+                                continue;
+                            }
+                            $this->logger->debug('Processing incomplete batch', ['batch_id' => $batch->getId()]);
+                            try {
+                                $this->batchProcessor->processBatch($batch);
+                                continue;
+                            } catch (QuotaExceededException $e) {
+                                $this->batchBackoffUntil = $e->getResetTime();
+                                $this->logger->warning('Batch processing paused due to quota (incomplete batch)', [
+                                    'reset_time' => $this->batchBackoffUntil->format('Y-m-d H:i:s'),
+                                ]);
+                            }
                         }
-                        $this->logger->debug('Processing incomplete batch', ['batch_id' => $batch->getId()]);
-                        try {
-                            $this->batchProcessor->processBatch($batch);
-                            continue;
-                        } catch (QuotaExceededException) {
-                            break;
-                        }
+                    } else {
+                        $this->logger->debug('Skipping incomplete batch due to backoff', [
+                            'resume_at' => $this->batchBackoffUntil->format('Y-m-d H:i:s'),
+                        ]);
                     }
 
                     // 5.3. Priority 2: Upload next file (using raw upload for all files)
@@ -96,7 +126,7 @@ final class UploadOrchestrator
                     $this->logger->debug('Looking for pending or resumable jobs to upload');
                     $job = $this->jobRepository->findNextPendingOrResumable();
                     if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
-                        $this->logger->info('Processing file', [
+                        $this->logger->info('Uploading file', [
                             'job_id' => $job->getId(),
                             'file_path' => $job->getFilePath(),
                             'file_size' => $job->getFileSize(),
@@ -107,9 +137,45 @@ final class UploadOrchestrator
                             $this->logger->info('File upload completed', [
                                 'job_id' => $job->getId(),
                             ]);
+
+                            // Opportunistic batch collection right after a successful upload:
+                            // collect only when enough ready items accumulated (threshold), to avoid tiny batches.
+                            try {
+                                $minBatchSize = $this->getMinBatchSize();
+                                $ready = $this->jobRepository->findReadyForBatch(50);
+                                $readyCount = \count($ready);
+                                if ($readyCount >= $minBatchSize) {
+                                    $collected = $this->batchCollector->collectBatch();
+                                    if ($collected instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
+                                        $this->logger->debug('Collected batch after upload', [
+                                            'batch_id' => $collected->getId()->getId(),
+                                            'ready_count' => $readyCount,
+                                            'min_batch_size' => $minBatchSize,
+                                        ]);
+                                        try {
+                                            $this->batchProcessor->processBatch($collected);
+                                        } catch (QuotaExceededException) {
+                                            // If quota exhausted during batch, break outer loop to reschedule
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    $this->logger->debug('Skipping batch collection (not enough ready items yet)', [
+                                        'ready_count' => $readyCount,
+                                        'min_batch_size' => $minBatchSize,
+                                    ]);
+                                }
+                            } catch (\Exception $e) {
+                                $this->logger->warning('Batch collection after upload failed', [
+                                    'error' => $e->getMessage(),
+                                ]);
+                            }
                             continue; // Continue to upload next file
-                        } catch (QuotaExceededException) {
-                            break;
+                        } catch (QuotaExceededException $e) {
+                            $this->uploadBackoffUntil = $e->getResetTime();
+                            $this->logger->warning('Upload paused due to quota', [
+                                'reset_time' => $this->uploadBackoffUntil->format('Y-m-d H:i:s'),
+                            ]);
                         }
                     } else {
                         $this->logger->debug('No pending or resumable jobs found for upload');
@@ -117,22 +183,31 @@ final class UploadOrchestrator
 
                     // 5.4. Priority 3: Collect new batch of uploaded files
                     // Only collect batches when there are no more files to upload
-                    $this->logger->debug('Checking for uploaded files to collect into batch');
-                    $batch = $this->batchCollector->collectBatch();
-                    if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
-                        $this->logger->info('Collected new batch', ['batch_id' => $batch->getId()]);
-                        try {
-                            $this->batchProcessor->processBatch($batch);
-                            continue;
-                        } catch (QuotaExceededException) {
-                            break;
+                    if (!($this->batchBackoffUntil instanceof \DateTimeImmutable && $now < $this->batchBackoffUntil)) {
+                        $this->logger->debug('Checking for uploaded files to collect into batch');
+                        $batch = $this->batchCollector->collectBatch();
+                        if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
+                            $this->logger->debug('Collected new batch', ['batch_id' => $batch->getId()]);
+                            try {
+                                $this->batchProcessor->processBatch($batch);
+                                continue;
+                            } catch (QuotaExceededException $e) {
+                                $this->batchBackoffUntil = $e->getResetTime();
+                                $this->logger->warning('Batch processing paused due to quota (final collect)', [
+                                    'reset_time' => $this->batchBackoffUntil->format('Y-m-d H:i:s'),
+                                ]);
+                            }
+                        } else {
+                            $this->logger->debug('No uploaded files found to collect into batch');
                         }
                     } else {
-                        $this->logger->debug('No uploaded files found to collect into batch');
+                        $this->logger->debug('Skipping final batch collection due to backoff', [
+                            'resume_at' => $this->batchBackoffUntil->format('Y-m-d H:i:s'),
+                        ]);
                     }
 
                     // 5.5. No work
-                    $this->logger->info('No more work to do');
+                    $this->logger->debug('No more work to do');
                     break;
                 } catch (\Exception $e) {
                     $errorDetails = \sprintf(

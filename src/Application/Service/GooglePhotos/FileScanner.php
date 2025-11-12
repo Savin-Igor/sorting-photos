@@ -32,10 +32,13 @@ final readonly class FileScanner
                 $hash = FileHash::fromFile($filePath->getPath());
                 $existingJob = $this->jobRepository->findByHash($hash);
 
-                if ($existingJob instanceof UploadJob && 'completed' === $existingJob->getState()->value) {
-                    $this->logger->debug('File already uploaded, skipping', [
+                // Skip creating a new job if one already exists for the same content (any state).
+                if ($existingJob instanceof UploadJob) {
+                    $this->logger->info('Duplicate detected during scan: job already exists, skipping', [
                         'file_path' => $filePath->getPath(),
                         'hash' => $hash->getHash(),
+                        'existing_state' => $existingJob->getState()->value,
+                        'existing_job_id' => $existingJob->getId()->getId(),
                     ]);
                     ++$skippedCount;
                     continue;
