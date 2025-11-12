@@ -65,28 +65,39 @@ final readonly class BatchCollector
         $hasVideo = false;
 
         foreach ($readyJobs as $job) {
-            $batchItem = BatchItem::fromJob($job);
-            $items[] = $batchItem;
-            $totalSize += $job->getFileSize();
+            $proposedTotalSize = $totalSize + $job->getFileSize();
+            $wouldHaveVideo = $hasVideo || $job->isVideo();
 
-            if ($job->isVideo()) {
-                $hasVideo = true;
-            }
-
-            // Check constraints
-            if ($hasVideo && $totalSize > self::MAX_BATCH_SIZE_BYTES) {
-                // Size limit exceeded for videos
-                \array_pop($items); // Remove last item
+            // Check constraints BEFORE adding item
+            // If adding this item would exceed size limit for videos, stop here
+            if ($wouldHaveVideo && $proposedTotalSize > self::MAX_BATCH_SIZE_BYTES) {
+                // Size limit would be exceeded - stop adding items
+                // But keep what we have so far (if any)
                 break;
             }
 
+            // Check file count limit
             if (\count($items) >= self::MAX_BATCH_SIZE) {
                 // Maximum 50 files
                 break;
             }
+
+            // Safe to add this item
+            $batchItem = BatchItem::fromJob($job);
+            $items[] = $batchItem;
+            $totalSize = $proposedTotalSize;
+
+            if ($job->isVideo()) {
+                $hasVideo = true;
+            }
         }
 
         if ([] === $items) {
+            $this->logger->debug('Cannot create batch: no items fit within constraints', [
+                'ready_jobs_count' => \count($readyJobs),
+                'max_batch_size_bytes' => self::MAX_BATCH_SIZE_BYTES,
+            ]);
+
             return null;
         }
 

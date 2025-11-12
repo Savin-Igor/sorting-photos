@@ -200,6 +200,7 @@ services:
             $metadataAnalyzer: '@SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface'
             $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
             $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
 
     # ============================================
     # Organizer Policy Configuration
@@ -317,6 +318,7 @@ services:
         public: true
     
     SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\OfficialGooglePhotosApiClient:
+        lazy: true
         arguments:
             $httpClient: '@Psr\Http\Client\ClientInterface'
             $requestFactory: '@Psr\Http\Message\RequestFactoryInterface'

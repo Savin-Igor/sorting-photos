@@ -161,6 +161,11 @@ final class UploadOrchestrator
                                             // If quota exhausted during batch, break outer loop to reschedule
                                             break;
                                         }
+                                    } else {
+                                        $this->logger->debug('Batch collection returned null (constraints not met)', [
+                                            'ready_count' => $readyCount,
+                                            'min_batch_size' => $minBatchSize,
+                                        ]);
                                     }
                                 } else {
                                     $this->logger->debug('Skipping batch collection (not enough ready items yet)', [

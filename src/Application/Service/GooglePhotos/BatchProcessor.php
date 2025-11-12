@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Application\Service\GooglePhotos;
 
+use Carbon\Carbon;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\QuotaExceededException;
 use SortingPhotosByDate\Domain\Event\BatchCompleted;
 use SortingPhotosByDate\Domain\Event\UploadCompleted;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchItem;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch;
+use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchItemRequest;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\GooglePhotosApiClientPort;
@@ -27,6 +29,7 @@ final readonly class BatchProcessor
         private QuotaManager $quotaManager,
         private MessageBusInterface $messageBus,
         private LoggerPort $logger,
+        private FilenameDateExtractor $filenameDateExtractor,
         private ?string $albumId = null,
     ) {
     }
@@ -93,6 +96,47 @@ final readonly class BatchProcessor
                 $requests = [];
                 /** @var BatchItem $item */
                 foreach ($chunk as $item) {
+                    // Check if date was extracted from filename before sending to Google Photos
+                    $job = $this->jobRepository->findById($item->getJobId());
+                    if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
+                        $filePath = $job->getFilePath()->getPath();
+                        $filenameDate = $this->filenameDateExtractor->extract($filePath);
+                        if ($filenameDate instanceof Carbon) {
+                            $creationTime = $item->getCreationTime();
+                            $creationTimeCarbon = Carbon::instance($creationTime);
+
+                            // Compare dates: check if dates match (considering different formats)
+                            // Some filename formats only have date without time (00:00:00), so we compare:
+                            // 1. If filename date has time (not 00:00:00), compare with full precision (within 1 second)
+                            // 2. If filename date has no time (00:00:00), compare only date part (year, month, day)
+                            $filenameHasTime = !(0 === $filenameDate->hour && 0 === $filenameDate->minute && 0 === $filenameDate->second);
+
+                            $datesMatch = false;
+                            if ($filenameHasTime) {
+                                // Full date-time comparison (allow 1 second difference)
+                                $dateDiff = abs($creationTimeCarbon->diffInSeconds($filenameDate));
+                                $datesMatch = $dateDiff <= 1;
+                            } else {
+                                // Date-only comparison (compare year, month, day)
+                                $datesMatch = $creationTimeCarbon->year === $filenameDate->year
+                                    && $creationTimeCarbon->month === $filenameDate->month
+                                    && $creationTimeCarbon->day === $filenameDate->day;
+                            }
+
+                            if ($datesMatch) {
+                                // Date matches filename date
+                                $this->logger->info('Date extracted from filename before sending to Google Photos', [
+                                    'file_path' => $filePath,
+                                    'is_video' => $item->isVideo(),
+                                    'creation_time' => $creationTime->format('Y-m-d H:i:s'),
+                                    'filename_date' => $filenameDate->format('Y-m-d H:i:s'),
+                                    'date_only_match' => !$filenameHasTime,
+                                    'source' => 'filename',
+                                ]);
+                            }
+                        }
+                    }
+
                     $requests[] = new BatchItemRequest(
                         uploadToken: $item->getUploadToken(),
                         creationTime: $item->getCreationTime(),
@@ -240,10 +284,14 @@ final readonly class BatchProcessor
             $job = $this->jobRepository->findById($batchItem->getJobId());
 
             if (!$job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
-                $this->logger->error('Job not found for batch item', [
+                $this->logger->error('Job not found for batch item - marking item as failed', [
                     'job_id' => $batchItem->getJobId()->getId(),
                     'batch_id' => $batch->getId()->getId(),
+                    'filename' => $batchItem->getFilename(),
                 ]);
+                // Mark batch item as failed so batch can complete
+                $batch = $batch->markItemFailed($globalIndex, 'Job not found in database (may have been deleted)');
+                $this->batchRepository->save($batch);
                 continue;
             }
 
@@ -258,9 +306,36 @@ final readonly class BatchProcessor
                 }
 
                 // Only mark as completed if not already completed
+                // Ensure proper state transition: UPLOADED -> IN_BATCH -> COMPLETED
                 if ('completed' !== $job->getState()->value) {
-                    $job = $job->markCompleted();
-                    $this->jobRepository->save($job);
+                    // If job is UPLOADED but not yet IN_BATCH, transition to IN_BATCH first
+                    if ('uploaded' === $job->getState()->value) {
+                        if (!$job->getBatchId() instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatchId) {
+                            $job = $job->assignToBatch($batch->getId());
+                            $this->jobRepository->save($job);
+                        } elseif ($job->getBatchId()->getId() !== $batch->getId()->getId()) {
+                            // Job belongs to different batch - this shouldn't happen, but handle gracefully
+                            $this->logger->warning('Job belongs to different batch', [
+                                'job_id' => $job->getId()->getId(),
+                                'job_batch_id' => $job->getBatchId()->getId(),
+                                'current_batch_id' => $batch->getId()->getId(),
+                            ]);
+                            continue;
+                        }
+                    }
+                    // Now mark as completed (only valid from IN_BATCH state)
+                    // Check that job is in IN_BATCH state and belongs to this batch
+                    if ('in_batch' === $job->getState()->value && $job->getBatchId()?->getId() === $batch->getId()->getId()) {
+                        $job = $job->markCompleted();
+                        $this->jobRepository->save($job);
+                    } elseif ('completed' !== $job->getState()->value) {
+                        $this->logger->warning('Cannot mark job as completed from current state', [
+                            'job_id' => $job->getId()->getId(),
+                            'current_state' => $job->getState()->value,
+                            'job_batch_id' => $job->getBatchId()?->getId(),
+                            'batch_id' => $batch->getId()->getId(),
+                        ]);
+                    }
                 }
 
                 // CRITICAL: Update batch object after marking item as processed
@@ -302,19 +377,31 @@ final readonly class BatchProcessor
         int $index,
     ): UploadBatch {
         $code = $status->getCode();
+        $message = $status->getMessage();
+
+        // Log error details for debugging
+        $this->logger->warning('Item error detected', [
+            'job_id' => $job->getId()->getId(),
+            'code' => $code,
+            'message' => $message,
+            'file_path' => $job->getFilePath()->getPath(),
+            'upload_token' => $item->getUploadToken(),
+            'file_size' => $job->getFileSize(),
+            'mime_type' => $job->getMimeType(),
+        ]);
 
         return match (true) {
-            // Temporary errors - mark for retry
-            \in_array($code, [500, 503], true) => $this->markForRetry($job, $batch, $index),
+            // Temporary errors - mark for retry (including code 3 - INTERNAL_ERROR)
+            \in_array($code, [3, 500, 503], true) => $this->markForRetry($job, $batch, $index),
 
             // Quota
-            429 === $code => $this->pauseForQuota($batch, $index, $status->getMessage()),
+            429 === $code => $this->pauseForQuota($batch, $index, $message),
 
             // Token errors - re-upload file
             \in_array($code, [400, 404], true) => $this->markTokenInvalid($job, $item, $batch, $index),
 
             // Critical errors
-            default => $this->markAsFailed($job, $status->getMessage(), $batch, $index),
+            default => $this->markAsFailed($job, $message, $batch, $index),
         };
     }
 

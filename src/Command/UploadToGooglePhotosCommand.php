@@ -127,7 +127,16 @@ final class UploadToGooglePhotosCommand extends Command
                     $lockInfo['expires_at']
                 ));
 
-                if (!$input->getOption('no-interactive') && $input->isInteractive()) {
+                // Handle --force flag for active processes
+                if ($input->getOption('force')) {
+                    if ($this->lockManager->forceReleaseLock($lockName)) {
+                        $io->success('Lock released');
+                    } else {
+                        $io->error('Failed to release lock');
+
+                        return Command::FAILURE;
+                    }
+                } elseif (!$input->getOption('no-interactive') && $input->isInteractive()) {
                     $question = new ChoiceQuestion(
                         'What would you like to do?',
                         [
