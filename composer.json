@@ -40,6 +40,7 @@
         "symfony/yaml": "^7.0"
     },
     "require-dev": {
+        "dg/bypass-finals": "^1.5",
         "ergebnis/composer-normalize": "^2.47",
         "friendsofphp/php-cs-fixer": "^3.60",
         "phpro/grumphp": "^2.0",
