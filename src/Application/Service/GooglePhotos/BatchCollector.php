@@ -69,11 +69,18 @@ final readonly class BatchCollector
             $wouldHaveVideo = $hasVideo || $job->isVideo();
 
             // Check constraints BEFORE adding item
-            // If adding this item would exceed size limit for videos, stop here
+            // If adding this item would exceed size limit for videos, skip this item and continue
             if ($wouldHaveVideo && $proposedTotalSize > self::MAX_BATCH_SIZE_BYTES) {
-                // Size limit would be exceeded - stop adding items
-                // But keep what we have so far (if any)
-                break;
+                // Size limit would be exceeded - skip this item and continue to next
+                // This allows creating batches from smaller files even if some large files don't fit
+                $this->logger->debug('Skipping file that exceeds batch size limit', [
+                    'file_path' => $job->getFilePath()->getPath(),
+                    'file_size' => $job->getFileSize(),
+                    'current_batch_size' => $totalSize,
+                    'would_be_size' => $proposedTotalSize,
+                    'max_batch_size' => self::MAX_BATCH_SIZE_BYTES,
+                ]);
+                continue;
             }
 
             // Check file count limit
@@ -93,12 +100,25 @@ final readonly class BatchCollector
         }
 
         if ([] === $items) {
-            $this->logger->debug('Cannot create batch: no items fit within constraints', [
-                'ready_jobs_count' => \count($readyJobs),
-                'max_batch_size_bytes' => self::MAX_BATCH_SIZE_BYTES,
-            ]);
-
-            return null;
+            // If no items fit, check if there are single large files that exceed limit
+            // In this case, we should still create a batch with one file to process it
+            $firstJob = $readyJobs[0] ?? null;
+            if ($firstJob instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
+                $this->logger->info('Creating batch with single large file that exceeds size limit', [
+                    'file_path' => $firstJob->getFilePath()->getPath(),
+                    'file_size' => $firstJob->getFileSize(),
+                    'max_batch_size_bytes' => self::MAX_BATCH_SIZE_BYTES,
+                ]);
+                // Create batch with single file - Google Photos API can handle large files individually
+                $batchItem = BatchItem::fromJob($firstJob);
+                $items = [$batchItem];
+            } else {
+                $this->logger->debug('Cannot create batch: no items fit within constraints', [
+                    'ready_jobs_count' => \count($readyJobs),
+                    'max_batch_size_bytes' => self::MAX_BATCH_SIZE_BYTES,
+                ]);
+                return null;
+            }
         }
 
         // 3. Create batch

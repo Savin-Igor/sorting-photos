@@ -142,17 +142,20 @@ final class UploadOrchestrator
                             ]);
 
                             // Opportunistic batch collection right after a successful upload:
-                            // collect only when enough ready items accumulated (threshold), to avoid tiny batches.
+                            // collect batches when enough ready items accumulated (threshold), to avoid tiny batches.
+                            // Use lower threshold (10) for opportunistic collection to process batches more frequently.
                             try {
                                 $minBatchSize = $this->getMinBatchSize();
+                                $opportunisticThreshold = \min(10, $minBatchSize); // Lower threshold for opportunistic collection
                                 $ready = $this->jobRepository->findReadyForBatch(50);
                                 $readyCount = \count($ready);
-                                if ($readyCount >= $minBatchSize) {
+                                if ($readyCount >= $opportunisticThreshold) {
                                     $collected = $this->batchCollector->collectBatch();
                                     if ($collected instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {
-                                        $this->logger->debug('Collected batch after upload', [
+                                        $this->logger->info('Collected batch after upload (opportunistic)', [
                                             'batch_id' => $collected->getId()->getId(),
                                             'ready_count' => $readyCount,
+                                            'opportunistic_threshold' => $opportunisticThreshold,
                                             'min_batch_size' => $minBatchSize,
                                         ]);
                                         try {
@@ -164,13 +167,13 @@ final class UploadOrchestrator
                                     } else {
                                         $this->logger->debug('Batch collection returned null (constraints not met)', [
                                             'ready_count' => $readyCount,
-                                            'min_batch_size' => $minBatchSize,
+                                            'opportunistic_threshold' => $opportunisticThreshold,
                                         ]);
                                     }
                                 } else {
                                     $this->logger->debug('Skipping batch collection (not enough ready items yet)', [
                                         'ready_count' => $readyCount,
-                                        'min_batch_size' => $minBatchSize,
+                                        'opportunistic_threshold' => $opportunisticThreshold,
                                     ]);
                                 }
                             } catch (\Exception $e) {
