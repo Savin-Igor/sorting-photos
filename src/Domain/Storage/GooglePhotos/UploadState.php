@@ -13,30 +13,33 @@ enum UploadState: string
     case COMPLETED = 'completed';
     case PAUSED = 'paused';
     case FAILED = 'failed';
+    case ARCHIVED = 'archived'; // Files stored in DB but excluded from processing
 
     public function canTransitionTo(self $target): bool
     {
         return match ($this) {
-            self::PENDING => \in_array($target, [self::UPLOADING, self::FAILED], true),
-            self::UPLOADING => \in_array($target, [self::UPLOADED, self::PAUSED, self::FAILED], true),
-            self::UPLOADED => \in_array($target, [self::IN_BATCH, self::FAILED], true),
-            self::IN_BATCH => \in_array($target, [self::COMPLETED, self::FAILED], true),
-            self::PAUSED => \in_array($target, [self::UPLOADING, self::FAILED], true),
-            self::COMPLETED => false, // Final state
-            self::FAILED => self::PENDING === $target, // Can retry
+            self::PENDING => \in_array($target, [self::UPLOADING, self::FAILED, self::ARCHIVED], true),
+            self::UPLOADING => \in_array($target, [self::UPLOADED, self::PAUSED, self::FAILED, self::ARCHIVED], true),
+            self::UPLOADED => \in_array($target, [self::IN_BATCH, self::FAILED, self::ARCHIVED], true),
+            self::IN_BATCH => \in_array($target, [self::COMPLETED, self::FAILED, self::ARCHIVED], true),
+            self::PAUSED => \in_array($target, [self::UPLOADING, self::FAILED, self::ARCHIVED], true),
+            self::COMPLETED => false, // Final state - cannot archive completed files
+            self::FAILED => \in_array($target, [self::PENDING, self::ARCHIVED], true), // Can retry or archive
+            self::ARCHIVED => self::PENDING === $target, // Can unarchive to resume processing
         };
     }
 
     public function getNextValidStates(): array
     {
         return match ($this) {
-            self::PENDING => [self::UPLOADING, self::FAILED],
-            self::UPLOADING => [self::UPLOADED, self::PAUSED, self::FAILED],
-            self::UPLOADED => [self::IN_BATCH, self::FAILED],
-            self::IN_BATCH => [self::COMPLETED, self::FAILED],
-            self::PAUSED => [self::UPLOADING, self::FAILED],
+            self::PENDING => [self::UPLOADING, self::FAILED, self::ARCHIVED],
+            self::UPLOADING => [self::UPLOADED, self::PAUSED, self::FAILED, self::ARCHIVED],
+            self::UPLOADED => [self::IN_BATCH, self::FAILED, self::ARCHIVED],
+            self::IN_BATCH => [self::COMPLETED, self::FAILED, self::ARCHIVED],
+            self::PAUSED => [self::UPLOADING, self::FAILED, self::ARCHIVED],
             self::COMPLETED => [],
-            self::FAILED => [self::PENDING],
+            self::FAILED => [self::PENDING, self::ARCHIVED],
+            self::ARCHIVED => [self::PENDING], // Can unarchive to resume
         };
     }
 }

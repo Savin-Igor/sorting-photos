@@ -420,6 +420,67 @@ final readonly class UploadJob
         return UploadState::PAUSED === $this->state;
     }
 
+    /**
+     * Archive the job - exclude it from processing but keep it in database.
+     * Can be unarchived later to resume processing.
+     */
+    public function archive(): self
+    {
+        $this->assertValidTransition(UploadState::ARCHIVED);
+
+        return new self(
+            id: $this->id,
+            filePath: $this->filePath,
+            fileSize: $this->fileSize,
+            fileHash: $this->fileHash,
+            mimeType: $this->mimeType,
+            isVideo: $this->isVideo,
+            state: UploadState::ARCHIVED,
+            resumableSession: null, // Clear session when archiving
+            uploadToken: null, // Clear token when archiving
+            batchId: null, // Remove from batch when archiving
+            creationTime: $this->creationTime,
+            retryCount: $this->retryCount,
+            lastError: 'Archived',
+            lastKnownUploadedBytes: $this->resumableSession?->getUploadedBytes() ?? $this->lastKnownUploadedBytes,
+            sessionExpirationCount: $this->sessionExpirationCount,
+            createdAt: $this->createdAt,
+            updatedAt: new \DateTimeImmutable(),
+        );
+    }
+
+    /**
+     * Unarchive the job - resume processing from PENDING state.
+     */
+    public function unarchive(): self
+    {
+        if (UploadState::ARCHIVED !== $this->state) {
+            throw new \RuntimeException('Can only unarchive archived jobs');
+        }
+
+        $this->assertValidTransition(UploadState::PENDING);
+
+        return new self(
+            id: $this->id,
+            filePath: $this->filePath,
+            fileSize: $this->fileSize,
+            fileHash: $this->fileHash,
+            mimeType: $this->mimeType,
+            isVideo: $this->isVideo,
+            state: UploadState::PENDING,
+            resumableSession: null,
+            uploadToken: null,
+            batchId: null,
+            creationTime: $this->creationTime,
+            retryCount: $this->retryCount,
+            lastError: null,
+            lastKnownUploadedBytes: null,
+            sessionExpirationCount: $this->sessionExpirationCount,
+            createdAt: $this->createdAt,
+            updatedAt: new \DateTimeImmutable(),
+        );
+    }
+
     public function needsSessionRenewal(\DateTimeImmutable $now): bool
     {
         return $this->resumableSession instanceof ResumableSession && $this->resumableSession->isExpired($now);

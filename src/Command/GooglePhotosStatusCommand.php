@@ -44,6 +44,7 @@ final class GooglePhotosStatusCommand extends Command
                 ['Completed', $stats['completed'], $this->formatPercentage($stats['completed'], $stats['total']), $this->formatBytes($sizeStats['completed'])],
                 ['Paused', $stats['paused'], $this->formatPercentage($stats['paused'], $stats['total']), $this->formatBytes($sizeStats['paused'])],
                 ['Failed', $stats['failed'], $this->formatPercentage($stats['failed'], $stats['total']), $this->formatBytes($sizeStats['failed'])],
+                ['<fg=gray>Archived</>', '<fg=gray>'.$stats['archived'].'</>', '<fg=gray>'.$this->formatPercentage($stats['archived'], $stats['total']).'</>', '<fg=gray>'.$this->formatBytes($sizeStats['archived']).'</>'],
                 ['---', '---', '---', '---'],
                 ['<fg=cyan>Total</>', '<fg=cyan>'.$stats['total'].'</>', '<fg=cyan>100%</>', '<fg=cyan>'.$this->formatBytes($sizeStats['total']).'</>'],
             ]
@@ -81,18 +82,24 @@ final class GooglePhotosStatusCommand extends Command
         }
 
         // Display progress summary
-        $progressPercent = $stats['total'] > 0
-            ? \round(($stats['completed'] / $stats['total']) * 100, 1)
+        // Exclude archived files from active processing
+        $activeTotal = $stats['total'] - $stats['archived'];
+        $activeCompleted = $stats['completed'];
+        $progressPercent = $activeTotal > 0
+            ? \round(($activeCompleted / $activeTotal) * 100, 1)
             : 0;
         $io->section('Overall Progress');
-        $io->writeln(\sprintf('Completed: <fg=green>%s</> / %s (<fg=green>%s%%</>)', $stats['completed'], $stats['total'], $progressPercent));
-        $io->writeln(\sprintf('Remaining: <fg=yellow>%s</> files (<fg=yellow>%s</>)', $stats['total'] - $stats['completed'], $this->formatBytes($sizeStats['total'] - $sizeStats['completed'])));
+        $io->writeln(\sprintf('Completed: <fg=green>%s</> / %s (<fg=green>%s%%</>)', $activeCompleted, $activeTotal, $progressPercent));
+        $io->writeln(\sprintf('Remaining: <fg=yellow>%s</> files (<fg=yellow>%s</>)', $activeTotal - $activeCompleted, $this->formatBytes($sizeStats['total'] - $sizeStats['completed'] - $sizeStats['archived'])));
+        if ($stats['archived'] > 0) {
+            $io->writeln(\sprintf('<fg=gray>Archived (excluded): %s files (%s)</>', $stats['archived'], $this->formatBytes($sizeStats['archived'])));
+        }
 
         return Command::SUCCESS;
     }
 
     /**
-     * @return array{pending: int, uploading: int, uploaded: int, in_batch: int, completed: int, paused: int, failed: int, total: int}
+     * @return array{pending: int, uploading: int, uploaded: int, in_batch: int, completed: int, paused: int, failed: int, archived: int, total: int}
      */
     private function getStatistics(): array
     {
@@ -108,13 +115,16 @@ final class GooglePhotosStatusCommand extends Command
             'completed' => 0,
             'paused' => 0,
             'failed' => 0,
+            'archived' => 0,
             'total' => 0,
         ];
 
         foreach ($result as $row) {
             $state = $row['state'];
             $count = (int) $row['count'];
-            $stats[$state] = $count;
+            if (isset($stats[$state])) {
+                $stats[$state] = $count;
+            }
             $stats['total'] += $count;
         }
 
@@ -122,7 +132,7 @@ final class GooglePhotosStatusCommand extends Command
     }
 
     /**
-     * @return array{pending: int, uploading: int, uploaded: int, in_batch: int, completed: int, paused: int, failed: int, total: int}
+     * @return array{pending: int, uploading: int, uploaded: int, in_batch: int, completed: int, paused: int, failed: int, archived: int, total: int}
      */
     private function getSizeStatistics(): array
     {
@@ -138,6 +148,7 @@ final class GooglePhotosStatusCommand extends Command
             'completed' => 0,
             'paused' => 0,
             'failed' => 0,
+            'archived' => 0,
             'total' => 0,
         ];
 
