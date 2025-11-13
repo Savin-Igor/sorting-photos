@@ -95,8 +95,31 @@ final class UploadOrchestrator
                         break;
                     }
 
-                    // 5.2. Priority 1: Incomplete batches (READY or PROCESSING)
+                    // 5.1.5. Resume paused batches if quota is available
                     $batchBackoffActive = $this->batchBackoffUntil instanceof \DateTimeImmutable && $now < $this->batchBackoffUntil;
+                    if (!$batchBackoffActive) {
+                        $pausedBatches = $this->batchRepository->findPausedReadyToResume($now);
+                        foreach ($pausedBatches as $pausedBatch) {
+                            $this->logger->info('Resuming paused batch', [
+                                'batch_id' => $pausedBatch->getId()->getId(),
+                            ]);
+                            $resumedBatch = $pausedBatch->resume();
+                            $this->batchRepository->save($resumedBatch);
+                        }
+                    }
+
+                    // 5.1.6. Resume paused jobs if quota is available
+                    $pausedJobs = $this->jobRepository->findPausedReadyToResume($now);
+                    foreach ($pausedJobs as $pausedJob) {
+                        $this->logger->info('Resuming paused job', [
+                            'job_id' => $pausedJob->getId()->getId(),
+                            'file_path' => $pausedJob->getFilePath()->getPath(),
+                        ]);
+                        $resumedJob = $pausedJob->resume();
+                        $this->jobRepository->save($resumedJob);
+                    }
+
+                    // 5.2. Priority 1: Incomplete batches (READY or PROCESSING)
                     if (!$batchBackoffActive) {
                         $batch = $this->batchRepository->findIncomplete();
                         if ($batch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch) {

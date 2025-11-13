@@ -17,5 +17,12 @@ interface UploadBatchRepositoryPort
 
     public function findIncomplete(): ?UploadBatch;
 
+    /**
+     * Find paused batches ready to resume (quota reset time has passed).
+     *
+     * @return array<UploadBatch>
+     */
+    public function findPausedReadyToResume(\DateTimeImmutable $now): array;
+
     public function resetStaleProcessingBatches(\DateTimeImmutable $timeout): int;
 }
