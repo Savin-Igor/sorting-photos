@@ -46,6 +46,18 @@ final readonly class ResumableUploadService
             'state' => $job->getState()->value,
         ]);
 
+        // 0. Check if source file exists before any processing
+        $sourceFilePath = $job->getFilePath()->getPath();
+        if (!\file_exists($sourceFilePath)) {
+            $this->logger->warning('Source file not found, marking as NOT_FOUND', [
+                'job_id' => $job->getId()->getId(),
+                'file_path' => $sourceFilePath,
+            ]);
+            $job = $job->markAsNotFound();
+            $this->jobRepository->save($job);
+            return; // Exit early - file doesn't exist
+        }
+
         // 1. Check quota
         try {
             $this->quotaManager->checkQuota();
@@ -68,12 +80,19 @@ final readonly class ResumableUploadService
         // 3. Compress file if needed
         $filePath = $this->compressIfNeeded($job);
 
-        // 4. Set EXIF creation time if missing (Google Photos reads this from EXIF)
-        $this->exifDateSetter->setCreationTime($filePath, $job->getCreationTime());
-
+        // 4. Check if file exists before processing
         if (!\file_exists($filePath)) {
-            throw new \RuntimeException(\sprintf('File does not exist: %s', $filePath));
+            $this->logger->warning('File not found, marking as NOT_FOUND', [
+                'job_id' => $job->getId()->getId(),
+                'file_path' => $filePath,
+            ]);
+            $job = $job->markAsNotFound();
+            $this->jobRepository->save($job);
+            return; // Exit early - file doesn't exist
         }
+
+        // 5. Set EXIF creation time if missing (Google Photos reads this from EXIF)
+        $this->exifDateSetter->setCreationTime($filePath, $job->getCreationTime());
 
         $fileSize = \filesize($filePath);
         if (false === $fileSize) {

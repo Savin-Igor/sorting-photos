@@ -44,6 +44,7 @@ final class GooglePhotosStatusCommand extends Command
                 ['Completed', $stats['completed'], $this->formatPercentage($stats['completed'], $stats['total']), $this->formatBytes($sizeStats['completed'])],
                 ['Paused', $stats['paused'], $this->formatPercentage($stats['paused'], $stats['total']), $this->formatBytes($sizeStats['paused'])],
                 ['Failed', $stats['failed'], $this->formatPercentage($stats['failed'], $stats['total']), $this->formatBytes($sizeStats['failed'])],
+                ['<fg=red>Not Found</>', '<fg=red>'.$stats['not_found'].'</>', '<fg=red>'.$this->formatPercentage($stats['not_found'], $stats['total']).'</>', '<fg=red>'.$this->formatBytes($sizeStats['not_found']).'</>'],
                 ['<fg=gray>Archived</>', '<fg=gray>'.$stats['archived'].'</>', '<fg=gray>'.$this->formatPercentage($stats['archived'], $stats['total']).'</>', '<fg=gray>'.$this->formatBytes($sizeStats['archived']).'</>'],
                 ['---', '---', '---', '---'],
                 ['<fg=cyan>Total</>', '<fg=cyan>'.$stats['total'].'</>', '<fg=cyan>100%</>', '<fg=cyan>'.$this->formatBytes($sizeStats['total']).'</>'],
@@ -82,15 +83,18 @@ final class GooglePhotosStatusCommand extends Command
         }
 
         // Display progress summary
-        // Exclude archived files from active processing
-        $activeTotal = $stats['total'] - $stats['archived'];
+        // Exclude archived and not_found files from active processing
+        $activeTotal = $stats['total'] - $stats['archived'] - $stats['not_found'];
         $activeCompleted = $stats['completed'];
         $progressPercent = $activeTotal > 0
             ? \round(($activeCompleted / $activeTotal) * 100, 1)
             : 0;
         $io->section('Overall Progress');
         $io->writeln(\sprintf('Completed: <fg=green>%s</> / %s (<fg=green>%s%%</>)', $activeCompleted, $activeTotal, $progressPercent));
-        $io->writeln(\sprintf('Remaining: <fg=yellow>%s</> files (<fg=yellow>%s</>)', $activeTotal - $activeCompleted, $this->formatBytes($sizeStats['total'] - $sizeStats['completed'] - $sizeStats['archived'])));
+        $io->writeln(\sprintf('Remaining: <fg=yellow>%s</> files (<fg=yellow>%s</>)', $activeTotal - $activeCompleted, $this->formatBytes($sizeStats['total'] - $sizeStats['completed'] - $sizeStats['archived'] - $sizeStats['not_found'])));
+        if ($stats['not_found'] > 0) {
+            $io->writeln(\sprintf('<fg=red>Not Found (excluded): %s files (%s)</>', $stats['not_found'], $this->formatBytes($sizeStats['not_found'])));
+        }
         if ($stats['archived'] > 0) {
             $io->writeln(\sprintf('<fg=gray>Archived (excluded): %s files (%s)</>', $stats['archived'], $this->formatBytes($sizeStats['archived'])));
         }
@@ -99,7 +103,7 @@ final class GooglePhotosStatusCommand extends Command
     }
 
     /**
-     * @return array{pending: int, uploading: int, uploaded: int, in_batch: int, completed: int, paused: int, failed: int, archived: int, total: int}
+     * @return array{pending: int, uploading: int, uploaded: int, in_batch: int, completed: int, paused: int, failed: int, archived: int, not_found: int, total: int}
      */
     private function getStatistics(): array
     {
@@ -116,6 +120,7 @@ final class GooglePhotosStatusCommand extends Command
             'paused' => 0,
             'failed' => 0,
             'archived' => 0,
+            'not_found' => 0,
             'total' => 0,
         ];
 
@@ -132,7 +137,7 @@ final class GooglePhotosStatusCommand extends Command
     }
 
     /**
-     * @return array{pending: int, uploading: int, uploaded: int, in_batch: int, completed: int, paused: int, failed: int, archived: int, total: int}
+     * @return array{pending: int, uploading: int, uploaded: int, in_batch: int, completed: int, paused: int, failed: int, archived: int, not_found: int, total: int}
      */
     private function getSizeStatistics(): array
     {
@@ -149,6 +154,7 @@ final class GooglePhotosStatusCommand extends Command
             'paused' => 0,
             'failed' => 0,
             'archived' => 0,
+            'not_found' => 0,
             'total' => 0,
         ];
 

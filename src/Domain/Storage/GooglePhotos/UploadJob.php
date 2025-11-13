@@ -481,6 +481,35 @@ final readonly class UploadJob
         );
     }
 
+    /**
+     * Mark the job as not found - file doesn't exist (moved or external drive disconnected).
+     * This is a final state - file cannot be processed.
+     */
+    public function markAsNotFound(): self
+    {
+        $this->assertValidTransition(UploadState::NOT_FOUND);
+
+        return new self(
+            id: $this->id,
+            filePath: $this->filePath,
+            fileSize: $this->fileSize,
+            fileHash: $this->fileHash,
+            mimeType: $this->mimeType,
+            isVideo: $this->isVideo,
+            state: UploadState::NOT_FOUND,
+            resumableSession: null, // Clear session
+            uploadToken: null, // Clear token
+            batchId: null, // Remove from batch
+            creationTime: $this->creationTime,
+            retryCount: $this->retryCount,
+            lastError: 'File not found',
+            lastKnownUploadedBytes: null,
+            sessionExpirationCount: $this->sessionExpirationCount,
+            createdAt: $this->createdAt,
+            updatedAt: new \DateTimeImmutable(),
+        );
+    }
+
     public function needsSessionRenewal(\DateTimeImmutable $now): bool
     {
         return $this->resumableSession instanceof ResumableSession && $this->resumableSession->isExpired($now);
