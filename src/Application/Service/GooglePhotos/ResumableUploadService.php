@@ -7,8 +7,10 @@ namespace SortingPhotosByDate\Application\Service\GooglePhotos;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
+use Carbon\Carbon;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\QuotaExceededException;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob;
+use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ExifDateSetter;
 use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ImageCompressor;
 use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenManager;
@@ -28,6 +30,7 @@ final readonly class ResumableUploadService
         private ImageCompressor $imageCompressor,
         private VideoCompressor $videoCompressor,
         private ExifDateSetter $exifDateSetter,
+        private FilenameDateExtractor $filenameDateExtractor,
         private LoggerPort $logger,
         private ClientInterface $httpClient,
         private RequestFactoryInterface $requestFactory,
@@ -94,10 +97,47 @@ final readonly class ResumableUploadService
         }
 
         // 5. Set EXIF/creation time metadata if missing (Google Photos reads this from metadata)
-        // For videos: metadata is set during compression if video was compressed,
-        // but we still set it here for uncompressed videos or if compression didn't set it
+        // For videos: prefer date from filename if available (more reliable than metadata)
         // For images: EXIF date is set here
-        $this->exifDateSetter->setCreationTime($filePath, $job->getCreationTime());
+        $creationTime = $job->getCreationTime();
+
+        // For videos, check if filename contains a more accurate date
+        if ($job->isVideo()) {
+            $filenameDate = $this->filenameDateExtractor->extract($sourceFilePath);
+            if ($filenameDate instanceof Carbon) {
+                // Use filename date if it has time component (more precise)
+                // or if it's different from current creation time (filename is more reliable)
+                $filenameHasTime = !(0 === $filenameDate->hour && 0 === $filenameDate->minute && 0 === $filenameDate->second);
+                $currentTimeCarbon = Carbon::instance($creationTime);
+
+                // Use filename date if:
+                // 1. Filename has time component (more precise)
+                // 2. Or dates differ significantly (filename is more reliable source)
+                $shouldUseFilenameDate = false;
+                if ($filenameHasTime) {
+                    // Filename has time - use it (more precise)
+                    $shouldUseFilenameDate = true;
+                } else {
+                    // Compare dates - if they differ, prefer filename date
+                    $dateDiff = abs($currentTimeCarbon->diffInDays($filenameDate));
+                    if ($dateDiff > 0) {
+                        $shouldUseFilenameDate = true;
+                    }
+                }
+
+                if ($shouldUseFilenameDate) {
+                    $creationTime = \DateTimeImmutable::createFromMutable($filenameDate->toDateTime());
+                    $this->logger->info('Using date from filename for video', [
+                        'file_path' => $sourceFilePath,
+                        'original_date' => $job->getCreationTime()->format('Y-m-d H:i:s'),
+                        'filename_date' => $filenameDate->format('Y-m-d H:i:s'),
+                        'has_time' => $filenameHasTime,
+                    ]);
+                }
+            }
+        }
+
+        $this->exifDateSetter->setCreationTime($filePath, $creationTime);
 
         $fileSize = \filesize($filePath);
         if (false === $fileSize) {
@@ -193,8 +233,21 @@ final readonly class ResumableUploadService
         $filePath = $job->getFilePath()->getPath();
 
         if ($job->isVideo()) {
+            // For videos, prefer date from filename if available (more reliable)
+            $creationTime = $job->getCreationTime();
+            $filenameDate = $this->filenameDateExtractor->extract($filePath);
+            if ($filenameDate instanceof Carbon) {
+                $filenameHasTime = !(0 === $filenameDate->hour && 0 === $filenameDate->minute && 0 === $filenameDate->second);
+                $currentTimeCarbon = Carbon::instance($creationTime);
+
+                // Use filename date if it has time or differs from current date
+                if ($filenameHasTime || abs($currentTimeCarbon->diffInDays($filenameDate)) > 0) {
+                    $creationTime = \DateTimeImmutable::createFromMutable($filenameDate->toDateTime());
+                }
+            }
+
             // Pass creation time to VideoCompressor to preserve metadata during compression
-            return $this->videoCompressor->compressIfNeeded($filePath, $job->getCreationTime());
+            return $this->videoCompressor->compressIfNeeded($filePath, $creationTime);
         }
 
         return $this->imageCompressor->compressIfNeeded($filePath, $job->getMimeType());
