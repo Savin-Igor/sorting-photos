@@ -22,6 +22,7 @@ parameters:
     app.compression.jpeg_max_pixels: 75000000  # 75 MP (Google Photos limit)
     app.compression.png_max_pixels: 200000000  # 200 MP (Google Photos limit)
     app.compression.video_max_size_bytes: 10737418240  # 10 GB (Google Photos limit)
+    app.compression.min_file_size_bytes: 2097152  # 2 MB - don't compress files smaller than this
 
     # Google Photos compression parameters
     google_photos.compression.enabled: true

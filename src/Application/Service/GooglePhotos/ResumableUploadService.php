@@ -55,6 +55,7 @@ final readonly class ResumableUploadService
             ]);
             $job = $job->markAsNotFound();
             $this->jobRepository->save($job);
+
             return; // Exit early - file doesn't exist
         }
 
@@ -77,7 +78,7 @@ final readonly class ResumableUploadService
             $this->jobRepository->save($job);
         }
 
-        // 3. Compress file if needed
+        // 3. Compress file if needed (pass creation time to preserve metadata)
         $filePath = $this->compressIfNeeded($job);
 
         // 4. Check if file exists before processing
@@ -88,10 +89,14 @@ final readonly class ResumableUploadService
             ]);
             $job = $job->markAsNotFound();
             $this->jobRepository->save($job);
+
             return; // Exit early - file doesn't exist
         }
 
-        // 5. Set EXIF creation time if missing (Google Photos reads this from EXIF)
+        // 5. Set EXIF/creation time metadata if missing (Google Photos reads this from metadata)
+        // For videos: metadata is set during compression if video was compressed,
+        // but we still set it here for uncompressed videos or if compression didn't set it
+        // For images: EXIF date is set here
         $this->exifDateSetter->setCreationTime($filePath, $job->getCreationTime());
 
         $fileSize = \filesize($filePath);
@@ -188,7 +193,8 @@ final readonly class ResumableUploadService
         $filePath = $job->getFilePath()->getPath();
 
         if ($job->isVideo()) {
-            return $this->videoCompressor->compressIfNeeded($filePath);
+            // Pass creation time to VideoCompressor to preserve metadata during compression
+            return $this->videoCompressor->compressIfNeeded($filePath, $job->getCreationTime());
         }
 
         return $this->imageCompressor->compressIfNeeded($filePath, $job->getMimeType());

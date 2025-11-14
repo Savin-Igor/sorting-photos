@@ -117,6 +117,7 @@ final readonly class BatchCollector
                     'ready_jobs_count' => \count($readyJobs),
                     'max_batch_size_bytes' => self::MAX_BATCH_SIZE_BYTES,
                 ]);
+
                 return null;
             }
         }

@@ -81,6 +81,7 @@ final class GooglePhotosArchiveScreenshotsAndVideosCommand extends Command
 
         if ([] === $rows) {
             $io->success('No pending files found');
+
             return Command::SUCCESS;
         }
 
@@ -144,6 +145,7 @@ final class GooglePhotosArchiveScreenshotsAndVideosCommand extends Command
 
         if (0 === $totalToArchive) {
             $io->success('No screenshots or videos found in pending files');
+
             return Command::SUCCESS;
         }
 
@@ -175,6 +177,7 @@ final class GooglePhotosArchiveScreenshotsAndVideosCommand extends Command
                 $io->note(\sprintf('Showing first 50 files. Total: %d files', $totalToArchive));
             }
             $io->note('Run without --dry-run to actually archive these files');
+
             return Command::SUCCESS;
         }
 
@@ -186,9 +189,11 @@ final class GooglePhotosArchiveScreenshotsAndVideosCommand extends Command
         $archived = 0;
         $errors = 0;
         $batchSize = 100;
+        // Process in batches
+        $counter = \count($idsToArchive);
 
         // Process in batches
-        for ($i = 0; $i < \count($idsToArchive); $i += $batchSize) {
+        for ($i = 0; $i < $counter; $i += $batchSize) {
             $batch = \array_slice($idsToArchive, $i, $batchSize);
             $placeholders = \implode(',', \array_fill(0, \count($batch), '?'));
 
@@ -244,4 +249,3 @@ final class GooglePhotosArchiveScreenshotsAndVideosCommand extends Command
         return UploadJob::fromArray($row);
     }
 }
-

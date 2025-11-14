@@ -379,6 +379,8 @@ services:
             $enabled: '%app.compression.enabled%'
             $jpegMaxPixels: '%app.compression.jpeg_max_pixels%'
             $pngMaxPixels: '%app.compression.png_max_pixels%'
+            $minFileSizeBytes: '%app.compression.min_file_size_bytes%'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
     
     SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\VideoCompressor:
         arguments:
