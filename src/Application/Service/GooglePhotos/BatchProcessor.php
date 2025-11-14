@@ -229,6 +229,22 @@ final readonly class BatchProcessor
 
         // Check if all items are processed
         if ($batch->allItemsProcessed()) {
+            // Check if batch should be marked as FAILED due to unsupported media files
+            // If all items failed with unsupported format errors, mark batch as FAILED
+            if ($this->shouldMarkBatchAsFailed($batch)) {
+                $errorMessage = $this->getBatchFailureReason($batch);
+                $batch = $batch->markAsFailed($errorMessage);
+                $this->batchRepository->save($batch);
+
+                $this->logger->error('Batch marked as FAILED due to unsupported media files', [
+                    'batch_id' => $batch->getId()->getId(),
+                    'error' => $errorMessage,
+                    'total_items' => \count($batch->getItems()),
+                ]);
+
+                return; // Don't process further
+            }
+
             // Only complete if batch is not already completed
             if ($batch->getState()->value !== \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::COMPLETED->value) {
                 $batch = $batch->complete();
@@ -363,7 +379,7 @@ final readonly class BatchProcessor
 
         // Process batch-level errors
         if ([] !== $response->getErrors()) {
-            $this->handleBatchErrors($batch, $response->getErrors());
+            $batch = $this->handleBatchErrors($batch, $response->getErrors());
         }
 
         return $batch;
@@ -477,7 +493,7 @@ final readonly class BatchProcessor
     /**
      * @param array<\SortingPhotosByDate\Ports\Storage\GooglePhotos\Error> $errors
      */
-    private function handleBatchErrors(UploadBatch $batch, array $errors): void
+    private function handleBatchErrors(UploadBatch $batch, array $errors): UploadBatch
     {
         foreach ($errors as $error) {
             $this->logger->error('Batch error', [
@@ -487,5 +503,129 @@ final readonly class BatchProcessor
                 'domain' => $error->getDomain(),
             ]);
         }
+
+        // If batch-level errors indicate unsupported media, mark batch as FAILED
+        $unsupportedError = $this->hasUnsupportedMediaError($errors);
+        if (null !== $unsupportedError) {
+            $batch = $batch->markAsFailed($unsupportedError);
+            $this->batchRepository->save($batch);
+
+            $this->logger->error('Batch marked as FAILED due to batch-level unsupported media error', [
+                'batch_id' => $batch->getId()->getId(),
+                'error' => $unsupportedError,
+            ]);
+        }
+
+        return $batch;
+    }
+
+    /**
+     * Check if batch should be marked as FAILED due to unsupported media files.
+     * A batch should be marked as FAILED if all items failed with unsupported format errors.
+     */
+    private function shouldMarkBatchAsFailed(UploadBatch $batch): bool
+    {
+        $items = $batch->getItems();
+        if ([] === $items) {
+            return false;
+        }
+
+        $allFailed = true;
+        $allUnsupported = true;
+
+        foreach ($items as $item) {
+            if ($item->isProcessed()) {
+                $allFailed = false;
+                break;
+            }
+
+            $error = $item->getError();
+            if (null === $error) {
+                $allFailed = false;
+                break;
+            }
+
+            // Check if error indicates unsupported media format
+            if (!$this->isUnsupportedMediaError($error)) {
+                $allUnsupported = false;
+            }
+        }
+
+        // Mark as FAILED only if all items failed AND all failures are due to unsupported media
+        return $allFailed && $allUnsupported;
+    }
+
+    /**
+     * Check if error message indicates unsupported media format.
+     */
+    private function isUnsupportedMediaError(string $error): bool
+    {
+        $errorLower = \strtolower($error);
+        $unsupportedPatterns = [
+            'unsupported',
+            'invalid.*format',
+            'invalid.*media',
+            'media.*type.*not.*supported',
+            'file.*format.*not.*supported',
+            'invalid.*mime.*type',
+            'bad.*request',
+        ];
+
+        foreach ($unsupportedPatterns as $pattern) {
+            if (\preg_match('/'.$pattern.'/i', $errorLower)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if batch-level errors indicate unsupported media.
+     *
+     * @param array<\SortingPhotosByDate\Ports\Storage\GooglePhotos\Error> $errors
+     */
+    private function hasUnsupportedMediaError(array $errors): ?string
+    {
+        foreach ($errors as $error) {
+            $message = $error->getMessage();
+            $code = $error->getCode();
+
+            // Check for unsupported media errors (code 400 or specific error messages)
+            if (400 === $code || $this->isUnsupportedMediaError($message)) {
+                return \sprintf('Unsupported media format: %s (code: %d)', $message, $code);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get failure reason for batch.
+     */
+    private function getBatchFailureReason(UploadBatch $batch): string
+    {
+        $items = $batch->getItems();
+        $errorMessages = [];
+
+        foreach ($items as $item) {
+            $error = $item->getError();
+            if (null !== $error && $this->isUnsupportedMediaError($error)) {
+                $errorMessages[] = $error;
+            }
+        }
+
+        if ([] !== $errorMessages) {
+            // Get unique error messages
+            $uniqueErrors = \array_unique($errorMessages);
+            $reason = \implode('; ', \array_slice($uniqueErrors, 0, 3));
+            if (\count($uniqueErrors) > 3) {
+                $reason .= ' ...';
+            }
+
+            return \sprintf('All items failed with unsupported media format errors: %s', $reason);
+        }
+
+        return 'All items failed with unsupported media format errors';
     }
 }

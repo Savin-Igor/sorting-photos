@@ -139,6 +139,27 @@ final class UploadOrchestrator
                                 $this->logger->warning('Batch processing paused due to quota (incomplete batch)', [
                                     'reset_time' => $this->batchBackoffUntil->format('Y-m-d H:i:s'),
                                 ]);
+                            } catch (\Exception $e) {
+                                // If batch processing fails with an exception, check if batch should be marked as FAILED
+                                // This handles cases where batch processing fails due to unsupported media or other critical errors
+                                $this->logger->error('Batch processing failed with exception', [
+                                    'batch_id' => $batch->getId()->getId(),
+                                    'error' => $e->getMessage(),
+                                    'exception' => $e::class,
+                                ]);
+
+                                // Re-fetch batch to get latest state (may have been updated by BatchProcessor)
+                                $updatedBatch = $this->batchRepository->findById($batch->getId());
+                                // If batch is already FAILED, skip it
+                                if ($updatedBatch instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadBatch && $updatedBatch->getState()->value === \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::FAILED->value) {
+                                    $this->logger->info('Batch already marked as FAILED, skipping', [
+                                        'batch_id' => $updatedBatch->getId()->getId(),
+                                    ]);
+                                    continue;
+                                }
+
+                                // Continue to next iteration - batch will be retried or handled by scheduler
+                                continue;
                             }
                         }
                     } else {
