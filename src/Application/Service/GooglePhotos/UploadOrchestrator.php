@@ -152,6 +152,19 @@ final class UploadOrchestrator
                     $this->logger->debug('Looking for pending or resumable jobs to upload');
                     $job = $this->jobRepository->findNextPendingOrResumable();
                     if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob) {
+                        // Pre-check: Verify file exists before processing
+                        // This prevents wasting time on files that don't exist (moved or external drive disconnected)
+                        $filePath = $job->getFilePath()->getPath();
+                        if (!\file_exists($filePath)) {
+                            $this->logger->warning('File not found before upload, marking as NOT_FOUND', [
+                                'job_id' => $job->getId()->getId(),
+                                'file_path' => $filePath,
+                            ]);
+                            $job = $job->markAsNotFound();
+                            $this->jobRepository->save($job);
+                            continue; // Skip to next iteration, don't process this file
+                        }
+
                         $this->logger->info('Uploading file', [
                             'job_id' => $job->getId(),
                             'file_path' => $job->getFilePath(),
