@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Application\Handler;
 
 use SortingPhotosByDate\Application\Command\IngestFileCommand;
+use SortingPhotosByDate\Application\Filter\FilterChain;
 use SortingPhotosByDate\Domain\Event\FileProcessed;
 use SortingPhotosByDate\Domain\Event\FileSkipped;
 use SortingPhotosByDate\Domain\MediaAsset;
@@ -28,6 +29,7 @@ final readonly class IngestFileHandler
         private MetadataRepositoryPort $repository,
         private LoggerPort $logger,
         private MessageBusInterface $messageBus,
+        private ?FilterChain $filterChain = null,
     ) {
     }
 
@@ -56,6 +58,25 @@ final readonly class IngestFileHandler
 
         // Extract date
         $mediaDate = $this->metadataExtractor->extractDate($filePath->getPath());
+
+        // Filtering with metadata (after metadata extraction)
+        if ($this->filterChain instanceof FilterChain) {
+            $creationDateTime = $mediaDate->getDateTime();
+            $creationDateImmutable = \DateTimeImmutable::createFromMutable($creationDateTime->toDateTime());
+
+            if ($this->filterChain->shouldSkip($filePath, [
+                'mime_type' => $mimeType,
+                'file_size' => $fileSize,
+                'metadata' => $mediaMeta,
+                'creation_date' => $creationDateImmutable,
+            ])) {
+                // Dispatch FileSkipped event
+                $skippedEvent = new FileSkipped($filePath, 'filtered');
+                $this->messageBus->dispatch($skippedEvent);
+
+                return null; // MediaAsset will NOT be created, file will NOT be added to database
+            }
+        }
 
         // Calculate hash using FilesystemPort
         $hashString = $this->filesystem->calculateHash($filePath);

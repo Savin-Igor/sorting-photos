@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Application\Service\GooglePhotos;
 
 use Carbon\Carbon;
+use SortingPhotosByDate\Application\Filter\FilterChain;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
 use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
@@ -21,6 +22,7 @@ final readonly class FileScanner
         private UploadJobRepositoryPort $jobRepository,
         private LoggerPort $logger,
         private FilenameDateExtractor $filenameDateExtractor,
+        private ?FilterChain $filterChain = null,
     ) {
     }
 
@@ -56,6 +58,12 @@ final readonly class FileScanner
                     ]);
                     ++$skippedCount;
                     continue;
+                }
+
+                // 2.5. Early filtering (before metadata extraction)
+                if ($this->filterChain instanceof FilterChain && $this->filterChain->shouldSkipEarly($filePath, [])) {
+                    ++$skippedCount;
+                    continue; // File filtered out - won't be added to database
                 }
 
                 // 3. Extract metadata
@@ -129,10 +137,24 @@ final readonly class FileScanner
                     }
                 }
 
-                // 7. Create UploadJob
+                // 6.5. Filtering with metadata (after metadata extraction)
                 $creationTime = $date->getDateTime();
                 // MediaDate::getDateTime() always returns Carbon
-                $creationTime = \DateTimeImmutable::createFromMutable($creationTime->toDateTime());
+                $creationTimeImmutable = \DateTimeImmutable::createFromMutable($creationTime->toDateTime());
+
+                if ($this->filterChain instanceof FilterChain && $this->filterChain->shouldSkip($filePath, [
+                    'mime_type' => $mimeType,
+                    'file_size' => $metadata->getFileSize(),
+                    'is_video' => $isVideo,
+                    'metadata' => $metadata,
+                    'creation_date' => $creationTimeImmutable,
+                ])) {
+                    ++$skippedCount;
+                    continue; // UploadJob will NOT be created, file will NOT be added to database
+                }
+
+                // 7. Create UploadJob
+                $creationTime = $creationTimeImmutable;
 
                 $job = UploadJob::create(
                     filePath: $filePath,

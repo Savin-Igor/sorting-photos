@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Application\Service;
 
+use SortingPhotosByDate\Application\Filter\FilterChain;
 use SortingPhotosByDate\Domain\Event\FileDiscovered;
 use SortingPhotosByDate\Infrastructure\Helper\DirectorySizeCalculator;
 use SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService;
@@ -27,6 +28,7 @@ final readonly class FileOrganizingService
         private MetadataRepositoryPort $repository,
         private DirectorySizeCalculator $sizeCalculator,
         private ?RedisStatisticsService $statistics = null,
+        private ?FilterChain $filterChain = null,
     ) {
     }
 
@@ -102,6 +104,12 @@ final readonly class FileOrganizingService
                 ]);
                 ++$skippedCount;
                 continue;
+            }
+
+            // Early filtering (before metadata extraction)
+            if ($this->filterChain instanceof FilterChain && $this->filterChain->shouldSkipEarly($filePath, [])) {
+                ++$skippedCount;
+                continue; // File filtered out - won't be added to database
             }
 
             // Get file size
