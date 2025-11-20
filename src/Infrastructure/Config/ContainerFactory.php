@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Config;
 
+use SortingPhotosByDate\Application\Filter\FilterChain;
 use SortingPhotosByDate\Domain\Policies\DatePolicy;
 use SortingPhotosByDate\Domain\Policies\DateTypePolicy;
 use SortingPhotosByDate\Domain\Policies\OrganizerPolicy;
 use SortingPhotosByDate\Domain\Policies\TypeDatePolicy;
+use SortingPhotosByDate\Infrastructure\Filter\FilterChainFactory;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
@@ -36,6 +38,7 @@ final readonly class ContainerFactory
         $this->loadParameters($container);
         $this->loadServices($container);
         $this->configureOrganizerPolicy($container);
+        $this->configureFilters($container);
         $this->compileContainer($container);
 
         return $container;
@@ -490,6 +493,104 @@ final readonly class ContainerFactory
                 $this->wrapAdapterWithRateLimiter($container, $adapterId, $serviceId, $rateLimiterId, 'source' === $type);
             }
         }
+    }
+
+    /**
+     * Configure filters based on parameters.
+     */
+    private function configureFilters(ContainerBuilder $container): void
+    {
+        // Check if filters are enabled
+        $filtersEnabled = $container->hasParameter('app.filters.enabled')
+            ? (bool) $container->getParameter('app.filters.enabled')
+            : false;
+
+        if (!$filtersEnabled) {
+            return; // Filters disabled, FilterChain will be null
+        }
+
+        // Build filter configuration from parameters
+        $filterConfig = [
+            'enabled' => true,
+            'file_type' => [
+                'enabled' => $container->hasParameter('app.filters.file_type.enabled')
+                    ? (bool) $container->getParameter('app.filters.file_type.enabled')
+                    : false,
+                'allowed' => $container->hasParameter('app.filters.file_type.allowed')
+                    ? $container->getParameter('app.filters.file_type.allowed')
+                    : null,
+                'denied' => $container->hasParameter('app.filters.file_type.denied')
+                    ? $container->getParameter('app.filters.file_type.denied')
+                    : null,
+            ],
+            'mime_type' => [
+                'enabled' => $container->hasParameter('app.filters.mime_type.enabled')
+                    ? (bool) $container->getParameter('app.filters.mime_type.enabled')
+                    : false,
+                'allowed' => $container->hasParameter('app.filters.mime_type.allowed')
+                    ? $container->getParameter('app.filters.mime_type.allowed')
+                    : null,
+                'denied' => $container->hasParameter('app.filters.mime_type.denied')
+                    ? $container->getParameter('app.filters.mime_type.denied')
+                    : null,
+                'allowed_patterns' => $container->hasParameter('app.filters.mime_type.allowed_patterns')
+                    ? $container->getParameter('app.filters.mime_type.allowed_patterns')
+                    : null,
+                'denied_patterns' => $container->hasParameter('app.filters.mime_type.denied_patterns')
+                    ? $container->getParameter('app.filters.mime_type.denied_patterns')
+                    : null,
+            ],
+            'file_size' => [
+                'enabled' => $container->hasParameter('app.filters.file_size.enabled')
+                    ? (bool) $container->getParameter('app.filters.file_size.enabled')
+                    : false,
+                'min_bytes' => $container->hasParameter('app.filters.file_size.min_bytes')
+                    ? $container->getParameter('app.filters.file_size.min_bytes')
+                    : null,
+                'max_bytes' => $container->hasParameter('app.filters.file_size.max_bytes')
+                    ? $container->getParameter('app.filters.file_size.max_bytes')
+                    : null,
+            ],
+            'filename_regex' => [
+                'enabled' => $container->hasParameter('app.filters.filename_regex.enabled')
+                    ? (bool) $container->getParameter('app.filters.filename_regex.enabled')
+                    : false,
+                'patterns' => $container->hasParameter('app.filters.filename_regex.patterns')
+                    ? $container->getParameter('app.filters.filename_regex.patterns')
+                    : [],
+            ],
+            'date' => [
+                'enabled' => $container->hasParameter('app.filters.date.enabled')
+                    ? (bool) $container->getParameter('app.filters.date.enabled')
+                    : false,
+                'from_date' => $container->hasParameter('app.filters.date.from_date')
+                    ? $container->getParameter('app.filters.date.from_date')
+                    : null,
+                'to_date' => $container->hasParameter('app.filters.date.to_date')
+                    ? $container->getParameter('app.filters.date.to_date')
+                    : null,
+                'check_filename' => $container->hasParameter('app.filters.date.check_filename')
+                    ? (bool) $container->getParameter('app.filters.date.check_filename')
+                    : true,
+                'check_metadata' => $container->hasParameter('app.filters.date.check_metadata')
+                    ? (bool) $container->getParameter('app.filters.date.check_metadata')
+                    : true,
+            ],
+        ];
+
+        // Create FilterChainFactory definition if not exists
+        if (!$container->hasDefinition(FilterChainFactory::class)) {
+            $factoryDefinition = $container->register(FilterChainFactory::class, FilterChainFactory::class);
+            $factoryDefinition->setAutowired(true);
+        }
+
+        // Create FilterChain using factory
+        // We'll use a factory method that will be called after container compilation
+        // For now, we'll set it up to be created lazily
+        $filterChainDefinition = $container->register(FilterChain::class, FilterChain::class);
+        $filterChainDefinition->setFactory([new Reference(FilterChainFactory::class), 'create']);
+        $filterChainDefinition->setArguments([$filterConfig]);
+        $filterChainDefinition->setPublic(false);
     }
 
     /**

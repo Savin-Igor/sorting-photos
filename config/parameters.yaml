@@ -59,4 +59,36 @@ parameters:
     app.logging.file_level: 'DEBUG'  # DEBUG, INFO, WARNING, ERROR, or OFF to disable file logging
     app.logging.console_level: 'INFO'  # DEBUG, INFO, WARNING, ERROR
 
+    # File filters
+    app.filters.enabled: true
+    app.filters.context: both  # local_organizing | google_photos | both
+    
+    # Filter by file type
+    app.filters.file_type.enabled: false
+    app.filters.file_type.allowed: null  # ['image', 'video'] or null
+    app.filters.file_type.denied: null    # ['image'] or null
+    
+    # Filter by MIME type
+    app.filters.mime_type.enabled: false
+    app.filters.mime_type.allowed: null      # ['image/jpeg', 'image/png'] or null
+    app.filters.mime_type.denied: null       # ['image/gif'] or null
+    app.filters.mime_type.allowed_patterns: null  # ['image/*'] or null
+    app.filters.mime_type.denied_patterns: null   # ['image/gif'] or null
+    
+    # Filter by file size
+    app.filters.file_size.enabled: false
+    app.filters.file_size.min_bytes: null    # Minimum size (null = no limit)
+    app.filters.file_size.max_bytes: null    # Maximum size (null = no limit)
+    
+    # Filter by filename regex (for screenshots, etc.)
+    app.filters.filename_regex.enabled: false
+    app.filters.filename_regex.patterns: []  # ['/screenshot/i', '/screen.?shot/i']
+    
+    # Filter by date
+    app.filters.date.enabled: true
+    app.filters.date.from_date: '2022-12-30 00:00:00'  # Start date (null = no limit)
+    app.filters.date.to_date: '2024-01-01 23:59:59'    # End date (null = no limit)
+    app.filters.date.check_filename: true    # Check date in filename
+    app.filters.date.check_metadata: true     # Check date in metadata
+
 

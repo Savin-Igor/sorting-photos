@@ -148,6 +148,23 @@ services:
     # Filename Date Extractor (shared service)
     SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor: ~
     
+    # ============================================
+    # File Filters Configuration
+    # ============================================
+    
+    # FilterChainFactory
+    SortingPhotosByDate\Infrastructure\Filter\FilterChainFactory:
+        arguments:
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+    
+    # FilterChain will be created dynamically in ContainerFactory
+    # See ContainerFactory::configureFilters()
+    
+    # ============================================
+    # Metadata Extractor Chain Configuration
+    # ============================================
+    
     # Chain of extractors (tries ExifAdapter, GetId3Adapter, then GenericAdapter)
     SortingPhotosByDate\Infrastructure\Metadata\MetadataExtractorChain:
         arguments:
