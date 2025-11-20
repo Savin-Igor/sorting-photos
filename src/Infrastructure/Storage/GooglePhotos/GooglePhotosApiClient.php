@@ -10,7 +10,6 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\OffsetMismatchException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\QuotaExceededException;
-use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\SessionExpiredException;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchCreateResponse;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchItemRequest;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\Error;
@@ -22,6 +21,7 @@ use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadStatus;
 
 final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
 {
+    use QueryUploadStatusTrait;
     private const string BASE_URL = 'https://photoslibrary.googleapis.com/v1';
 
     public function __construct(
@@ -161,50 +161,21 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
 
     public function queryUploadStatus(string $sessionUri): UploadStatus
     {
-        // Use PUT with X-Goog-Upload-Command: query to check status
-        $request = $this->requestFactory->createRequest('PUT', $sessionUri)
-            ->withHeader('X-Goog-Upload-Command', 'query')
-            ->withHeader('Content-Length', '0');
-
-        $response = $this->httpClient->sendRequest($request);
-
-        if (200 === $response->getStatusCode()) {
-            // Upload completed
-            $body = $response->getBody()->getContents();
-            $data = \json_decode($body, true);
-
-            if (false === $data || !isset($data['uploadToken'])) {
-                throw new \RuntimeException('No uploadToken in response');
+        return $this->queryUploadStatusInternal(
+            $this->httpClient,
+            $this->requestFactory,
+            $sessionUri,
+            null, // onCompleted - no logging in this class
+            null, // onIncomplete - no logging in this class
+            function (int $statusCode, string $body): void {
+                $errorDetails = \sprintf(
+                    "Failed to query upload status:\nStatus: %s\nBody: %s\n",
+                    $statusCode,
+                    $body
+                );
+                \fwrite(\STDERR, $errorDetails);
             }
-
-            return UploadStatus::complete($data['uploadToken']);
-        }
-
-        if (308 === $response->getStatusCode()) {
-            // Not completed, get uploaded bytes from Range header
-            $range = $response->getHeaderLine('Range');
-            if ('' === $range) {
-                throw new \RuntimeException('No Range header in 308 response');
-            }
-
-            $uploadedBytes = $this->parseRange($range);
-
-            return UploadStatus::incomplete($uploadedBytes);
-        }
-
-        // 404/410 - session expired
-        if (\in_array($response->getStatusCode(), [404, 410], true)) {
-            throw new SessionExpiredException('Resumable session expired');
-        }
-
-        $body = $response->getBody()->getContents();
-        $errorDetails = \sprintf(
-            "Failed to query upload status:\nStatus: %s\nBody: %s\n",
-            $response->getStatusCode(),
-            $body
         );
-        \fwrite(\STDERR, $errorDetails);
-        throw new \RuntimeException(\sprintf('Unexpected status code: %s %s', $response->getStatusCode(), $body));
     }
 
     public function batchCreateMediaItems(array $items, ?string $albumId = null): BatchCreateResponse

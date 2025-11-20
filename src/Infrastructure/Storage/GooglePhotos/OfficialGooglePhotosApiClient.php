@@ -11,7 +11,6 @@ use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\OffsetMismatchException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\QuotaExceededException;
-use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\SessionExpiredException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\ServiceUnavailableException;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchCreateResponse;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchItemRequest;
@@ -29,6 +28,7 @@ use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadStatus;
  */
 final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiClientPort
 {
+    use QueryUploadStatusTrait;
     private const string BASE_URL = 'https://photoslibrary.googleapis.com/v1';
 
     private PhotosLibraryClient $libraryClient;
@@ -240,70 +240,48 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
 
     public function queryUploadStatus(string $sessionUri): UploadStatus
     {
-        // Use PUT with X-Goog-Upload-Command: query to check status
-        $request = $this->requestFactory->createRequest('PUT', $sessionUri)
-            ->withHeader('X-Goog-Upload-Command', 'query')
-            ->withHeader('Content-Length', '0');
+        return $this->queryUploadStatusInternal(
+            $this->httpClient,
+            $this->requestFactory,
+            $sessionUri,
+            function (array $data): void {
+                $this->logger->debug('Upload status: completed', [
+                    'status' => 200,
+                    'token_length' => isset($data['uploadToken']) ? \strlen((string) $data['uploadToken']) : 0,
+                ]);
+            },
+            function (string $range, int $uploadedBytes): void {
+                $this->logger->debug('Upload status: in-progress', [
+                    'status' => 308,
+                    'range' => $range,
+                    'uploaded_bytes' => $uploadedBytes,
+                ]);
+            },
+            function (int $statusCode, string $body): void {
+                // Handle temporary server errors
+                if (503 === $statusCode) {
+                    $this->logger->warning('Google Photos service temporarily unavailable', [
+                        'status' => 503,
+                    ]);
+                    throw new ServiceUnavailableException('Service temporarily unavailable');
+                }
 
-        $response = $this->httpClient->sendRequest($request);
+                // Handle session expired (404/410) - already handled in trait, but log here
+                if (\in_array($statusCode, [404, 410], true)) {
+                    $this->logger->warning('Upload session expired', [
+                        'status' => $statusCode,
+                    ]);
 
-        if (200 === $response->getStatusCode()) {
-            // Upload completed
-            $body = $response->getBody()->getContents();
-            $data = \json_decode($body, true);
+                    // Exception will be thrown by trait
+                    return;
+                }
 
-            if (false === $data || !isset($data['uploadToken'])) {
-                throw new \RuntimeException('No uploadToken in response');
+                $this->logger->error('Failed to query upload status', [
+                    'status' => $statusCode,
+                    'body_preview' => \substr($body, 0, 1024),
+                ]);
             }
-
-            $this->logger->debug('Upload status: completed', [
-                'status' => 200,
-                'token_length' => isset($data['uploadToken']) ? \strlen((string) $data['uploadToken']) : 0,
-            ]);
-
-            return UploadStatus::complete($data['uploadToken']);
-        }
-
-        if (308 === $response->getStatusCode()) {
-            // Not completed, get uploaded bytes from Range header
-            $range = $response->getHeaderLine('Range');
-            if ('' === $range) {
-                throw new \RuntimeException('No Range header in 308 response');
-            }
-
-            $uploadedBytes = $this->parseRange($range);
-
-            $this->logger->debug('Upload status: in-progress', [
-                'status' => 308,
-                'range' => $range,
-                'uploaded_bytes' => $uploadedBytes,
-            ]);
-
-            return UploadStatus::incomplete($uploadedBytes);
-        }
-
-        // 404/410 - session expired
-        if (\in_array($response->getStatusCode(), [404, 410], true)) {
-            $this->logger->warning('Upload session expired', [
-                'status' => $response->getStatusCode(),
-            ]);
-            throw new SessionExpiredException('Resumable session expired');
-        }
-
-        // Handle temporary server errors
-        if (503 === $response->getStatusCode()) {
-            $this->logger->warning('Google Photos service temporarily unavailable', [
-                'status' => 503,
-            ]);
-            throw new ServiceUnavailableException('Service temporarily unavailable');
-        }
-
-        $body = $response->getBody()->getContents();
-        $this->logger->error('Failed to query upload status', [
-            'status' => $response->getStatusCode(),
-            'body_preview' => \substr($body, 0, 1024),
-        ]);
-        throw new \RuntimeException(\sprintf('Unexpected status code: %s %s', $response->getStatusCode(), $body));
+        );
     }
 
     public function batchCreateMediaItems(array $items, ?string $albumId = null): BatchCreateResponse
