@@ -371,29 +371,19 @@ final readonly class UploadJob
     {
         // Idempotent: if already failed, just update error/updatedAt and return
         if (UploadState::FAILED === $this->state) {
-            return new self(
-                id: $this->id,
-                filePath: $this->filePath,
-                fileSize: $this->fileSize,
-                fileHash: $this->fileHash,
-                mimeType: $this->mimeType,
-                isVideo: $this->isVideo,
-                state: UploadState::FAILED,
-                resumableSession: $this->resumableSession,
-                uploadToken: $this->uploadToken,
-                batchId: $this->batchId,
-                creationTime: $this->creationTime,
-                retryCount: $this->retryCount,
-                lastError: $error,
-                lastKnownUploadedBytes: $this->resumableSession?->getUploadedBytes(),
-                sessionExpirationCount: $this->sessionExpirationCount,
-                createdAt: $this->createdAt,
-                updatedAt: new \DateTimeImmutable(),
-            );
+            return $this->createFailedInstance($error);
         }
 
         $this->assertValidTransition(UploadState::FAILED);
 
+        return $this->createFailedInstance($error);
+    }
+
+    /**
+     * Create a new instance with FAILED state.
+     */
+    private function createFailedInstance(string $error): self
+    {
         return new self(
             id: $this->id,
             filePath: $this->filePath,
