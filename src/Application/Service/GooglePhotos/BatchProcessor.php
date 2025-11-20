@@ -571,13 +571,7 @@ final readonly class BatchProcessor
             'bad.*request',
         ];
 
-        foreach ($unsupportedPatterns as $pattern) {
-            if (\preg_match('/'.$pattern.'/i', $errorLower)) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any($unsupportedPatterns, fn ($pattern): bool => (bool) \preg_match('/'.$pattern.'/i', $errorLower));
     }
 
     /**
