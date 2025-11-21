@@ -12,15 +12,13 @@ use SortingPhotosByDate\Ports\Search\SearcherNotAvailableException;
 use Symfony\Component\Process\Process;
 
 /**
- * File searcher using find command.
- * Supports parallel search across subdirectories.
+ * File searcher using find command with shell pipes for fast filtering.
+ * Uses -iregex for extensions and grep for filename patterns.
  */
 final readonly class FindCommandSearcher implements FileSearcherPort
 {
     public function __construct(
         private LoggerPort $logger,
-        private bool $parallelEnabled = false,
-        private int $maxDepth = 3,
     ) {
     }
 
@@ -59,64 +57,52 @@ final readonly class FindCommandSearcher implements FileSearcherPort
         $startTime = \microtime(true);
         $foundCount = 0;
         $scannedDirectories = 0;
-
-        if ($this->parallelEnabled && $this->maxDepth > 0) {
-            // Parallel search
-            foreach ($this->searchParallel($directory, $criteria) as $filePath) {
-                yield $filePath;
-                ++$foundCount;
-            }
-        } else {
-            // Sequential search
-            $command = $this->buildFindCommand($directory, $criteria);
-
-            $this->logger->debug('Executing find command', [
-                'command' => \implode(' ', $command),
-                'directory' => $directory,
+        // Sequential search with optimized find + grep (shell pipes)
+        $command = $this->buildFindCommand($directory, $criteria);
+        $this->logger->debug('Executing find command', [
+            'command' => $command,
+            'directory' => $directory,
+        ]);
+        // Use fromShellCommandline to support pipes (grep, etc.)
+        $process = Process::fromShellCommandline($command);
+        $process->setTimeout(600);
+        // 10 minutes timeout
+        $process->run();
+        if (!$process->isSuccessful()) {
+            $error = $process->getErrorOutput();
+            $this->logger->error('find command failed', [
+                'error' => $error,
+                'exit_code' => $process->getExitCode(),
+                'command' => $command,
             ]);
-
-            $process = new Process($command);
-            $process->setTimeout(600); // 10 minutes timeout
-            $process->run();
-
-            if (!$process->isSuccessful()) {
-                $error = $process->getErrorOutput();
-                $this->logger->error('find command failed', [
-                    'error' => $error,
-                    'exit_code' => $process->getExitCode(),
-                ]);
-                throw new SearcherNotAvailableException(\sprintf('find command failed: %s', $error));
-            }
-
-            $output = $process->getOutput();
-            $lines = \array_filter(\explode("\n", $output), fn (string $line): bool => '' !== \trim($line));
-            $totalLines = \count($lines);
-            $scannedDirectories = $this->countScannedDirectories($directory);
-
-            $filteredCount = 0;
-            foreach ($lines as $line) {
-                $filePath = \trim($line);
-                if ('' === $filePath || !\file_exists($filePath) || !\is_file($filePath)) {
-                    ++$filteredCount;
-                    continue;
-                }
-
-                // Additional filtering (size, regex patterns)
-                if (!$this->matchesAdditionalCriteria($filePath, $criteria)) {
-                    ++$filteredCount;
-                    continue;
-                }
-
-                yield new FilePath($filePath);
-                ++$foundCount;
-            }
-
-            $this->logger->debug('find filtering completed', [
-                'total_lines' => $totalLines,
-                'found_files' => $foundCount,
-                'filtered_out' => $filteredCount,
-            ]);
+            throw new SearcherNotAvailableException(\sprintf('find command failed: %s', $error));
         }
+        $output = $process->getOutput();
+        $lines = \array_filter(\explode("\n", $output), fn (string $line): bool => '' !== \trim($line));
+        $totalLines = \count($lines);
+        $scannedDirectories = $this->countScannedDirectories($directory);
+        $filteredCount = 0;
+        foreach ($lines as $line) {
+            $filePath = \trim($line);
+            if ('' === $filePath || !\file_exists($filePath) || !\is_file($filePath)) {
+                ++$filteredCount;
+                continue;
+            }
+
+            // Additional filtering (only for exclude/include patterns, size already handled in find)
+            if (!$this->matchesAdditionalCriteria($filePath, $criteria)) {
+                ++$filteredCount;
+                continue;
+            }
+
+            yield new FilePath($filePath);
+            ++$foundCount;
+        }
+        $this->logger->debug('find filtering completed', [
+            'total_lines' => $totalLines,
+            'found_files' => $foundCount,
+            'filtered_out' => $filteredCount,
+        ]);
 
         $duration = \microtime(true) - $startTime;
 
@@ -130,185 +116,75 @@ final readonly class FindCommandSearcher implements FileSearcherPort
     }
 
     /**
-     * Parallel search across subdirectories.
+     * Build find command as shell command string (supports pipes).
+     * Uses -iregex for extensions and grep for filename patterns for better performance.
      *
-     * @return iterable<FilePath>
+     * @return string Shell command string
      */
-    private function searchParallel(string $directory, FileSearchCriteria $criteria): iterable
+    private function buildFindCommand(string $directory, FileSearchCriteria $criteria): string
     {
-        $subdirectories = $this->getSubdirectories($directory, $this->maxDepth);
-        $processes = [];
-        $results = [];
+        // Escape directory path for shell
+        $escapedDir = \escapeshellarg($directory);
 
-        $this->logger->debug('Starting parallel search', [
-            'directory' => $directory,
-            'subdirectories_count' => \count($subdirectories),
-            'max_depth' => $this->maxDepth,
-        ]);
-
-        // Start processes for each subdirectory
-        foreach ($subdirectories as $subdir) {
-            $command = $this->buildFindCommand($subdir, $criteria);
-            $process = new Process($command);
-            $process->setTimeout(300); // 5 minutes per subdirectory
-            $process->start();
-            $processes[$subdir] = $process;
-        }
-
-        // Collect results as processes complete
-        while ([] !== $processes) {
-            foreach ($processes as $subdir => $process) {
-                if (!$process->isRunning()) {
-                    if ($process->isSuccessful()) {
-                        $output = $process->getOutput();
-                        $lines = \array_filter(\explode("\n", $output), fn (string $line): bool => '' !== \trim($line));
-
-                        foreach ($lines as $line) {
-                            $filePath = \trim($line);
-                            if ('' === $filePath || !\file_exists($filePath) || !\is_file($filePath)) {
-                                continue;
-                            }
-
-                            // Additional filtering
-                            if (!$this->matchesAdditionalCriteria($filePath, $criteria)) {
-                                continue;
-                            }
-
-                            $results[] = new FilePath($filePath);
-                        }
-                    } else {
-                        $this->logger->warning('find process failed for subdirectory', [
-                            'subdirectory' => $subdir,
-                            'error' => $process->getErrorOutput(),
-                        ]);
-                    }
-
-                    unset($processes[$subdir]);
-                }
-            }
-
-            // Small delay to avoid busy waiting
-            if ([] !== $processes) {
-                \usleep(10000); // 10ms
-            }
-        }
-
-        // Yield results
-        foreach ($results as $filePath) {
-            yield $filePath;
-        }
-    }
-
-    /**
-     * Get subdirectories up to max depth.
-     *
-     * @return string[]
-     */
-    private function getSubdirectories(string $directory, int $maxDepth): array
-    {
-        $subdirectories = [$directory];
-        $currentLevel = [$directory];
-        $depth = 0;
-
-        while ($depth < $maxDepth && [] !== $currentLevel) {
-            $nextLevel = [];
-
-            foreach ($currentLevel as $dir) {
-                try {
-                    $items = @\scandir($dir);
-                    if (false === $items) {
-                        continue;
-                    }
-
-                    foreach ($items as $item) {
-                        if ('.' === $item || '..' === $item) {
-                            continue;
-                        }
-
-                        $path = $dir.\DIRECTORY_SEPARATOR.$item;
-                        if (\is_dir($path)) {
-                            $nextLevel[] = $path;
-                            $subdirectories[] = $path;
-                        }
-                    }
-                } catch (\Exception $e) {
-                    $this->logger->warning('Error scanning directory', [
-                        'directory' => $dir,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-
-            $currentLevel = $nextLevel;
-            ++$depth;
-        }
-
-        return $subdirectories;
-    }
-
-    /**
-     * Build find command with criteria.
-     *
-     * @return string[]
-     */
-    private function buildFindCommand(string $directory, FileSearchCriteria $criteria): array
-    {
-        $command = ['find', $directory];
+        // Build find command parts
+        $findParts = ['find', $escapedDir];
 
         // Add exclude directory patterns (must be before -type)
-        // Convert glob patterns to find-compatible paths
         $excludePatterns = [];
         foreach ($criteria->getExcludeDirectories() as $pattern) {
             // Convert **/.git to */.git for find
             $findPattern = \str_replace('**/', '*/', $pattern);
-            $excludePatterns[] = $findPattern;
+            $excludePatterns[] = \escapeshellarg($findPattern);
         }
 
         if ([] !== $excludePatterns) {
-            $command[] = '\\(';
-            foreach ($excludePatterns as $index => $pattern) {
-                if ($index > 0) {
-                    $command[] = '-o';
-                }
-                $command[] = '-path';
-                $command[] = $pattern;
-            }
-            $command[] = '\\)';
-            $command[] = '-prune';
-            $command[] = '-o';
+            $findParts[] = '\\(';
+            $findParts[] = \implode(' -o -path ', $excludePatterns);
+            $findParts[] = '\\)';
+            $findParts[] = '-prune';
+            $findParts[] = '-o';
         }
 
         // Add type filter (files only)
-        $command[] = '-type';
-        $command[] = 'f';
+        $findParts[] = '-type';
+        $findParts[] = 'f';
 
-        // Add extension filters
+        // Add extension filters using -iregex (much faster than multiple -iname)
         if ([] !== $criteria->getExtensions()) {
-            $command[] = '\\(';
-            $command[] = '-iname';
-            $command[] = \sprintf('*.%s', $criteria->getExtensions()[0]);
-            $counter = \count($criteria->getExtensions());
-            for ($i = 1; $i < $counter; ++$i) {
-                $command[] = '-o';
-                $command[] = '-iname';
-                $command[] = \sprintf('*.%s', $criteria->getExtensions()[$i]);
-            }
-            $command[] = '\\)';
+            $extensions = \array_map(\strtolower(...), $criteria->getExtensions());
+            $extensionsRegex = \implode('|', \array_map(preg_quote(...), $extensions));
+            $findParts[] = '-regextype';
+            $findParts[] = 'posix-extended';
+            $findParts[] = '-iregex';
+            $findParts[] = \escapeshellarg(\sprintf('.*\\.(%s)$', $extensionsRegex));
         }
 
         // Add size filters
         if (null !== $criteria->getMinSizeBytes()) {
-            $command[] = '-size';
-            $command[] = \sprintf('+%dc', $criteria->getMinSizeBytes());
+            $findParts[] = '-size';
+            $findParts[] = \sprintf('+%dc', $criteria->getMinSizeBytes());
         }
 
         if (null !== $criteria->getMaxSizeBytes()) {
-            $command[] = '-size';
-            $command[] = \sprintf('-%dc', $criteria->getMaxSizeBytes() + 1);
+            $findParts[] = '-size';
+            $findParts[] = \sprintf('-%dc', $criteria->getMaxSizeBytes() + 1);
         }
 
-        // Print results
-        $command[] = '-print';
+        // Build the command string
+        $command = \implode(' ', $findParts);
+
+        // Add grep for filename patterns (fast filtering in shell)
+        if ([] !== $criteria->getFilenamePatterns()) {
+            // Combine patterns with | (OR)
+            $grepPatterns = [];
+            foreach ($criteria->getFilenamePatterns() as $pattern) {
+                // Remove regex delimiters and escape for grep -E
+                $grepPattern = \trim($pattern, '/');
+                $grepPatterns[] = $grepPattern;
+            }
+            $grepPattern = \implode('|', $grepPatterns);
+            $command .= ' | grep -E '.\escapeshellarg($grepPattern);
+        }
 
         return $command;
     }
@@ -334,22 +210,13 @@ final readonly class FindCommandSearcher implements FileSearcherPort
     }
 
     /**
-     * Check if file matches additional criteria (regex patterns).
+     * Check if file matches additional criteria (exclude/include patterns only).
+     * Filename patterns are already handled by grep in shell command.
      */
     private function matchesAdditionalCriteria(string $filePath, FileSearchCriteria $criteria): bool
     {
-        // Check filename regex patterns
-        $filename = \basename($filePath);
-        foreach ($criteria->getFilenamePatterns() as $pattern) {
-            if (\preg_match($pattern, $filename)) {
-                return true; // At least one pattern matches
-            }
-        }
-
-        // If filename patterns are specified but none matched, exclude file
-        if ([] !== $criteria->getFilenamePatterns()) {
-            return false;
-        }
+        // Filename patterns are already filtered by grep in shell command, skip here
+        // (This method is called after shell filtering, so if we get here, filename patterns already matched)
 
         // Check exclude patterns (glob)
         foreach ($criteria->getExcludePatterns() as $pattern) {

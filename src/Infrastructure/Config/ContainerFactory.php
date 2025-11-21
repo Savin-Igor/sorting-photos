@@ -619,20 +619,10 @@ final readonly class ContainerFactory
             ])
             ->setPublic(false);
 
-        // Register FindCommandSearcher
-        $parallelEnabled = $container->hasParameter('app.search.parallel.enabled')
-            ? (bool) $container->getParameter('app.search.parallel.enabled')
-            : false;
-        $maxDepthParam = $container->hasParameter('app.search.parallel.max_depth')
-            ? $container->getParameter('app.search.parallel.max_depth')
-            : 3;
-        $maxDepth = \is_int($maxDepthParam) ? $maxDepthParam : (\is_string($maxDepthParam) ? (int) $maxDepthParam : 3);
-
+        // Register FindCommandSearcher (parallel search disabled - using shell pipes)
         $container->register(\SortingPhotosByDate\Infrastructure\Search\FindCommandSearcher::class, \SortingPhotosByDate\Infrastructure\Search\FindCommandSearcher::class)
             ->setArguments([
                 new Reference('SortingPhotosByDate\Ports\LoggerPort'),
-                $parallelEnabled,
-                $maxDepth,
             ])
             ->setPublic(false);
 
@@ -671,7 +661,7 @@ final readonly class ContainerFactory
 
             // Add search config
             if ($container->hasParameter('app.search')) {
-                $arguments['$searchConfig'] = $this->buildSearchConfig($container, $searchEnabled, $strategy, $parallelEnabled, $maxDepth);
+                $arguments['$searchConfig'] = $this->buildSearchConfig($container, $searchEnabled, $strategy);
             } else {
                 $arguments['$searchConfig'] = null;
             }
@@ -719,20 +709,12 @@ final readonly class ContainerFactory
                     'include_patterns' => $container->hasParameter('app.search.command.include_patterns')
                         ? $container->getParameter('app.search.command.include_patterns')
                         : [],
-                    'parallel' => [
-                        'enabled' => $container->hasParameter('app.search.command.parallel.enabled')
-                            ? (bool) $container->getParameter('app.search.command.parallel.enabled')
-                            : false,
-                        'max_depth' => $container->hasParameter('app.search.command.parallel.max_depth')
-                            ? (\is_int($maxDepthParam = $container->getParameter('app.search.command.parallel.max_depth')) ? $maxDepthParam : (\is_string($maxDepthParam) ? (int) $maxDepthParam : 3))
-                            : 3,
-                    ],
                 ];
                 $arguments['$searchConfig'] = $commandSearchConfig;
             } else {
                 // Fallback to general search config
                 $arguments['$searchConfig'] = $container->hasParameter('app.search')
-                    ? $this->buildSearchConfig($container, $searchEnabled, $strategy, $parallelEnabled, $maxDepth)
+                    ? $this->buildSearchConfig($container, $searchEnabled, $strategy)
                     : [];
             }
 
@@ -749,8 +731,6 @@ final readonly class ContainerFactory
         ContainerBuilder $container,
         bool $searchEnabled,
         string $strategy,
-        bool $parallelEnabled,
-        int $maxDepth,
     ): array {
         return [
             'enabled' => $searchEnabled,
@@ -776,10 +756,6 @@ final readonly class ContainerFactory
             'include_patterns' => $container->hasParameter('app.search.include_patterns')
                 ? $container->getParameter('app.search.include_patterns')
                 : [],
-            'parallel' => [
-                'enabled' => $parallelEnabled,
-                'max_depth' => $maxDepth,
-            ],
         ];
     }
 

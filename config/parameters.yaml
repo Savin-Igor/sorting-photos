@@ -193,7 +193,7 @@ parameters:
         - '**/*.tmp'
         - '**/*~'
     app.search.command.include_patterns: []
-    app.search.command.parallel.enabled: false
+    app.search.command.parallel.enabled: false  # Disabled - sequential search with shell pipes is faster
     app.search.command.parallel.max_depth: 3
 
 
