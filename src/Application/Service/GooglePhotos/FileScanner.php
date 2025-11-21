@@ -33,6 +33,7 @@ final readonly class FileScanner
         private FilenameDateExtractor $filenameDateExtractor,
         private FileExtensionValidatorInterface $extensionValidator,
         private FileTypeDetectorInterface $typeDetector,
+        private JobCreatorInterface $jobCreator,
         private ?FilterChain $filterChain = null,
         private ?FileSearcherPort $fileSearcher = null,
         private ?array $searchConfig = null,
@@ -339,10 +340,10 @@ final readonly class FileScanner
             // 7. Create UploadJob
             $creationTime = $creationTimeImmutable;
 
-            $job = UploadJob::create(
+            $job = $this->jobCreator->createJob(
                 filePath: $filePath,
-                fileSize: $metadata->getFileSize(),
-                fileHash: $hash,
+                hash: $hash,
+                metadata: $metadata,
                 mimeType: $mimeType,
                 isVideo: $isVideo,
                 creationTime: $creationTime,

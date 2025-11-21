@@ -658,6 +658,12 @@ final readonly class ContainerFactory
         $container->setAlias(\SortingPhotosByDate\Application\Service\FileValidation\FileExtensionValidatorInterface::class, \SortingPhotosByDate\Application\Service\FileValidation\FileExtensionValidator::class);
         $container->setAlias(\SortingPhotosByDate\Application\Service\FileValidation\FileTypeDetectorInterface::class, \SortingPhotosByDate\Application\Service\FileValidation\FileTypeDetector::class);
 
+        // Register job creator service
+        $container->register(\SortingPhotosByDate\Application\Service\GooglePhotos\JobCreator::class, \SortingPhotosByDate\Application\Service\GooglePhotos\JobCreator::class)
+            ->setPublic(false);
+
+        $container->setAlias(\SortingPhotosByDate\Application\Service\GooglePhotos\JobCreatorInterface::class, \SortingPhotosByDate\Application\Service\GooglePhotos\JobCreator::class);
+
         // Register batch persistence strategy for FileScanner
         $container->register(\SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\BatchJobPersistenceStrategy::class, \SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\BatchJobPersistenceStrategy::class)
             ->setArguments([
@@ -681,6 +687,7 @@ final readonly class ContainerFactory
             // Add file validation services
             $arguments['$extensionValidator'] = new Reference(\SortingPhotosByDate\Application\Service\FileValidation\FileExtensionValidatorInterface::class);
             $arguments['$typeDetector'] = new Reference(\SortingPhotosByDate\Application\Service\FileValidation\FileTypeDetectorInterface::class);
+            $arguments['$jobCreator'] = new Reference(\SortingPhotosByDate\Application\Service\GooglePhotos\JobCreatorInterface::class);
 
             // Add fileSearcher if search is enabled
             if ($searchEnabled && null !== $searcherClass) {
