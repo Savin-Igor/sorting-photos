@@ -39,6 +39,7 @@ final readonly class ContainerFactory
         $this->loadServices($container);
         $this->configureOrganizerPolicy($container);
         $this->configureFilters($container);
+        $this->configureSearch($container);
         $this->compileContainer($container);
 
         return $container;
@@ -596,6 +597,192 @@ final readonly class ContainerFactory
     /**
      * Configure organizer policy based on parameter.
      */
+    /**
+     * Configure file search services.
+     */
+    private function configureSearch(ContainerBuilder $container): void
+    {
+        if (!$container->hasParameter('app.search.enabled')) {
+            return;
+        }
+
+        $searchEnabled = (bool) $container->getParameter('app.search.enabled');
+        $strategyParam = $container->hasParameter('app.search.strategy')
+            ? $container->getParameter('app.search.strategy')
+            : 'disabled';
+        $strategy = \is_string($strategyParam) ? $strategyParam : 'disabled';
+
+        // Register LocateSearcher
+        $container->register(\SortingPhotosByDate\Infrastructure\Search\LocateSearcher::class, \SortingPhotosByDate\Infrastructure\Search\LocateSearcher::class)
+            ->setArguments([
+                new Reference('SortingPhotosByDate\Ports\LoggerPort'),
+            ])
+            ->setPublic(false);
+
+        // Register FindCommandSearcher
+        $parallelEnabled = $container->hasParameter('app.search.parallel.enabled')
+            ? (bool) $container->getParameter('app.search.parallel.enabled')
+            : false;
+        $maxDepthParam = $container->hasParameter('app.search.parallel.max_depth')
+            ? $container->getParameter('app.search.parallel.max_depth')
+            : 3;
+        $maxDepth = \is_int($maxDepthParam) ? $maxDepthParam : (\is_string($maxDepthParam) ? (int) $maxDepthParam : 3);
+
+        $container->register(\SortingPhotosByDate\Infrastructure\Search\FindCommandSearcher::class, \SortingPhotosByDate\Infrastructure\Search\FindCommandSearcher::class)
+            ->setArguments([
+                new Reference('SortingPhotosByDate\Ports\LoggerPort'),
+                $parallelEnabled,
+                $maxDepth,
+            ])
+            ->setPublic(false);
+
+        // Register HybridSearcher
+        $container->register(\SortingPhotosByDate\Infrastructure\Search\HybridSearcher::class, \SortingPhotosByDate\Infrastructure\Search\HybridSearcher::class)
+            ->setArguments([
+                new Reference(\SortingPhotosByDate\Infrastructure\Search\LocateSearcher::class),
+                new Reference(\SortingPhotosByDate\Infrastructure\Search\FindCommandSearcher::class),
+                new Reference('SortingPhotosByDate\Ports\LoggerPort'),
+            ])
+            ->setPublic(false);
+
+        // Select searcher based on strategy
+        $searcherClass = match ($strategy) {
+            'locate' => \SortingPhotosByDate\Infrastructure\Search\LocateSearcher::class,
+            'find' => \SortingPhotosByDate\Infrastructure\Search\FindCommandSearcher::class,
+            'hybrid' => \SortingPhotosByDate\Infrastructure\Search\HybridSearcher::class,
+            default => null,
+        };
+
+        if (null !== $searcherClass && $searchEnabled) {
+            $container->setAlias(\SortingPhotosByDate\Ports\Search\FileSearcherPort::class, $searcherClass);
+        }
+
+        // Configure FileScanner with search
+        if ($container->hasDefinition(\SortingPhotosByDate\Application\Service\GooglePhotos\FileScanner::class)) {
+            $fileScannerDef = $container->getDefinition(\SortingPhotosByDate\Application\Service\GooglePhotos\FileScanner::class);
+            $arguments = $fileScannerDef->getArguments();
+
+            // Add fileSearcher if search is enabled
+            if ($searchEnabled && null !== $searcherClass) {
+                $arguments['$fileSearcher'] = new Reference(\SortingPhotosByDate\Ports\Search\FileSearcherPort::class);
+            } else {
+                $arguments['$fileSearcher'] = null;
+            }
+
+            // Add search config
+            if ($container->hasParameter('app.search')) {
+                $arguments['$searchConfig'] = $this->buildSearchConfig($container, $searchEnabled, $strategy, $parallelEnabled, $maxDepth);
+            } else {
+                $arguments['$searchConfig'] = null;
+            }
+
+            $fileScannerDef->setArguments($arguments);
+        }
+
+        // Configure GooglePhotosSearchFilesCommand with command-specific config
+        if ($container->hasDefinition(\SortingPhotosByDate\Command\GooglePhotosSearchFilesCommand::class)) {
+            $commandDef = $container->getDefinition(\SortingPhotosByDate\Command\GooglePhotosSearchFilesCommand::class);
+            $arguments = $commandDef->getArguments();
+
+            // Use command-specific searcher
+            if ($searchEnabled && null !== $searcherClass) {
+                $arguments['$fileSearcher'] = new Reference(\SortingPhotosByDate\Ports\Search\FileSearcherPort::class);
+            }
+
+            // Use command-specific search config
+            if ($container->hasParameter('app.search.command')) {
+                $commandSearchConfig = [
+                    'enabled' => $container->hasParameter('app.search.command.enabled')
+                        ? (bool) $container->getParameter('app.search.command.enabled')
+                        : true,
+                    'strategy' => $container->hasParameter('app.search.command.strategy')
+                        ? (\is_string($strategyParam = $container->getParameter('app.search.command.strategy')) ? $strategyParam : 'hybrid')
+                        : 'hybrid',
+                    'extensions' => $container->hasParameter('app.search.command.extensions')
+                        ? $container->getParameter('app.search.command.extensions')
+                        : [],
+                    'min_size_bytes' => $container->hasParameter('app.search.command.min_size_bytes')
+                        ? $container->getParameter('app.search.command.min_size_bytes')
+                        : null,
+                    'max_size_bytes' => $container->hasParameter('app.search.command.max_size_bytes')
+                        ? $container->getParameter('app.search.command.max_size_bytes')
+                        : null,
+                    'filename_patterns' => $container->hasParameter('app.search.command.filename_patterns')
+                        ? $container->getParameter('app.search.command.filename_patterns')
+                        : [],
+                    'exclude_directories' => $container->hasParameter('app.search.command.exclude_directories')
+                        ? $container->getParameter('app.search.command.exclude_directories')
+                        : [],
+                    'exclude_patterns' => $container->hasParameter('app.search.command.exclude_patterns')
+                        ? $container->getParameter('app.search.command.exclude_patterns')
+                        : [],
+                    'include_patterns' => $container->hasParameter('app.search.command.include_patterns')
+                        ? $container->getParameter('app.search.command.include_patterns')
+                        : [],
+                    'parallel' => [
+                        'enabled' => $container->hasParameter('app.search.command.parallel.enabled')
+                            ? (bool) $container->getParameter('app.search.command.parallel.enabled')
+                            : false,
+                        'max_depth' => $container->hasParameter('app.search.command.parallel.max_depth')
+                            ? (\is_int($maxDepthParam = $container->getParameter('app.search.command.parallel.max_depth')) ? $maxDepthParam : (\is_string($maxDepthParam) ? (int) $maxDepthParam : 3))
+                            : 3,
+                    ],
+                ];
+                $arguments['$searchConfig'] = $commandSearchConfig;
+            } else {
+                // Fallback to general search config
+                $arguments['$searchConfig'] = $container->hasParameter('app.search')
+                    ? $this->buildSearchConfig($container, $searchEnabled, $strategy, $parallelEnabled, $maxDepth)
+                    : [];
+            }
+
+            $commandDef->setArguments($arguments);
+        }
+    }
+
+    /**
+     * Build search configuration array from container parameters.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildSearchConfig(
+        ContainerBuilder $container,
+        bool $searchEnabled,
+        string $strategy,
+        bool $parallelEnabled,
+        int $maxDepth,
+    ): array {
+        return [
+            'enabled' => $searchEnabled,
+            'strategy' => $strategy,
+            'extensions' => $container->hasParameter('app.search.extensions')
+                ? $container->getParameter('app.search.extensions')
+                : [],
+            'min_size_bytes' => $container->hasParameter('app.search.min_size_bytes')
+                ? $container->getParameter('app.search.min_size_bytes')
+                : null,
+            'max_size_bytes' => $container->hasParameter('app.search.max_size_bytes')
+                ? $container->getParameter('app.search.max_size_bytes')
+                : null,
+            'filename_patterns' => $container->hasParameter('app.search.filename_patterns')
+                ? $container->getParameter('app.search.filename_patterns')
+                : [],
+            'exclude_directories' => $container->hasParameter('app.search.exclude_directories')
+                ? $container->getParameter('app.search.exclude_directories')
+                : [],
+            'exclude_patterns' => $container->hasParameter('app.search.exclude_patterns')
+                ? $container->getParameter('app.search.exclude_patterns')
+                : [],
+            'include_patterns' => $container->hasParameter('app.search.include_patterns')
+                ? $container->getParameter('app.search.include_patterns')
+                : [],
+            'parallel' => [
+                'enabled' => $parallelEnabled,
+                'max_depth' => $maxDepth,
+            ],
+        ];
+    }
+
     private function configureOrganizerPolicy(ContainerBuilder $container): void
     {
         if (!$container->hasParameter('app.organizer_policy')) {

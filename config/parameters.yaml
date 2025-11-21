@@ -43,8 +43,8 @@ parameters:
     google_photos.batch.timeout: 30
 
     # Google Photos quota parameters
-    google_photos.quota.daily_upload: '1000GB'
-    google_photos.quota.hourly_upload: '100GB'
+    google_photos.quota.daily_upload: '2000GB'
+    google_photos.quota.hourly_upload: '2000GB'
     google_photos.quota.requests_per_minute: 60
     google_photos.quota.burst_limit: 100
 
@@ -55,7 +55,7 @@ parameters:
     google_photos.monitoring.alert_on_upload_failed: false
 
     # Logging parameters
-    app.logging.file_enabled: true
+    app.logging.file_enabled: false
     app.logging.file_level: 'DEBUG'  # DEBUG, INFO, WARNING, ERROR, or OFF to disable file logging
     app.logging.console_level: 'INFO'  # DEBUG, INFO, WARNING, ERROR
 
@@ -81,14 +81,117 @@ parameters:
     app.filters.file_size.max_bytes: null    # Maximum size (null = no limit)
     
     # Filter by filename regex (for screenshots, etc.)
-    app.filters.filename_regex.enabled: false
-    app.filters.filename_regex.patterns: []  # ['/screenshot/i', '/screen.?shot/i']
+    app.filters.filename_regex.enabled: true
+    app.filters.filename_regex.patterns: ['/screenshot/i', '/screen.?shot/i', '/Screenshot/i',]
     
     # Filter by date
     app.filters.date.enabled: true
-    app.filters.date.from_date: '2022-12-30 00:00:00'  # Start date (null = no limit)
-    app.filters.date.to_date: '2024-01-01 23:59:59'    # End date (null = no limit)
+    app.filters.date.from_date: '2024-01-01 00:00:00'  # Start date (null = no limit) - начало 2024 года
+    app.filters.date.to_date: '2024-12-31 23:59:59'    # End date (null = no limit) - конец 2024 года
     app.filters.date.check_filename: true    # Check date in filename
     app.filters.date.check_metadata: true     # Check date in metadata
+
+    # File search configuration (for fast file discovery before metadata extraction)
+    app.search.enabled: true
+    app.search.strategy: hybrid  # hybrid | locate | find | disabled
+    
+    # File extensions to search for
+    app.search.extensions:
+        - jpg
+        - jpeg
+        - png
+        - gif
+        - webp
+        - bmp
+        - tiff
+        - tif
+        - heic
+        - heif
+        - mp4
+        - mov
+        - avi
+        - mkv
+        - wmv
+        - flv
+        - webm
+        - m4v
+        - 3gp
+    
+    app.search.min_size_bytes: null  # Minimum file size in bytes
+    app.search.max_size_bytes: null  # Maximum file size in bytes
+    
+    # Regex patterns for filename matching
+    app.search.filename_patterns: []  # ['/IMG_\d{8}/', '/VID_\d{8}/']
+    
+    # Glob patterns for directory exclusion
+    app.search.exclude_directories:
+        - '**/.git'
+        - '**/node_modules'
+        - '**/.DS_Store'
+        - '**/Thumbs.db'
+        - '**/.*'  # Hidden directories
+    
+    # Glob patterns for file exclusion
+    app.search.exclude_patterns:
+        - '**/*.tmp'
+        - '**/*~'
+    
+    # Glob patterns for file inclusion (null = all)
+    app.search.include_patterns: []
+    
+    # Parallel search configuration
+    app.search.parallel.enabled: false
+    app.search.parallel.max_depth: 3  # Maximum depth for parallel search
+    
+    # File search configuration for command (google-photos:search-files)
+    app.search.command.enabled: true
+    app.search.command.strategy: hybrid  # hybrid | locate | find | disabled
+    
+    # Search for images only (photos)
+    app.search.command.extensions:
+        - jpg
+        - jpeg
+        - png
+        - gif
+        - webp
+        - bmp
+        - tiff
+        - tif
+        - heic
+        - heif
+        # Exclude videos for photo search
+        # - mp4
+        # - mov
+        # - avi
+        # - mkv
+        # - wmv
+        # - flv
+        # - webm
+        # - m4v
+        # - 3gp
+    
+    app.search.command.min_size_bytes: null
+    app.search.command.max_size_bytes: null
+    
+    # Filename patterns to find files with 2024 in name (optional, helps locate files faster)
+    # Examples: IMG_20240101_120000.jpg, 2024-01-15_photo.jpg, etc.
+    app.search.command.filename_patterns:
+        - '/2024/'  # Files containing "2024" in filename
+        - '/IMG_2024\d{4}/'  # IMG_20240101 format
+        - '/2024-\d{2}-\d{2}/'  # 2024-01-01 format
+        - '/\d{8}.*2024/'  # Date format with 2024
+    
+    app.search.command.exclude_directories:
+        - '**/.git'
+        - '**/node_modules'
+        - '**/.DS_Store'
+        - '**/Thumbs.db'
+        - '**/.*'
+    app.search.command.exclude_patterns:
+        - '**/*.tmp'
+        - '**/*~'
+    app.search.command.include_patterns: []
+    app.search.command.parallel.enabled: false
+    app.search.command.parallel.max_depth: 3
 
 
