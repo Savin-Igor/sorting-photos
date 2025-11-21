@@ -131,6 +131,7 @@ final class GooglePhotosSearchFilesCommand extends Command
         }
 
         $startTime = \microtime(true);
+        $foundFilePaths = [];
         $foundFiles = [];
         $count = 0;
 
@@ -142,6 +143,7 @@ final class GooglePhotosSearchFilesCommand extends Command
                     break;
                 }
 
+                $foundFilePaths[] = $filePath;
                 $foundFiles[] = $filePath->getPath();
                 ++$count;
             }
@@ -203,7 +205,9 @@ final class GooglePhotosSearchFilesCommand extends Command
         // Add to database if requested
         if ($addToDb && !$dryRun) {
             $io->section('Adding Files to Database');
-            $addedCount = $this->fileScanner->scanAndCreateJobs($sourceDir);
+            // Use processFoundFiles() instead of scanAndCreateJobs() to avoid duplicate search
+            // Files are already found above, no need to search again
+            $addedCount = $this->fileScanner->processFoundFiles($foundFilePaths);
 
             $io->success(\sprintf('Added <info>%d</info> files to database', $addedCount));
         }

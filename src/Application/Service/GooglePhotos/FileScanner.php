@@ -48,6 +48,40 @@ final readonly class FileScanner
     }
 
     /**
+     * Process already found files without searching again.
+     * Used when files are already discovered (e.g., from command search).
+     *
+     * @param \SortingPhotosByDate\Domain\ValueObjects\FilePath[] $filePaths Already found file paths
+     *
+     * @return int Number of jobs created
+     */
+    public function processFoundFiles(array $filePaths): int
+    {
+        $createdCount = 0;
+        $skippedCount = 0;
+
+        $this->logger->info('Processing found files', [
+            'total_files' => \count($filePaths),
+        ]);
+
+        foreach ($filePaths as $filePath) {
+            $result = $this->processFile($filePath);
+            if ($result) {
+                ++$createdCount;
+            } else {
+                ++$skippedCount;
+            }
+        }
+
+        $this->logger->info('File processing completed', [
+            'created' => $createdCount,
+            'skipped' => $skippedCount,
+        ]);
+
+        return $createdCount;
+    }
+
+    /**
      * Scan using fast file search.
      */
     private function scanWithSearch(string $sourcePath): int
