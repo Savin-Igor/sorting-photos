@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Application\Service\GooglePhotos;
 
 use Carbon\Carbon;
 use SortingPhotosByDate\Application\Filter\FilterChain;
+use SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\JobPersistenceStrategyInterface;
 use SortingPhotosByDate\Domain\Search\FileSearchCriteria;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
@@ -31,6 +32,7 @@ final readonly class FileScanner
         private ?FilterChain $filterChain = null,
         private ?FileSearcherPort $fileSearcher = null,
         private ?array $searchConfig = null,
+        private ?JobPersistenceStrategyInterface $persistenceStrategy = null,
     ) {
     }
 
@@ -70,6 +72,16 @@ final readonly class FileScanner
                 ++$createdCount;
             } else {
                 ++$skippedCount;
+            }
+        }
+
+        // Flush any buffered jobs if using batch strategy
+        if ($this->persistenceStrategy instanceof JobPersistenceStrategyInterface) {
+            $flushedCount = $this->persistenceStrategy->flush();
+            if ($flushedCount > 0) {
+                $this->logger->info('Flushed buffered jobs', [
+                    'flushed_count' => $flushedCount,
+                ]);
             }
         }
 
@@ -121,6 +133,16 @@ final readonly class FileScanner
             return $this->scanRecursive($sourcePath);
         }
 
+        // Flush any buffered jobs if using batch strategy
+        if ($this->persistenceStrategy instanceof JobPersistenceStrategyInterface) {
+            $flushedCount = $this->persistenceStrategy->flush();
+            if ($flushedCount > 0) {
+                $this->logger->info('Flushed buffered jobs', [
+                    'flushed_count' => $flushedCount,
+                ]);
+            }
+        }
+
         $duration = \microtime(true) - $startTime;
         $totalFiles = $createdCount + $skippedCount;
 
@@ -150,6 +172,16 @@ final readonly class FileScanner
                 ++$createdCount;
             } else {
                 ++$skippedCount;
+            }
+        }
+
+        // Flush any buffered jobs if using batch strategy
+        if ($this->persistenceStrategy instanceof JobPersistenceStrategyInterface) {
+            $flushedCount = $this->persistenceStrategy->flush();
+            if ($flushedCount > 0) {
+                $this->logger->info('Flushed buffered jobs', [
+                    'flushed_count' => $flushedCount,
+                ]);
             }
         }
 
@@ -312,7 +344,12 @@ final readonly class FileScanner
                 creationTime: $creationTime,
             );
 
-            $this->jobRepository->save($job);
+            // Use persistence strategy if available, otherwise fallback to direct repository save
+            if ($this->persistenceStrategy instanceof JobPersistenceStrategyInterface) {
+                $this->persistenceStrategy->persist($job);
+            } else {
+                $this->jobRepository->save($job);
+            }
 
             $this->logger->debug('Upload job created', [
                 'job_id' => $job->getId()->getId(),

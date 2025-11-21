@@ -647,7 +647,22 @@ final readonly class ContainerFactory
             $container->setAlias(\SortingPhotosByDate\Ports\Search\FileSearcherPort::class, $searcherClass);
         }
 
-        // Configure FileScanner with search
+        // Register batch persistence strategy for FileScanner
+        $container->register(\SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\BatchJobPersistenceStrategy::class, \SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\BatchJobPersistenceStrategy::class)
+            ->setArguments([
+                new Reference(\SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort::class),
+                new Reference('SortingPhotosByDate\Ports\LoggerPort'),
+            ])
+            ->setPublic(false);
+
+        // Register single persistence strategy as fallback
+        $container->register(\SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\SingleJobPersistenceStrategy::class, \SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\SingleJobPersistenceStrategy::class)
+            ->setArguments([
+                new Reference(\SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort::class),
+            ])
+            ->setPublic(false);
+
+        // Configure FileScanner with search and persistence strategy
         if ($container->hasDefinition(\SortingPhotosByDate\Application\Service\GooglePhotos\FileScanner::class)) {
             $fileScannerDef = $container->getDefinition(\SortingPhotosByDate\Application\Service\GooglePhotos\FileScanner::class);
             $arguments = $fileScannerDef->getArguments();
@@ -665,6 +680,9 @@ final readonly class ContainerFactory
             } else {
                 $arguments['$searchConfig'] = null;
             }
+
+            // Add batch persistence strategy for better performance
+            $arguments['$persistenceStrategy'] = new Reference(\SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\BatchJobPersistenceStrategy::class);
 
             $fileScannerDef->setArguments($arguments);
         }
