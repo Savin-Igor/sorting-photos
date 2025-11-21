@@ -44,16 +44,35 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
             'updated_at' => $job->getUpdatedAt()->format('Y-m-d H:i:s'),
         ];
 
-        $existing = $this->connection->fetchOne(
-            'SELECT id FROM '.self::TABLE_NAME.' WHERE id = ?',
-            [$job->getId()->getId()]
-        );
+        // Use INSERT OR REPLACE for atomic operation (SQLite)
+        // This eliminates the need for SELECT + INSERT/UPDATE, reducing database queries from 2 to 1
+        $sql = 'INSERT OR REPLACE INTO '.self::TABLE_NAME.' (
+            id, file_path, file_size, file_hash, mime_type, is_video, state,
+            resumable_session_uri, uploaded_bytes, upload_token, batch_id,
+            creation_time, retry_count, last_error, last_known_uploaded_bytes,
+            session_expiration_count, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
-        if (false !== $existing) {
-            $this->connection->update(self::TABLE_NAME, $data, ['id' => $job->getId()->getId()]);
-        } else {
-            $this->connection->insert(self::TABLE_NAME, $data);
-        }
+        $this->connection->executeStatement($sql, [
+            $data['id'],
+            $data['file_path'],
+            $data['file_size'],
+            $data['file_hash'],
+            $data['mime_type'],
+            $data['is_video'],
+            $data['state'],
+            $data['resumable_session_uri'],
+            $data['uploaded_bytes'],
+            $data['upload_token'],
+            $data['batch_id'],
+            $data['creation_time'],
+            $data['retry_count'],
+            $data['last_error'],
+            $data['last_known_uploaded_bytes'],
+            $data['session_expiration_count'],
+            $data['created_at'],
+            $data['updated_at'],
+        ]);
     }
 
     public function findById(UploadJobId $id): ?UploadJob
