@@ -25,14 +25,31 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
     {
         $data = $this->prepareJobData($job);
 
-        // Use INSERT OR REPLACE for atomic operation (SQLite)
-        // This eliminates the need for SELECT + INSERT/UPDATE, reducing database queries from 2 to 1
-        $sql = 'INSERT OR REPLACE INTO '.self::TABLE_NAME.' (
+        // Use INSERT ... ON CONFLICT to only update Pending jobs
+        // Completed/Uploaded/Failed jobs remain untouched
+        // New jobs are inserted as Pending
+        $sql = 'INSERT INTO '.self::TABLE_NAME.' (
             id, file_path, file_size, file_hash, mime_type, is_video, state,
             resumable_session_uri, uploaded_bytes, upload_token, batch_id,
             creation_time, retry_count, last_error, last_known_uploaded_bytes,
             session_expiration_count, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            file_path = excluded.file_path,
+            file_size = excluded.file_size,
+            file_hash = excluded.file_hash,
+            mime_type = excluded.mime_type,
+            is_video = excluded.is_video,
+            resumable_session_uri = excluded.resumable_session_uri,
+            uploaded_bytes = excluded.uploaded_bytes,
+            upload_token = excluded.upload_token,
+            batch_id = excluded.batch_id,
+            retry_count = excluded.retry_count,
+            last_error = excluded.last_error,
+            last_known_uploaded_bytes = excluded.last_known_uploaded_bytes,
+            session_expiration_count = excluded.session_expiration_count,
+            updated_at = excluded.updated_at
+        WHERE '.self::TABLE_NAME.'.state = \'Pending\'';
 
         $this->connection->executeStatement($sql, [
             $data['id'],
@@ -63,42 +80,63 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
         }
 
         // Use transaction for atomicity - all jobs are saved or none
+        // Batch INSERT with multiple VALUES for better performance
         $this->connection->beginTransaction();
 
         try {
-            $sql = 'INSERT OR REPLACE INTO '.self::TABLE_NAME.' (
+            // Build batch INSERT with multiple VALUES
+            $placeholders = [];
+            $params = [];
+            $savedCount = 0;
+
+            foreach ($jobs as $job) {
+                $data = $this->prepareJobData($job);
+                $placeholders[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                $params[] = $data['id'];
+                $params[] = $data['file_path'];
+                $params[] = $data['file_size'];
+                $params[] = $data['file_hash'];
+                $params[] = $data['mime_type'];
+                $params[] = $data['is_video'];
+                $params[] = $data['state'];
+                $params[] = $data['resumable_session_uri'];
+                $params[] = $data['uploaded_bytes'];
+                $params[] = $data['upload_token'];
+                $params[] = $data['batch_id'];
+                $params[] = $data['creation_time'];
+                $params[] = $data['retry_count'];
+                $params[] = $data['last_error'];
+                $params[] = $data['last_known_uploaded_bytes'];
+                $params[] = $data['session_expiration_count'];
+                $params[] = $data['created_at'];
+                $params[] = $data['updated_at'];
+                ++$savedCount;
+            }
+
+            $sql = 'INSERT INTO '.self::TABLE_NAME.' (
                 id, file_path, file_size, file_hash, mime_type, is_video, state,
                 resumable_session_uri, uploaded_bytes, upload_token, batch_id,
                 creation_time, retry_count, last_error, last_known_uploaded_bytes,
                 session_expiration_count, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            ) VALUES '.\implode(', ', $placeholders).'
+            ON CONFLICT(id) DO UPDATE SET
+                file_path = excluded.file_path,
+                file_size = excluded.file_size,
+                file_hash = excluded.file_hash,
+                mime_type = excluded.mime_type,
+                is_video = excluded.is_video,
+                resumable_session_uri = excluded.resumable_session_uri,
+                uploaded_bytes = excluded.uploaded_bytes,
+                upload_token = excluded.upload_token,
+                batch_id = excluded.batch_id,
+                retry_count = excluded.retry_count,
+                last_error = excluded.last_error,
+                last_known_uploaded_bytes = excluded.last_known_uploaded_bytes,
+                session_expiration_count = excluded.session_expiration_count,
+                updated_at = excluded.updated_at
+            WHERE '.self::TABLE_NAME.'.state = \'Pending\'';
 
-            $savedCount = 0;
-            foreach ($jobs as $job) {
-                $data = $this->prepareJobData($job);
-                $this->connection->executeStatement($sql, [
-                    $data['id'],
-                    $data['file_path'],
-                    $data['file_size'],
-                    $data['file_hash'],
-                    $data['mime_type'],
-                    $data['is_video'],
-                    $data['state'],
-                    $data['resumable_session_uri'],
-                    $data['uploaded_bytes'],
-                    $data['upload_token'],
-                    $data['batch_id'],
-                    $data['creation_time'],
-                    $data['retry_count'],
-                    $data['last_error'],
-                    $data['last_known_uploaded_bytes'],
-                    $data['session_expiration_count'],
-                    $data['created_at'],
-                    $data['updated_at'],
-                ]);
-                ++$savedCount;
-            }
-
+            $this->connection->executeStatement($sql, $params);
             $this->connection->commit();
 
             return $savedCount;
