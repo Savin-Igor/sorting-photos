@@ -536,6 +536,9 @@ make consume
 - 📦 **Batch processing** (до 50 элементов)
 - 📊 **Управление квотами** API
 - 🗜️ **Сжатие изображений** без потери качества
+- 🔍 **Быстрый поиск файлов** (locate/find/hybrid стратегии)
+- 🎯 **Гибкая фильтрация** (по типу, размеру, дате, regex)
+- 📅 **Сохранение EXIF данных** и даты создания при сжатии
 
 ### 🚀 Настройка Google Photos
 
@@ -577,14 +580,23 @@ make google-photos-test
 make google-photos-test-albums
 ```
 
-#### Шаг 5: Загрузка файлов
+#### Шаг 5: Поиск и загрузка файлов
 
 ```bash
-# Загрузка из директории
+# Быстрый поиск файлов (без добавления в БД)
+bin/console google-photos:search-files --source-dir /path/to/photos --dry-run
+
+# Поиск и добавление найденных файлов в БД
+bin/console google-photos:search-files --source-dir /path/to/photos --add-to-db
+
+# Загрузка из директории (с автоматическим поиском)
 make google-photos-upload SOURCE=/path/to/photos
 
 # Сканирование без загрузки
 make google-photos-scan SOURCE=/path/to/photos
+
+# Исправление файлов, застрявших в статусе IN_BATCH
+bin/console google-photos:fix-in-batch --fix-completed-batches --fix-failed-batches
 ```
 
 ### ⚙️ Настройки Google Photos
@@ -607,10 +619,13 @@ GOOGLE_PHOTOS_FULL_ACCESS=false
 #### Этап 1: Загрузка файла (Upload)
 
 1. **`PENDING`** - Задача создана, файл готов к загрузке
+   - Файл проверяется на существование (если файл не найден → `NOT_FOUND`)
+   - Файлы могут быть помечены как `ARCHIVED` для исключения из обработки
 2. **`UPLOADING`** - Файл загружается на сервер Google через API `/uploads`
-   - Используется **raw upload** (весь файл загружается одним запросом)
-   - Файл сжимается при необходимости
-   - Устанавливается EXIF дата создания (если отсутствует)
+   - Используется **raw upload** для файлов < 100 MB
+   - Используется **resumable upload** для файлов > 100 MB
+   - Файл сжимается при необходимости (с сохранением EXIF данных)
+   - Устанавливается дата создания из метаданных или имени файла
 3. **`UPLOADED`** - Файл успешно загружен, получен `uploadToken`
    - ⚠️ **ВАЖНО**: На этом этапе файл **НЕ виден в Google Photos**!
    - Файл находится на серверах Google, но еще не создан как медиа-элемент
@@ -630,7 +645,23 @@ GOOGLE_PHOTOS_FULL_ACCESS=false
 PENDING → UPLOADING → UPLOADED → IN_BATCH → COMPLETED
    ↓         ↓           ↓           ↓
  FAILED   FAILED      FAILED      FAILED
+   ↓
+NOT_FOUND (файл не существует)
+   ↓
+ARCHIVED (исключен из обработки)
 ```
+
+#### Статусы файлов
+
+- **`PENDING`** - Файл готов к обработке
+- **`UPLOADING`** - Файл загружается на сервер
+- **`UPLOADED`** - Файл загружен, ожидает создания медиа-элемента
+- **`IN_BATCH`** - Файл добавлен в батч для создания медиа-элемента
+- **`COMPLETED`** - Файл успешно загружен и виден в Google Photos
+- **`FAILED`** - Ошибка при загрузке или создании медиа-элемента
+- **`PAUSED`** - Загрузка приостановлена (например, из-за квот)
+- **`NOT_FOUND`** - Файл не существует на диске (перемещен или диск отключен)
+- **`ARCHIVED`** - Файл исключен из обработки (хранится в БД, но не обрабатывается)
 
 #### Почему файлы со статусом `UPLOADED` не видны в Google Photos?
 
@@ -651,25 +682,38 @@ make google-photos-status
 make google-photos-dump-state
 ```
 
-#### Что делать, если файлы "застряли" в статусе `UPLOADED`?
+#### Что делать, если файлы "застряли" в статусе `UPLOADED` или `IN_BATCH`?
 
 1. **Проверьте, работает ли оркестратор:**
    ```bash
    make google-photos-upload SOURCE=/path/to/photos
    ```
 
-2. **Проверьте квоты API:**
+2. **Используйте команду исправления:**
+   ```bash
+   # Исправить файлы из завершенных батчей
+   bin/console google-photos:fix-in-batch --fix-completed-batches
+   
+   # Исправить файлы из провалившихся батчей
+   bin/console google-photos:fix-in-batch --fix-failed-batches
+   
+   # Просмотр статистики
+   bin/console google-photos:fix-in-batch
+   ```
+
+3. **Проверьте квоты API:**
    - Google Photos API имеет лимиты на количество запросов
    - При превышении квоты процесс автоматически приостанавливается
 
-3. **Проверьте логи:**
+4. **Проверьте логи:**
    ```bash
    make logs-app | grep -i "batch\|quota\|error"
    ```
 
-4. **Ручной запуск обработки батчей:**
-   - Оркестратор автоматически обрабатывает батчи
-   - Если батчи не обрабатываются, проверьте логи на ошибки
+5. **Проверьте статус файлов:**
+   ```bash
+   bin/console google-photos:status
+   ```
 
 #### Приоритеты обработки в оркестраторе
 

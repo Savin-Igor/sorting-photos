@@ -146,10 +146,11 @@ flowchart TD
 
 ### 📊 Этапы обработки
 
-#### 1. **Сканирование файлов** (`ScanFilesCommand`)
-- Рекурсивное сканирование директории
-- Фильтрация по типам файлов
-- Диспетчеризация событий `FileDiscovered`
+#### 1. **Сканирование файлов** (`ScanFilesCommand` / `FileScanner`)
+- **Быстрый поиск** через `FileSearcherPort` (locate/find/hybrid) для больших директорий
+- **Рекурсивное сканирование** (fallback) для совместимости
+- **Фильтрация** через `FilterChain` (до и после извлечения метаданных)
+- Диспетчеризация событий `FileDiscovered` или создание `UploadJob`
 
 #### 2. **Входящее сообщение** (`FileDiscovered`)
 - Асинхронная обработка через Messenger
@@ -349,6 +350,15 @@ final readonly class MediaAsset
 - **DatePolicy**: `{год}/{месяц}/`
 - **TypeDatePolicy**: `{категория}/{год}/{месяц}/`
 
+#### Search (Поиск файлов)
+
+**FileSearchCriteria** - Value Object для критериев поиска:
+- Расширения файлов
+- Минимальный/максимальный размер
+- Regex паттерны для имени файла
+- Glob паттерны для исключения директорий/файлов
+- Валидация regex паттернов при создании
+
 ### 📱 Application слой (Use Cases)
 
 **Ответственность:** Оркестрация бизнес-процессов, CQRS команды.
@@ -448,6 +458,7 @@ graph TD
 - **MetadataExtractorPort** - извлечение метаданных
 - **MimeTypeDetectorInterface** - определение MIME-типа
 - **AudioVideoMetadataAnalyzerInterface** - анализ аудио/видео
+- **FileSearcherPort** - быстрый поиск файлов (locate/find)
 
 #### Driving Ports (Входящие интерфейсы)
 
@@ -480,6 +491,11 @@ graph TD
 
 #### Scanner Adapter
 - **SymfonyFinderAdapter** - использует Symfony Finder для сканирования
+
+#### Search Adapters
+- **LocateSearcher** - использует команду `locate` для быстрого поиска (требует обновления базы данных)
+- **FindCommandSearcher** - использует команду `find` с поддержкой параллельного поиска
+- **HybridSearcher** - автоматически выбирает между `locate` и `find` с fallback
 
 #### Metadata Adapters
 - **ExifAdapter** - извлекает EXIF метаданные из изображений
