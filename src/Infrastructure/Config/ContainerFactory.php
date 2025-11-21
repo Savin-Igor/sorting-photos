@@ -664,18 +664,18 @@ final readonly class ContainerFactory
 
         $container->setAlias(\SortingPhotosByDate\Application\Service\GooglePhotos\JobCreatorInterface::class, \SortingPhotosByDate\Application\Service\GooglePhotos\JobCreator::class);
 
-        // Register batch persistence strategy for FileScanner
+        // Register batch persistence strategy for FileScanner (uses WritePort)
         $container->register(\SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\BatchJobPersistenceStrategy::class, \SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\BatchJobPersistenceStrategy::class)
             ->setArguments([
-                new Reference(\SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort::class),
+                new Reference(\SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort::class), // Full interface for backward compatibility
                 new Reference('SortingPhotosByDate\Ports\LoggerPort'),
             ])
             ->setPublic(false);
 
-        // Register single persistence strategy as fallback
+        // Register single persistence strategy as fallback (uses WritePort)
         $container->register(\SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\SingleJobPersistenceStrategy::class, \SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\SingleJobPersistenceStrategy::class)
             ->setArguments([
-                new Reference(\SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort::class),
+                new Reference(\SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort::class), // Full interface for backward compatibility
             ])
             ->setPublic(false);
 
@@ -688,6 +688,11 @@ final readonly class ContainerFactory
             $arguments['$extensionValidator'] = new Reference(\SortingPhotosByDate\Application\Service\FileValidation\FileExtensionValidatorInterface::class);
             $arguments['$typeDetector'] = new Reference(\SortingPhotosByDate\Application\Service\FileValidation\FileTypeDetectorInterface::class);
             $arguments['$jobCreator'] = new Reference(\SortingPhotosByDate\Application\Service\GooglePhotos\JobCreatorInterface::class);
+
+            // Use ReadPort for reading, full interface for backward compatibility
+            // FileScanner uses ReadPort for findByHash, WritePort is optional for fallback save
+            $arguments['$jobRepository'] = new Reference(\SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort::class);
+            $arguments['$jobRepositoryWrite'] = new Reference(\SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort::class);
 
             // Add fileSearcher if search is enabled
             if ($searchEnabled && null !== $searcherClass) {

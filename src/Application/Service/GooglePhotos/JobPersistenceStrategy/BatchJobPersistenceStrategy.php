@@ -6,7 +6,7 @@ namespace SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStr
 
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob;
 use SortingPhotosByDate\Ports\LoggerPort;
-use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort;
+use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryWritePort;
 
 /**
  * Batch persistence strategy that accumulates jobs and saves them in batches.
@@ -23,7 +23,7 @@ final class BatchJobPersistenceStrategy implements JobPersistenceStrategyInterfa
     private readonly int $batchSize;
 
     public function __construct(
-        private readonly UploadJobRepositoryPort $repository,
+        private readonly UploadJobRepositoryWritePort $repository,
         private readonly LoggerPort $logger,
         int $batchSize = self::BATCH_SIZE,
     ) {

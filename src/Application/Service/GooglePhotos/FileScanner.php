@@ -19,6 +19,8 @@ use SortingPhotosByDate\Ports\ScannerPort;
 use SortingPhotosByDate\Ports\Search\FileSearcherPort;
 use SortingPhotosByDate\Ports\Search\SearcherNotAvailableException;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort;
+use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryReadPort;
+use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryWritePort;
 
 final readonly class FileScanner
 {
@@ -28,7 +30,7 @@ final readonly class FileScanner
     public function __construct(
         private ScannerPort $scanner,
         private MetadataExtractorPort $metadataExtractor,
-        private UploadJobRepositoryPort $jobRepository,
+        private UploadJobRepositoryReadPort $jobRepository,
         private LoggerPort $logger,
         private FilenameDateExtractor $filenameDateExtractor,
         private FileExtensionValidatorInterface $extensionValidator,
@@ -38,6 +40,7 @@ final readonly class FileScanner
         private ?FileSearcherPort $fileSearcher = null,
         private ?array $searchConfig = null,
         private ?JobPersistenceStrategyInterface $persistenceStrategy = null,
+        private ?UploadJobRepositoryWritePort $jobRepositoryWrite = null,
     ) {
     }
 
@@ -352,8 +355,13 @@ final readonly class FileScanner
             // Use persistence strategy if available, otherwise fallback to direct repository save
             if ($this->persistenceStrategy instanceof JobPersistenceStrategyInterface) {
                 $this->persistenceStrategy->persist($job);
-            } else {
+            } elseif ($this->jobRepositoryWrite instanceof UploadJobRepositoryWritePort) {
+                $this->jobRepositoryWrite->save($job);
+            } elseif ($this->jobRepository instanceof UploadJobRepositoryPort) {
+                // Fallback: if repository implements full interface, use it
                 $this->jobRepository->save($job);
+            } else {
+                throw new \RuntimeException('No write repository available for saving job');
             }
 
             $this->logger->debug('Upload job created', [

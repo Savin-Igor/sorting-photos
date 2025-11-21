@@ -11,8 +11,10 @@ use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJobId;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadState;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort;
+use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryReadPort;
+use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryWritePort;
 
-final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryPort
+final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryPort, UploadJobRepositoryReadPort, UploadJobRepositoryWritePort
 {
     private const string TABLE_NAME = 'google_photos_upload_jobs';
 
