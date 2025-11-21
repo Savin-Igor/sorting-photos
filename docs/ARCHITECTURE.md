@@ -201,9 +201,19 @@ sorting-photos/
 │   │   ├── Command/         # Команды CQRS
 │   │   │   ├── IngestFileCommand.php    # [📄](src/Application/Command/IngestFileCommand.php)
 │   │   │   └── OrganizeFileCommand.php  # [📄](src/Application/Command/OrganizeFileCommand.php)
-│   │   └── Handler/         # Обработчики команд
-│   │       ├── IngestFileHandler.php    # [📄](src/Application/Handler/IngestFileHandler.php)
-│   │       └── OrganizeFileHandler.php  # [📄](src/Application/Handler/OrganizeFileHandler.php)
+│   │   ├── Handler/         # Обработчики команд
+│   │   │   ├── IngestFileHandler.php    # [📄](src/Application/Handler/IngestFileHandler.php)
+│   │   │   └── OrganizeFileHandler.php  # [📄](src/Application/Handler/OrganizeFileHandler.php)
+│   │   ├── Service/         # Сервисы прикладного слоя
+│   │   │   ├── FileValidation/          # Валидация файлов
+│   │   │   │   ├── FileExtensionValidator.php      # [📄](src/Application/Service/FileValidation/FileExtensionValidator.php)
+│   │   │   │   └── FileTypeDetector.php             # [📄](src/Application/Service/FileValidation/FileTypeDetector.php)
+│   │   │   └── GooglePhotos/            # Сервисы Google Photos
+│   │   │       ├── FileScanner.php                  # [📄](src/Application/Service/GooglePhotos/FileScanner.php)
+│   │   │       ├── JobCreator.php                   # [📄](src/Application/Service/GooglePhotos/JobCreator.php)
+│   │   │       └── JobPersistenceStrategy/          # Стратегии персистентности
+│   │   │           ├── BatchJobPersistenceStrategy.php    # [📄](src/Application/Service/GooglePhotos/JobPersistenceStrategy/BatchJobPersistenceStrategy.php)
+│   │   │           └── SingleJobPersistenceStrategy.php    # [📄](src/Application/Service/GooglePhotos/JobPersistenceStrategy/SingleJobPersistenceStrategy.php)
 │   │
 │   ├── 🔌 Ports/            # Интерфейсы (контракты)
 │   │   ├── ScannerPort.php              # [📄](src/Ports/ScannerPort.php)
@@ -457,6 +467,9 @@ graph TD
 - **MimeTypeDetectorInterface** - определение MIME-типа
 - **AudioVideoMetadataAnalyzerInterface** - анализ аудио/видео
 - **FileSearcherPort** - быстрый поиск файлов (locate/find)
+- **UploadJobRepositoryReadPort** - чтение UploadJob (ISP)
+- **UploadJobRepositoryWritePort** - запись UploadJob (ISP)
+- **UploadJobRepositoryPort** - полный интерфейс (extends Read + Write, backward compatibility)
 
 #### Driving Ports (Входящие интерфейсы)
 
