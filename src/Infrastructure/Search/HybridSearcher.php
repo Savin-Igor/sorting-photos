@@ -50,7 +50,28 @@ final class HybridSearcher implements FileSearcherPort
                     'directory' => $directory,
                 ]);
 
-                return $this->locateSearcher->search($directory, $criteria);
+                // Collect all results from locate to check if it's working
+                // For external drives, locate may return 0 results even if files exist
+                $results = [];
+                foreach ($this->locateSearcher->search($directory, $criteria) as $filePath) {
+                    $results[] = $filePath;
+                }
+
+                // If locate found files, yield them
+                if (\count($results) > 0) {
+                    foreach ($results as $filePath) {
+                        yield $filePath;
+                    }
+
+                    return;
+                }
+
+                // If locate found 0 files, it might be an external drive not indexed
+                // Fall back to find for better results
+                $this->logger->warning('locate found 0 files, falling back to find (may be external drive not indexed)', [
+                    'directory' => $directory,
+                ]);
+                // Fall through to find
             } catch (SearcherNotAvailableException $e) {
                 $this->logger->warning('locate searcher failed, falling back to find', [
                     'error' => $e->getMessage(),

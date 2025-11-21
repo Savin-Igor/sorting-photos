@@ -76,25 +76,30 @@ final readonly class LocateSearcher implements FileSearcherPort
 
         $output = $process->getOutput();
         $lines = \array_filter(\explode("\n", $output), fn (string $line): bool => '' !== \trim($line));
+        $totalLines = \count($lines);
 
         // Normalize directory path for comparison
         $normalizedDirectory = \rtrim(\realpath($directory) ?: $directory, '/\\').\DIRECTORY_SEPARATOR;
 
         $foundCount = 0;
+        $filteredOutCount = 0;
         foreach ($lines as $line) {
             $filePath = \trim($line);
             if ('' === $filePath || !\file_exists($filePath)) {
+                ++$filteredOutCount;
                 continue;
             }
 
             // Filter: only files within the specified directory
             $normalizedFilePath = \realpath($filePath) ?: $filePath;
             if (!\str_starts_with($normalizedFilePath, $normalizedDirectory)) {
+                ++$filteredOutCount;
                 continue; // Skip files outside the target directory
             }
 
             // Additional filtering (size, regex patterns)
             if (!$this->matchesAdditionalCriteria($filePath, $criteria)) {
+                ++$filteredOutCount;
                 continue;
             }
 
@@ -104,8 +109,19 @@ final readonly class LocateSearcher implements FileSearcherPort
 
         $this->logger->info('locate search completed', [
             'directory' => $directory,
+            'total_lines' => $totalLines,
             'found_files' => $foundCount,
+            'filtered_out' => $filteredOutCount,
         ]);
+
+        // If locate returned many results but none matched the directory,
+        // it's likely that the directory is not indexed (e.g., external drive)
+        if ($totalLines > 100 && 0 === $foundCount) {
+            $this->logger->warning('locate returned many results but none matched the directory - directory may not be indexed', [
+                'directory' => $directory,
+                'total_results' => $totalLines,
+            ]);
+        }
     }
 
     /**

@@ -145,7 +145,9 @@ parameters:
     
     # File search configuration for command (google-photos:search-files)
     app.search.command.enabled: true
-    app.search.command.strategy: find  # hybrid | locate | find | disabled
+    app.search.command.strategy: hybrid  # hybrid | locate | find | disabled
+    # Note: hybrid will try locate first, but automatically fallback to find if locate returns 0 results
+    # This is especially useful for external drives that may not be indexed by locate
     
     # Search for images only (photos)
     app.search.command.extensions:

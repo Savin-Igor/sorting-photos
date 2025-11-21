@@ -94,12 +94,21 @@ final class GooglePhotosSearchFilesCommand extends Command
 
         $io->title('File Search');
         $io->writeln(\sprintf('Directory: <info>%s</info>', $sourceDir));
-        $io->writeln(\sprintf('Searcher: <info>%s</info>', $this->fileSearcher->getName()));
+
+        // Get actual searcher name (for hybrid, get active searcher)
+        $searcherName = $this->fileSearcher->getName();
+        if ('hybrid' === $searcherName && $this->fileSearcher instanceof \SortingPhotosByDate\Infrastructure\Search\HybridSearcher) {
+            $activeSearcherName = $this->fileSearcher->getActiveSearcherName();
+            if (null !== $activeSearcherName) {
+                $searcherName = $activeSearcherName;
+            }
+        }
+        $io->writeln(\sprintf('Searcher: <info>%s</info>', $searcherName));
 
         // Get strategy from config
-        $strategy = 'unknown';
-        if (isset($this->searchConfig['strategy']) && \is_string($this->searchConfig['strategy'])) {
-            $strategy = $this->searchConfig['strategy'];
+        $strategy = $this->searchConfig['strategy'] ?? 'unknown';
+        if (!\is_string($strategy)) {
+            $strategy = 'unknown';
         }
         $io->writeln(\sprintf('Strategy: <info>%s</info>', $strategy));
 
