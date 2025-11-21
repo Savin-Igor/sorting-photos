@@ -162,6 +162,19 @@ final readonly class FileScanner
                 return false;
             }
 
+            // 2.3. Validate file extension against search configuration
+            // If search config specifies extensions, only files with those extensions should be processed
+            // This prevents videos from being processed when search is configured for images only
+            if (!$this->matchesSearchExtensions($filePath->getPath())) {
+                $this->logger->info('Skipping file - extension not in search configuration', [
+                    'file_path' => $filePath->getPath(),
+                    'extension' => \strtolower(\pathinfo($filePath->getPath(), \PATHINFO_EXTENSION)),
+                    'allowed_extensions' => $this->searchConfig['extensions'] ?? null,
+                ]);
+
+                return false;
+            }
+
             // 2.5. Early filtering (before metadata extraction)
             if ($this->filterChain instanceof FilterChain && $this->filterChain->shouldSkipEarly($filePath, [])) {
                 return false; // File filtered out - won't be added to database
@@ -479,5 +492,37 @@ final readonly class FileScanner
         ];
 
         return \in_array($extension, $nonMediaExtensions, true);
+    }
+
+    /**
+     * Check if file extension matches search configuration extensions.
+     * If search config specifies extensions, only files with those extensions are allowed.
+     * This prevents videos from being processed when search is configured for images only.
+     *
+     * @param string $filePath Full path to the file
+     *
+     * @return bool True if file extension matches search config or if no extensions are specified
+     */
+    private function matchesSearchExtensions(string $filePath): bool
+    {
+        // If no search config or no extensions specified, accept all files
+        if (null === $this->searchConfig || empty($this->searchConfig['extensions'])) {
+            return true;
+        }
+
+        $extensions = $this->searchConfig['extensions'];
+        if (!\is_array($extensions)) {
+            return true;
+        }
+
+        $extension = \strtolower(\pathinfo($filePath, \PATHINFO_EXTENSION));
+        $allowedExtensions = \array_map(\strtolower(...), \array_filter($extensions, is_string(...)));
+
+        // If no valid extensions after filtering, accept all files
+        if ([] === $allowedExtensions) {
+            return true;
+        }
+
+        return \in_array($extension, $allowedExtensions, true);
     }
 }
