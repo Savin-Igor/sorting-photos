@@ -90,22 +90,32 @@ final readonly class FindCommandSearcher implements FileSearcherPort
 
             $output = $process->getOutput();
             $lines = \array_filter(\explode("\n", $output), fn (string $line): bool => '' !== \trim($line));
+            $totalLines = \count($lines);
             $scannedDirectories = $this->countScannedDirectories($directory);
 
+            $filteredCount = 0;
             foreach ($lines as $line) {
                 $filePath = \trim($line);
                 if ('' === $filePath || !\file_exists($filePath) || !\is_file($filePath)) {
+                    ++$filteredCount;
                     continue;
                 }
 
                 // Additional filtering (size, regex patterns)
                 if (!$this->matchesAdditionalCriteria($filePath, $criteria)) {
+                    ++$filteredCount;
                     continue;
                 }
 
                 yield new FilePath($filePath);
                 ++$foundCount;
             }
+
+            $this->logger->debug('find filtering completed', [
+                'total_lines' => $totalLines,
+                'found_files' => $foundCount,
+                'filtered_out' => $filteredCount,
+            ]);
         }
 
         $duration = \microtime(true) - $startTime;
@@ -245,13 +255,36 @@ final readonly class FindCommandSearcher implements FileSearcherPort
     {
         $command = ['find', $directory];
 
+        // Add exclude directory patterns (must be before -type)
+        // Convert glob patterns to find-compatible paths
+        $excludePatterns = [];
+        foreach ($criteria->getExcludeDirectories() as $pattern) {
+            // Convert **/.git to */.git for find
+            $findPattern = \str_replace('**/', '*/', $pattern);
+            $excludePatterns[] = $findPattern;
+        }
+
+        if ([] !== $excludePatterns) {
+            $command[] = '\\(';
+            foreach ($excludePatterns as $index => $pattern) {
+                if ($index > 0) {
+                    $command[] = '-o';
+                }
+                $command[] = '-path';
+                $command[] = $pattern;
+            }
+            $command[] = '\\)';
+            $command[] = '-prune';
+            $command[] = '-o';
+        }
+
         // Add type filter (files only)
         $command[] = '-type';
         $command[] = 'f';
 
         // Add extension filters
         if ([] !== $criteria->getExtensions()) {
-            $command[] = '(';
+            $command[] = '\\(';
             $command[] = '-iname';
             $command[] = \sprintf('*.%s', $criteria->getExtensions()[0]);
             $counter = \count($criteria->getExtensions());
@@ -260,7 +293,7 @@ final readonly class FindCommandSearcher implements FileSearcherPort
                 $command[] = '-iname';
                 $command[] = \sprintf('*.%s', $criteria->getExtensions()[$i]);
             }
-            $command[] = ')';
+            $command[] = '\\)';
         }
 
         // Add size filters
@@ -272,14 +305,6 @@ final readonly class FindCommandSearcher implements FileSearcherPort
         if (null !== $criteria->getMaxSizeBytes()) {
             $command[] = '-size';
             $command[] = \sprintf('-%dc', $criteria->getMaxSizeBytes() + 1);
-        }
-
-        // Add exclude directory patterns
-        foreach ($criteria->getExcludeDirectories() as $pattern) {
-            $command[] = '-path';
-            $command[] = $pattern;
-            $command[] = '-prune';
-            $command[] = '-o';
         }
 
         // Print results

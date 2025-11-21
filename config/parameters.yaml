@@ -145,9 +145,8 @@ parameters:
     
     # File search configuration for command (google-photos:search-files)
     app.search.command.enabled: true
-    app.search.command.strategy: hybrid  # hybrid | locate | find | disabled
-    # Note: hybrid will try locate first, but automatically fallback to find if locate returns 0 results
-    # This is especially useful for external drives that may not be indexed by locate
+    app.search.command.strategy: find  # hybrid | locate | find | disabled
+    # Use find for external drives - it's more reliable than locate which may not index removable media
     
     # Search for images only (photos)
     app.search.command.extensions:
@@ -175,13 +174,14 @@ parameters:
     app.search.command.min_size_bytes: null
     app.search.command.max_size_bytes: null
     
-    # Filename patterns to find files with 2024 in name (optional, helps locate files faster)
+    # Filename patterns to find files with specific patterns in name (OPTIONAL - leave empty to find all files)
+    # If specified, ONLY files matching these patterns will be included
     # Examples: IMG_20240101_120000.jpg, 2024-01-15_photo.jpg, etc.
-    app.search.command.filename_patterns:
-        - '/2024/'  # Files containing "2024" in filename
-        - '/IMG_2024\d{4}/'  # IMG_20240101 format
-        - '/2024-\d{2}-\d{2}/'  # 2024-01-01 format
-        - '/\d{8}.*2024/'  # Date format with 2024
+    # NOTE: Use date filter (app.filters.date) to filter by creation date from metadata instead!
+    app.search.command.filename_patterns: []  # Empty = find all files
+    #    - '/2024/'  # Files containing "2024" in filename
+    #    - '/IMG_2024\d{4}/'  # IMG_20240101 format
+    #    - '/2024-\d{2}-\d{2}/'  # 2024-01-01 format
     
     app.search.command.exclude_directories:
         - '**/.git'
