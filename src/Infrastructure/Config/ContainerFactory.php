@@ -647,6 +647,17 @@ final readonly class ContainerFactory
             $container->setAlias(\SortingPhotosByDate\Ports\Search\FileSearcherPort::class, $searcherClass);
         }
 
+        // Register file validation services
+        $container->register(\SortingPhotosByDate\Application\Service\FileValidation\FileExtensionValidator::class, \SortingPhotosByDate\Application\Service\FileValidation\FileExtensionValidator::class)
+            ->setPublic(false);
+
+        $container->register(\SortingPhotosByDate\Application\Service\FileValidation\FileTypeDetector::class, \SortingPhotosByDate\Application\Service\FileValidation\FileTypeDetector::class)
+            ->setPublic(false);
+
+        // Set aliases for interfaces
+        $container->setAlias(\SortingPhotosByDate\Application\Service\FileValidation\FileExtensionValidatorInterface::class, \SortingPhotosByDate\Application\Service\FileValidation\FileExtensionValidator::class);
+        $container->setAlias(\SortingPhotosByDate\Application\Service\FileValidation\FileTypeDetectorInterface::class, \SortingPhotosByDate\Application\Service\FileValidation\FileTypeDetector::class);
+
         // Register batch persistence strategy for FileScanner
         $container->register(\SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\BatchJobPersistenceStrategy::class, \SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\BatchJobPersistenceStrategy::class)
             ->setArguments([
@@ -666,6 +677,10 @@ final readonly class ContainerFactory
         if ($container->hasDefinition(\SortingPhotosByDate\Application\Service\GooglePhotos\FileScanner::class)) {
             $fileScannerDef = $container->getDefinition(\SortingPhotosByDate\Application\Service\GooglePhotos\FileScanner::class);
             $arguments = $fileScannerDef->getArguments();
+
+            // Add file validation services
+            $arguments['$extensionValidator'] = new Reference(\SortingPhotosByDate\Application\Service\FileValidation\FileExtensionValidatorInterface::class);
+            $arguments['$typeDetector'] = new Reference(\SortingPhotosByDate\Application\Service\FileValidation\FileTypeDetectorInterface::class);
 
             // Add fileSearcher if search is enabled
             if ($searchEnabled && null !== $searcherClass) {
