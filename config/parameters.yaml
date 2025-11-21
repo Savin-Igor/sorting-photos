@@ -85,9 +85,9 @@ parameters:
     app.filters.filename_regex.patterns: ['/screenshot/i', '/screen.?shot/i', '/Screenshot/i',]
     
     # Filter by date
-    app.filters.date.enabled: true
-    app.filters.date.from_date: '2024-01-01 00:00:00'  # Start date (null = no limit) - начало 2024 года
-    app.filters.date.to_date: '2024-12-31 23:59:59'    # End date (null = no limit) - конец 2024 года
+    app.filters.date.enabled: false
+    app.filters.date.from_date: null  # Start date (null = no limit) - начало 2024 года
+    app.filters.date.to_date: null    # End date (null = no limit) - конец 2024 года
     app.filters.date.check_filename: true    # Check date in filename
     app.filters.date.check_metadata: true     # Check date in metadata
 
@@ -171,15 +171,15 @@ parameters:
         # - m4v
         # - 3gp
     
-    app.search.command.min_size_bytes: null
-    app.search.command.max_size_bytes: null
+    app.search.command.min_size_bytes: 1
+    app.search.command.max_size_bytes: 5000000
     
     # Filename patterns to find files with specific patterns in name (OPTIONAL - leave empty to find all files)
     # If specified, ONLY files matching these patterns will be included
     # Examples: IMG_20240101_120000.jpg, 2024-01-15_photo.jpg, etc.
     # NOTE: Use date filter (app.filters.date) to filter by creation date from metadata instead!
-    app.search.command.filename_patterns: []  # Empty = find all files
-    #    - '/2024/'  # Files containing "2024" in filename
+    app.search.command.filename_patterns:
+        - '/2023/'  # Files containing "2024" in filename
     #    - '/IMG_2024\d{4}/'  # IMG_20240101 format
     #    - '/2024-\d{2}-\d{2}/'  # 2024-01-01 format
     
@@ -193,7 +193,4 @@ parameters:
         - '**/*.tmp'
         - '**/*~'
     app.search.command.include_patterns: []
-    app.search.command.parallel.enabled: false  # Disabled - sequential search with shell pipes is faster
-    app.search.command.parallel.max_depth: 3
-
 

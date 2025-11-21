@@ -46,11 +46,14 @@ final readonly class FindCommandSearcher implements FileSearcherPort
      */
     public function search(string $directory, FileSearchCriteria $criteria): iterable
     {
+
         if (!$this->isAvailable()) {
+            $this->logger->error('find command is not available');
             throw new SearcherNotAvailableException('find command is not available');
         }
 
         if (!\is_dir($directory)) {
+            $this->logger->error('Directory does not exist', ['directory' => $directory]);
             throw new \InvalidArgumentException(\sprintf('Directory does not exist: %s', $directory));
         }
 
@@ -59,7 +62,7 @@ final readonly class FindCommandSearcher implements FileSearcherPort
         $scannedDirectories = 0;
         // Sequential search with optimized find + grep (shell pipes)
         $command = $this->buildFindCommand($directory, $criteria);
-        $this->logger->debug('Executing find command', [
+        $this->logger->info('Executing find command', [
             'command' => $command,
             'directory' => $directory,
         ]);
@@ -68,19 +71,46 @@ final readonly class FindCommandSearcher implements FileSearcherPort
         $process->setTimeout(600);
         // 10 minutes timeout
         $process->run();
-        if (!$process->isSuccessful()) {
-            $error = $process->getErrorOutput();
+
+        // Check exit code - grep returns 1 if no matches found, which is OK
+        $exitCode = $process->getExitCode();
+        $output = $process->getOutput();
+        $errorOutput = $process->getErrorOutput();
+
+        // Exit code 0 = success (find found files, grep may or may not have matched)
+        // Exit code 1 = grep found no matches OR find found nothing (OK - just means no files matched)
+        // Exit code > 1 = real error
+        if ($exitCode > 1) {
             $this->logger->error('find command failed', [
-                'error' => $error,
-                'exit_code' => $process->getExitCode(),
+                'error' => $errorOutput,
+                'exit_code' => $exitCode,
+                'command' => $command,
+                'stdout' => $output,
+            ]);
+            throw new SearcherNotAvailableException(\sprintf('find command failed with exit code %d: %s', $exitCode, $errorOutput));
+        }
+
+        // Exit code 1 with empty output means grep found no matches (OK - return empty)
+        if (1 === $exitCode && '' === \trim($output)) {
+            $this->logger->info('find command completed but grep found no matches', [
                 'command' => $command,
             ]);
-            throw new SearcherNotAvailableException(\sprintf('find command failed: %s', $error));
+
+            // Return empty - no files matched
+            return;
         }
-        $output = $process->getOutput();
+
         $lines = \array_filter(\explode("\n", $output), fn (string $line): bool => '' !== \trim($line));
         $totalLines = \count($lines);
-        $scannedDirectories = $this->countScannedDirectories($directory);
+
+        $this->logger->info('find command output parsed', [
+            'total_lines' => $totalLines,
+            'first_lines' => \array_slice($lines, 0, 5),
+            'command' => $command,
+        ]);
+
+        // Skip directory counting - it's slow and can fail on permission errors
+        $scannedDirectories = 0;
         $filteredCount = 0;
         foreach ($lines as $line) {
             $filePath = \trim($line);
@@ -98,7 +128,7 @@ final readonly class FindCommandSearcher implements FileSearcherPort
             yield new FilePath($filePath);
             ++$foundCount;
         }
-        $this->logger->debug('find filtering completed', [
+        $this->logger->info('find filtering completed', [
             'total_lines' => $totalLines,
             'found_files' => $foundCount,
             'filtered_out' => $filteredCount,
@@ -134,12 +164,18 @@ final readonly class FindCommandSearcher implements FileSearcherPort
         foreach ($criteria->getExcludeDirectories() as $pattern) {
             // Convert **/.git to */.git for find
             $findPattern = \str_replace('**/', '*/', $pattern);
-            $excludePatterns[] = \escapeshellarg($findPattern);
+            $excludePatterns[] = $findPattern;
         }
 
         if ([] !== $excludePatterns) {
+            // Build exclude expression: \( -path 'pattern1' -o -path 'pattern2' \) -prune -o
+            // Escape parentheses for find command (not for shell)
             $findParts[] = '\\(';
-            $findParts[] = \implode(' -o -path ', $excludePatterns);
+            $excludeParts = [];
+            foreach ($excludePatterns as $pattern) {
+                $excludeParts[] = \sprintf('-path %s', \escapeshellarg($pattern));
+            }
+            $findParts[] = \implode(' -o ', $excludeParts);
             $findParts[] = '\\)';
             $findParts[] = '-prune';
             $findParts[] = '-o';
@@ -186,27 +222,12 @@ final readonly class FindCommandSearcher implements FileSearcherPort
             $command .= ' | grep -E '.\escapeshellarg($grepPattern);
         }
 
+        // Suppress permission denied errors (common on external drives)
+        // Process::fromShellCommandline handles pipes correctly, so we can just append redirect
+        // Note: 2>/dev/null will suppress stderr for the entire pipeline when using fromShellCommandline
+        $command .= ' 2>/dev/null';
+
         return $command;
-    }
-
-    /**
-     * Count scanned directories (approximate).
-     */
-    private function countScannedDirectories(string $directory): int
-    {
-        $count = 0;
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($directory, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::SELF_FIRST
-        );
-
-        foreach ($iterator as $file) {
-            if ($file instanceof \SplFileInfo && $file->isDir()) {
-                ++$count;
-            }
-        }
-
-        return $count;
     }
 
     /**

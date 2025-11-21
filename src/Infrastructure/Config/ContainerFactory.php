@@ -679,44 +679,37 @@ final readonly class ContainerFactory
                 $arguments['$fileSearcher'] = new Reference(\SortingPhotosByDate\Ports\Search\FileSearcherPort::class);
             }
 
-            // Use command-specific search config
-            if ($container->hasParameter('app.search.command')) {
-                $commandSearchConfig = [
-                    'enabled' => $container->hasParameter('app.search.command.enabled')
-                        ? (bool) $container->getParameter('app.search.command.enabled')
-                        : true,
-                    'strategy' => $container->hasParameter('app.search.command.strategy')
-                        ? (\is_string($strategyParam = $container->getParameter('app.search.command.strategy')) ? $strategyParam : 'hybrid')
-                        : 'hybrid',
-                    'extensions' => $container->hasParameter('app.search.command.extensions')
-                        ? $container->getParameter('app.search.command.extensions')
-                        : [],
-                    'min_size_bytes' => $container->hasParameter('app.search.command.min_size_bytes')
-                        ? $container->getParameter('app.search.command.min_size_bytes')
-                        : null,
-                    'max_size_bytes' => $container->hasParameter('app.search.command.max_size_bytes')
-                        ? $container->getParameter('app.search.command.max_size_bytes')
-                        : null,
-                    'filename_patterns' => $container->hasParameter('app.search.command.filename_patterns')
-                        ? $container->getParameter('app.search.command.filename_patterns')
-                        : [],
-                    'exclude_directories' => $container->hasParameter('app.search.command.exclude_directories')
-                        ? $container->getParameter('app.search.command.exclude_directories')
-                        : [],
-                    'exclude_patterns' => $container->hasParameter('app.search.command.exclude_patterns')
-                        ? $container->getParameter('app.search.command.exclude_patterns')
-                        : [],
-                    'include_patterns' => $container->hasParameter('app.search.command.include_patterns')
-                        ? $container->getParameter('app.search.command.include_patterns')
-                        : [],
-                ];
-                $arguments['$searchConfig'] = $commandSearchConfig;
-            } else {
-                // Fallback to general search config
-                $arguments['$searchConfig'] = $container->hasParameter('app.search')
-                    ? $this->buildSearchConfig($container, $searchEnabled, $strategy)
-                    : [];
-            }
+            // Use command-specific search config (always try to build it)
+            $commandSearchConfig = [
+                'enabled' => $container->hasParameter('app.search.command.enabled')
+                    ? (bool) $container->getParameter('app.search.command.enabled')
+                    : true,
+                'strategy' => $container->hasParameter('app.search.command.strategy')
+                    ? (\is_string($strategyParam = $container->getParameter('app.search.command.strategy')) ? $strategyParam : 'hybrid')
+                    : 'hybrid',
+                'extensions' => $container->hasParameter('app.search.command.extensions')
+                    ? (array) $container->getParameter('app.search.command.extensions')
+                    : [],
+                'min_size_bytes' => $container->hasParameter('app.search.command.min_size_bytes')
+                    ? (\is_int($minSize = $container->getParameter('app.search.command.min_size_bytes')) ? $minSize : (\is_string($minSize) && '' !== $minSize ? (int) $minSize : null))
+                    : null,
+                'max_size_bytes' => $container->hasParameter('app.search.command.max_size_bytes')
+                    ? (\is_int($maxSize = $container->getParameter('app.search.command.max_size_bytes')) ? $maxSize : (\is_string($maxSize) && '' !== $maxSize ? (int) $maxSize : null))
+                    : null,
+                'filename_patterns' => $container->hasParameter('app.search.command.filename_patterns')
+                    ? (array) $container->getParameter('app.search.command.filename_patterns')
+                    : [],
+                'exclude_directories' => $container->hasParameter('app.search.command.exclude_directories')
+                    ? (array) $container->getParameter('app.search.command.exclude_directories')
+                    : [],
+                'exclude_patterns' => $container->hasParameter('app.search.command.exclude_patterns')
+                    ? (array) $container->getParameter('app.search.command.exclude_patterns')
+                    : [],
+                'include_patterns' => $container->hasParameter('app.search.command.include_patterns')
+                    ? (array) $container->getParameter('app.search.command.include_patterns')
+                    : [],
+            ];
+            $arguments['$searchConfig'] = $commandSearchConfig;
 
             $commandDef->setArguments($arguments);
         }

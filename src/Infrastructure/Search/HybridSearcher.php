@@ -87,7 +87,12 @@ final class HybridSearcher implements FileSearcherPort
                 'directory' => $directory,
             ]);
 
-            return $this->findSearcher->search($directory, $criteria);
+            // Yield results from find searcher
+            foreach ($this->findSearcher->search($directory, $criteria) as $filePath) {
+                yield $filePath;
+            }
+
+            return;
         }
 
         throw new SearcherNotAvailableException('Neither locate nor find searcher is available');
