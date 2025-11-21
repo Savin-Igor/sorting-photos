@@ -13,6 +13,16 @@ interface UploadJobRepositoryPort
 {
     public function save(UploadJob $job): void;
 
+    /**
+     * Save multiple jobs in a single batch operation.
+     * Uses transaction for atomicity - all jobs are saved or none.
+     *
+     * @param array<UploadJob> $jobs Jobs to save
+     *
+     * @return int Number of jobs successfully saved
+     */
+    public function saveBatch(array $jobs): int;
+
     public function findById(UploadJobId $id): ?UploadJob;
 
     public function findByHash(FileHash $hash): ?UploadJob;

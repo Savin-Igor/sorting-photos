@@ -23,26 +23,7 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
 
     public function save(UploadJob $job): void
     {
-        $data = [
-            'id' => $job->getId()->getId(),
-            'file_path' => $job->getFilePath()->getPath(),
-            'file_size' => $job->getFileSize(),
-            'file_hash' => $job->getFileHash()->getHash(),
-            'mime_type' => $job->getMimeType(),
-            'is_video' => $job->isVideo() ? 1 : 0,
-            'state' => $job->getState()->value,
-            'resumable_session_uri' => $job->getResumableSession()?->getSessionUri(),
-            'uploaded_bytes' => $job->getResumableSession()?->getUploadedBytes() ?? 0,
-            'upload_token' => $job->getUploadToken(),
-            'batch_id' => $job->getBatchId()?->getId(),
-            'creation_time' => $job->getCreationTime()->format('Y-m-d H:i:s'),
-            'retry_count' => $job->getRetryCount(),
-            'last_error' => $job->getLastError(),
-            'last_known_uploaded_bytes' => $job->getLastKnownUploadedBytes(),
-            'session_expiration_count' => $job->getSessionExpirationCount(),
-            'created_at' => $job->getCreatedAt()->format('Y-m-d H:i:s'),
-            'updated_at' => $job->getUpdatedAt()->format('Y-m-d H:i:s'),
-        ];
+        $data = $this->prepareJobData($job);
 
         // Use INSERT OR REPLACE for atomic operation (SQLite)
         // This eliminates the need for SELECT + INSERT/UPDATE, reducing database queries from 2 to 1
@@ -73,6 +54,87 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
             $data['created_at'],
             $data['updated_at'],
         ]);
+    }
+
+    public function saveBatch(array $jobs): int
+    {
+        if ([] === $jobs) {
+            return 0;
+        }
+
+        // Use transaction for atomicity - all jobs are saved or none
+        $this->connection->beginTransaction();
+
+        try {
+            $sql = 'INSERT OR REPLACE INTO '.self::TABLE_NAME.' (
+                id, file_path, file_size, file_hash, mime_type, is_video, state,
+                resumable_session_uri, uploaded_bytes, upload_token, batch_id,
+                creation_time, retry_count, last_error, last_known_uploaded_bytes,
+                session_expiration_count, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+
+            $savedCount = 0;
+            foreach ($jobs as $job) {
+                $data = $this->prepareJobData($job);
+                $this->connection->executeStatement($sql, [
+                    $data['id'],
+                    $data['file_path'],
+                    $data['file_size'],
+                    $data['file_hash'],
+                    $data['mime_type'],
+                    $data['is_video'],
+                    $data['state'],
+                    $data['resumable_session_uri'],
+                    $data['uploaded_bytes'],
+                    $data['upload_token'],
+                    $data['batch_id'],
+                    $data['creation_time'],
+                    $data['retry_count'],
+                    $data['last_error'],
+                    $data['last_known_uploaded_bytes'],
+                    $data['session_expiration_count'],
+                    $data['created_at'],
+                    $data['updated_at'],
+                ]);
+                ++$savedCount;
+            }
+
+            $this->connection->commit();
+
+            return $savedCount;
+        } catch (\Exception $e) {
+            $this->connection->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Prepare job data array for database operations.
+     *
+     * @return array<string, mixed>
+     */
+    private function prepareJobData(UploadJob $job): array
+    {
+        return [
+            'id' => $job->getId()->getId(),
+            'file_path' => $job->getFilePath()->getPath(),
+            'file_size' => $job->getFileSize(),
+            'file_hash' => $job->getFileHash()->getHash(),
+            'mime_type' => $job->getMimeType(),
+            'is_video' => $job->isVideo() ? 1 : 0,
+            'state' => $job->getState()->value,
+            'resumable_session_uri' => $job->getResumableSession()?->getSessionUri(),
+            'uploaded_bytes' => $job->getResumableSession()?->getUploadedBytes() ?? 0,
+            'upload_token' => $job->getUploadToken(),
+            'batch_id' => $job->getBatchId()?->getId(),
+            'creation_time' => $job->getCreationTime()->format('Y-m-d H:i:s'),
+            'retry_count' => $job->getRetryCount(),
+            'last_error' => $job->getLastError(),
+            'last_known_uploaded_bytes' => $job->getLastKnownUploadedBytes(),
+            'session_expiration_count' => $job->getSessionExpirationCount(),
+            'created_at' => $job->getCreatedAt()->format('Y-m-d H:i:s'),
+            'updated_at' => $job->getUpdatedAt()->format('Y-m-d H:i:s'),
+        ];
     }
 
     public function findById(UploadJobId $id): ?UploadJob
