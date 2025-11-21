@@ -60,6 +60,7 @@ final class BatchJobPersistenceStrategy implements JobPersistenceStrategyInterfa
 
             $this->logger->info('Batch flushed successfully', [
                 'saved_count' => $savedCount,
+                'batch_size' => $count,
             ]);
 
             return $savedCount;
@@ -67,10 +68,16 @@ final class BatchJobPersistenceStrategy implements JobPersistenceStrategyInterfa
             $this->logger->error('Failed to flush batch', [
                 'batch_size' => $count,
                 'error' => $e->getMessage(),
+                'error_type' => $e::class,
+                'trace' => $e->getTraceAsString(),
             ]);
+
             // Clear buffer even on error to prevent memory leak
+            // Jobs will be lost, but this prevents infinite retry loops
             $this->buffer = [];
-            throw $e;
+
+            // Re-throw to allow caller to handle the error
+            throw new \RuntimeException(\sprintf('Failed to save batch of %d jobs: %s', $count, $e->getMessage()), 0, $e);
         }
     }
 

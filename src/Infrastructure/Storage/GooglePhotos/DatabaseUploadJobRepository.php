@@ -144,7 +144,17 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
             return $savedCount;
         } catch (\Exception $e) {
             $this->connection->rollBack();
-            throw $e;
+
+            // Log detailed error information for debugging
+            \error_log(\sprintf(
+                'Batch save failed: %d jobs attempted, error: %s (%s)',
+                \count($jobs),
+                $e->getMessage(),
+                $e::class
+            ));
+
+            // Re-throw with context
+            throw new \RuntimeException(\sprintf('Failed to save batch of %d jobs: %s', \count($jobs), $e->getMessage()), 0, $e);
         }
     }
 
