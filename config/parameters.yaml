@@ -145,7 +145,7 @@ parameters:
     
     # File search configuration for command (google-photos:search-files)
     app.search.command.enabled: true
-    app.search.command.strategy: hybrid  # hybrid | locate | find | disabled
+    app.search.command.strategy: find  # hybrid | locate | find | disabled
     
     # Search for images only (photos)
     app.search.command.extensions:

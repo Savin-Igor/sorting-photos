@@ -138,11 +138,10 @@ final class OrganizeFileHandlerTest extends TestCase
                 // Return hash for both source and target
                 $hashString);
 
+        // Source files are NEVER deleted - only copied to destination
         $this->filesystem
-            ->expects($this->once())
-            ->method('delete')
-            ->with($this->anything())
-            ->willReturnCallback(fn($path): bool => $path->getPath() === $sourcePath->getPath());
+            ->expects($this->never())
+            ->method('delete');
 
         $this->messageBus
             ->expects($this->once())
@@ -247,11 +246,10 @@ final class OrganizeFileHandlerTest extends TestCase
             ->method('calculateHash')
             ->willReturn($hashString);
 
+        // Source files are NEVER deleted - only copied to destination
         $this->filesystem
-            ->expects($this->once())
-            ->method('delete')
-            ->with($this->anything())
-            ->willReturnCallback(fn($path): bool => $path->getPath() === $sourcePath->getPath());
+            ->expects($this->never())
+            ->method('delete');
 
         $this->messageBus
             ->expects($this->once())

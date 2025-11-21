@@ -8,7 +8,8 @@ use SortingPhotosByDate\Domain\MediaAsset;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
 
 /**
- * Command to organize a file: apply policy, copy with metadata, verify hash, delete source.
+ * Command to organize a file: apply policy, copy with metadata, verify hash.
+ * Source files are NEVER deleted - only copied to destination.
  */
 final readonly class OrganizeFileCommand
 {

@@ -135,13 +135,11 @@ flowchart TD
     K --> L[Apply OrganizerPolicy]
     L --> M[Copy with Metadata Preservation]
     M --> N[Verify Hash]
-    N --> O[Delete Source]
-    O --> P[FileOrganized Event]
+    N --> P[FileOrganized Event]
 
     P --> Q[Success: Continue]
     N -->|Hash Mismatch| R[Error: Retry/Dead Letter]
     M -->|Copy Failed| R
-    O -->|Delete Failed| R
 ```
 
 ### 📊 Этапы обработки
@@ -167,7 +165,7 @@ flowchart TD
 - Применение политики организации
 - Копирование с сохранением метаданных
 - Верификация целостности
-- Удаление оригинала
+- **Важно**: Исходные файлы НЕ удаляются - остаются в source директории
 
 #### 5. **Завершение** (`FileOrganized`)
 - Логирование успешной обработки
@@ -541,7 +539,7 @@ sequenceDiagram
         OHDL->>PORTS: applyPolicy()
         OHDL->>PORTS: copyFile()
         OHDL->>PORTS: verifyHash()
-        OHDL->>PORTS: deleteSource()
+        Note over OHDL: Source files are NEVER deleted
     end
 ```
 

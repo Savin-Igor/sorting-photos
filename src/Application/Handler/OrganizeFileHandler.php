@@ -17,7 +17,8 @@ use Symfony\Component\Messenger\MessageBusInterface;
 
 /**
  * Handler for OrganizeFileCommand.
- * Applies organizer policy, copies file with metadata preservation, verifies hash, and deletes source.
+ * Applies organizer policy, copies file with metadata preservation, and verifies hash.
+ * Source files are NEVER deleted - only copied to destination.
  * Includes duplicate detection to prevent copying identical files (byte-by-byte identical).
  */
 final readonly class OrganizeFileHandler
@@ -84,14 +85,8 @@ final readonly class OrganizeFileHandler
             $this->verifyHash($sourcePath, $finalTargetPath, $asset->getHash());
         }
 
-        // Delete source file only after successful copy and verification
-        if (!$this->filesystem->delete($sourcePath)) {
-            $this->logger->debug('Failed to delete source file after copy', [
-                'source_path' => $sourcePath->getPath(),
-                'target_path' => $finalTargetPath->getPath(),
-            ]);
-            // Don't throw exception - file is already copied
-        }
+        // NOTE: Source files are NEVER deleted - they remain in the source directory.
+        // Only copies are created in the destination directory.
 
         $this->logger->debug('File organized successfully', [
             'source_path' => $sourcePath->getPath(),

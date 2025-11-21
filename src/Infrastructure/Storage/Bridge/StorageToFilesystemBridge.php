@@ -43,18 +43,17 @@ final readonly class StorageToFilesystemBridge implements FilesystemPort
 
     public function delete(FilePath $filePath): bool
     {
-        // Try destination first (for organized files), then source (for source files)
+        // NOTE: This method should NOT be used to delete source files.
+        // Source files are NEVER deleted - only destination files can be deleted.
+        // This method is kept for interface compatibility and cleanup of destination files only.
+
+        // Try destination first (for organized files)
         $item = StorageItem::fromFilePath($filePath, $this->destinationStorage->getStorageType());
         if ($this->destinationStorage->exists($item)) {
             return $this->destinationStorage->delete($item);
         }
 
-        $sourceItem = StorageItem::fromFilePath($filePath, $this->sourceStorage->getStorageType());
-        // Source storage might not support delete, so we check
-        if ($this->sourceStorage->exists($sourceItem) && $this->sourceStorage instanceof DestinationStoragePort) {
-            return $this->sourceStorage->delete($sourceItem);
-        }
-
+        // Do NOT delete from source storage - source files must remain untouched
         return false;
     }
 
