@@ -28,9 +28,9 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
     {
         $data = $this->prepareJobData($job);
 
-        // Use INSERT ... ON CONFLICT to only update Pending jobs
-        // Completed/Uploaded/Failed jobs remain untouched
-        // New jobs are inserted as Pending
+        // Use INSERT ... ON CONFLICT to update jobs
+        // Protect final states (COMPLETED, NOT_FOUND) from being overwritten
+        // Allow updates for all other states (PENDING, UPLOADING, UPLOADED, IN_BATCH, PAUSED, FAILED, ARCHIVED)
         $sql = 'INSERT INTO '.self::TABLE_NAME.' (
             id, file_path, file_size, file_hash, mime_type, is_video, state,
             resumable_session_uri, uploaded_bytes, upload_token, batch_id,
@@ -51,8 +51,9 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
             last_error = excluded.last_error,
             last_known_uploaded_bytes = excluded.last_known_uploaded_bytes,
             session_expiration_count = excluded.session_expiration_count,
-            updated_at = excluded.updated_at
-        WHERE '.self::TABLE_NAME.'.state = \'Pending\'';
+            updated_at = excluded.updated_at,
+            state = excluded.state
+        WHERE '.self::TABLE_NAME.'.state NOT IN (\'completed\', \'not_found\')';
 
         $this->connection->executeStatement($sql, [
             $data['id'],
@@ -136,8 +137,9 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
                 last_error = excluded.last_error,
                 last_known_uploaded_bytes = excluded.last_known_uploaded_bytes,
                 session_expiration_count = excluded.session_expiration_count,
-                updated_at = excluded.updated_at
-            WHERE '.self::TABLE_NAME.'.state = \'Pending\'';
+                updated_at = excluded.updated_at,
+                state = excluded.state
+            WHERE '.self::TABLE_NAME.'.state NOT IN (\'completed\', \'not_found\')';
 
             $this->connection->executeStatement($sql, $params);
             $this->connection->commit();
