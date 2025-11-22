@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Command;
 
+use SortingPhotosByDate\Exceptions\FileOperationException;
 use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ImageCompressor;
 use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\VideoCompressor;
 use SortingPhotosByDate\Ports\LoggerPort;
@@ -118,7 +119,7 @@ final class TestCompressionCommand extends Command
 
                 $originalSize = \filesize($file);
                 if (false === $originalSize) {
-                    throw new \RuntimeException('Failed to get file size');
+                    throw FileOperationException::failedGetSize($file);
                 }
                 $stats['original_size'] += $originalSize;
 
@@ -129,7 +130,7 @@ final class TestCompressionCommand extends Command
                     ++$stats['compressed'];
                     $compressedSize = \filesize($compressedPath);
                     if (false === $compressedSize) {
-                        throw new \RuntimeException('Failed to get compressed file size');
+                        throw FileOperationException::failedGetSize($compressedPath);
                     }
                     $stats['compressed_size'] += $compressedSize;
 

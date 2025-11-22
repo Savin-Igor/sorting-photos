@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Command;
 
 use SortingPhotosByDate\Application\Service\FileOrganizingService;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\ConfigurationException;
 use SortingPhotosByDate\Infrastructure\Helper\ByteFormatter;
 use SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService;
 use SortingPhotosByDate\Ports\FilesystemPort;
@@ -65,11 +66,11 @@ HELP
         // Get directories from options or environment
         $sourceDirectory = $input->getOption('source')
             ?? getenv('SOURCE_DIRECTORY')
-            ?: throw new \RuntimeException('Source directory not specified. Use --source option or set SOURCE_DIRECTORY environment variable.');
+            ?: throw ConfigurationException::missingEnv('SOURCE_DIRECTORY');
 
         $destinationDirectory = $input->getOption('destination')
             ?? getenv('DESTINATION_DIRECTORY')
-            ?: throw new \RuntimeException('Destination directory not specified. Use --destination option or set DESTINATION_DIRECTORY environment variable.');
+            ?: throw ConfigurationException::missingEnv('DESTINATION_DIRECTORY');
 
         $dryRun = $input->getOption('dry-run');
 

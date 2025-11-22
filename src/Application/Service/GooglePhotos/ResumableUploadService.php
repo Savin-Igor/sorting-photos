@@ -10,6 +10,8 @@ use Psr\Http\Message\StreamFactoryInterface;
 use Carbon\Carbon;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\QuotaExceededException;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob;
+use SortingPhotosByDate\Exceptions\FileOperationException;
+use SortingPhotosByDate\Exceptions\GooglePhotosApiException;
 use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ExifDateSetter;
 use SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ImageCompressor;
@@ -141,7 +143,7 @@ final readonly class ResumableUploadService
 
         $fileSize = \filesize($filePath);
         if (false === $fileSize) {
-            throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
+            throw FileOperationException::failedGetSize($filePath);
         }
 
         $this->logger->info('Uploading to Google Photos (raw)', [
@@ -155,7 +157,7 @@ final readonly class ResumableUploadService
         // 5. Read entire file
         $fileContent = \file_get_contents($filePath);
         if (false === $fileContent) {
-            throw new \RuntimeException(\sprintf('Failed to read file: %s', $filePath));
+            throw FileOperationException::failedRead($filePath);
         }
 
         // 6. Raw upload - POST entire file in one request
@@ -197,7 +199,7 @@ final readonly class ResumableUploadService
                 'body_preview' => \substr($body, 0, 2048),
                 'body_length' => \strlen($body),
             ]);
-            throw new \RuntimeException(\sprintf('Failed to upload file: %s %s', $response->getStatusCode(), $body));
+            throw GooglePhotosApiException::failedUploadChunk($response->getStatusCode(), $body);
         }
 
         $uploadToken = $response->getBody()->getContents();

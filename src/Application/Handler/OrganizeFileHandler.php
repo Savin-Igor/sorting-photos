@@ -9,6 +9,7 @@ use SortingPhotosByDate\Application\Service\FileCompressionServiceInterface;
 use SortingPhotosByDate\Domain\Event\FileOrganized;
 use SortingPhotosByDate\Domain\Policies\OrganizerPolicy;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\FileOperationException;
 use SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
@@ -70,7 +71,7 @@ final readonly class OrganizeFileHandler
 
         // Copy compressed file (if compressed) or original file with metadata preservation
         if (!$this->filesystem->copyWithMetadata($compressedPath, $finalTargetPath)) {
-            throw new \RuntimeException("Failed to copy file from {$compressedPath->getPath()} to {$finalTargetPath->getPath()}");
+            throw FileOperationException::failedCopy($compressedPath->getPath(), $finalTargetPath->getPath());
         }
 
         // Clean up temporary compressed file if it was created
@@ -149,11 +150,11 @@ final readonly class OrganizeFileHandler
             $targetHash = new \SortingPhotosByDate\Domain\ValueObjects\FileHash($targetHashString);
 
             if (!$sourceHash->equals($targetHash)) {
-                throw new \RuntimeException("Hash verification failed: source hash {$sourceHash->getHash()} does not match target hash {$targetHash->getHash()}");
+                throw FileOperationException::hashMismatch($sourceHash->getHash(), $targetHash->getHash());
             }
 
             if (!$expectedHash->equals($targetHash)) {
-                throw new \RuntimeException("Hash verification failed: expected hash {$expectedHash->getHash()} does not match target hash {$targetHash->getHash()}");
+                throw FileOperationException::hashMismatchExpected($expectedHash->getHash(), $targetHash->getHash());
             }
         } catch (\Exception $e) {
             $this->logger->error('Hash verification failed', [

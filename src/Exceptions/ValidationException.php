@@ -16,8 +16,6 @@ final class ValidationException extends \InvalidArgumentException
     private const string INVALID_REGEX = 'Invalid regex pattern "%s": %s';
     private const string INVALID_STATE_TRANSITION = 'Invalid state transition from %s to %s';
     private const string INVALID_INDEX = 'Invalid %s index: %d';
-    private const string INVALID_FORMAT = 'Invalid %s format: %s';
-    private const string INVALID_VALUE = 'Invalid %s value: %s';
     private const string INVALID_TYPE = 'Unknown %s: %s';
     private const string INVALID_HEX_FORMAT = 'File hash must be hexadecimal';
     private const string HASH_LENGTH_OUT_OF_RANGE = 'Hash length must be between 1 and %d';
@@ -65,16 +63,6 @@ final class ValidationException extends \InvalidArgumentException
     public static function invalidIndex(string $fieldName, int $index): self
     {
         return new self(\sprintf(self::INVALID_INDEX, $fieldName, $index));
-    }
-
-    public static function invalidFormat(string $fieldName, string $value): self
-    {
-        return new self(\sprintf(self::INVALID_FORMAT, $fieldName, $value));
-    }
-
-    public static function invalidValue(string $fieldName, string $value): self
-    {
-        return new self(\sprintf(self::INVALID_VALUE, $fieldName, $value));
     }
 
     public static function invalidType(string $fieldName, string $value): self

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy;
 
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob;
+use SortingPhotosByDate\Exceptions\RepositoryException;
+use SortingPhotosByDate\Exceptions\ValidationException;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryWritePort;
 
@@ -28,7 +30,7 @@ final class BatchJobPersistenceStrategy implements JobPersistenceStrategyInterfa
         int $batchSize = self::BATCH_SIZE,
     ) {
         if ($batchSize < 1) {
-            throw new \InvalidArgumentException('Batch size must be at least 1');
+            throw ValidationException::positiveValue('Batch size');
         }
         $this->batchSize = $batchSize;
     }
@@ -77,7 +79,7 @@ final class BatchJobPersistenceStrategy implements JobPersistenceStrategyInterfa
             $this->buffer = [];
 
             // Re-throw to allow caller to handle the error
-            throw new \RuntimeException(\sprintf('Failed to save batch of %d jobs: %s', $count, $e->getMessage()), 0, $e);
+            throw RepositoryException::failedSaveBatch($count, $e->getMessage(), $e);
         }
     }
 

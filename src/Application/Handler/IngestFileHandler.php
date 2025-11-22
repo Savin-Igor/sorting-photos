@@ -11,6 +11,8 @@ use SortingPhotosByDate\Domain\Event\FileSkipped;
 use SortingPhotosByDate\Domain\MediaAsset;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
 use SortingPhotosByDate\Domain\ValueObjects\FileType;
+use SortingPhotosByDate\Exceptions\RepositoryException;
+use SortingPhotosByDate\Exceptions\ValidationException;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
@@ -39,7 +41,7 @@ final readonly class IngestFileHandler
 
         // Check if file exists
         if (!$this->filesystem->exists($filePath)) {
-            throw new \InvalidArgumentException("File does not exist: {$filePath->getPath()}");
+            throw ValidationException::fileNotExists($filePath->getPath());
         }
 
         // Get file size
@@ -148,7 +150,7 @@ final readonly class IngestFileHandler
 
         // Save to repository
         if (!$this->repository->save($asset)) {
-            throw new \RuntimeException("Failed to save asset to repository: {$filePath->getPath()}");
+            throw RepositoryException::failedSave("MediaAsset: {$filePath->getPath()}");
         }
 
         $this->logger->debug('File ingested successfully', [

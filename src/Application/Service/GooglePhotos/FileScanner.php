@@ -12,6 +12,7 @@ use SortingPhotosByDate\Application\Service\GooglePhotos\JobPersistenceStrategy\
 use SortingPhotosByDate\Domain\Search\FileSearchCriteria;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
+use SortingPhotosByDate\Exceptions\RepositoryException;
 use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
@@ -361,7 +362,7 @@ final readonly class FileScanner
                 // Fallback: if repository implements full interface, use it
                 $this->jobRepository->save($job);
             } else {
-                throw new \RuntimeException('No write repository available for saving job');
+                throw RepositoryException::noWriteRepository();
             }
 
             $this->logger->debug('Upload job created', [
