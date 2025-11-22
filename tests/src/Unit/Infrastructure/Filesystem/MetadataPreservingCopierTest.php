@@ -79,7 +79,7 @@ final class MetadataPreservingCopierTest extends TestCase
             ->with('/nonexistent/file.txt')
             ->willReturn(false);
 
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(\SortingPhotosByDate\Exceptions\FileOperationException::class);
         $this->expectExceptionMessage('Source file does not exist');
 
         $this->copier->copy($sourcePath, $destinationPath);

@@ -7,6 +7,7 @@ namespace SortingPhotosByDate\Adapters\Storage\GooglePhotos;
 use SortingPhotosByDate\Domain\Storage\StorageItem;
 use SortingPhotosByDate\Domain\Storage\StorageMetadata;
 use SortingPhotosByDate\Domain\Storage\StorageType;
+use SortingPhotosByDate\Exceptions\ConfigurationException;
 use SortingPhotosByDate\Infrastructure\Storage\Attribute\RateLimit;
 use SortingPhotosByDate\Infrastructure\Storage\Attribute\StorageAdapter;
 use SortingPhotosByDate\Ports\Storage\DestinationStoragePort;
@@ -30,7 +31,7 @@ final readonly class GooglePhotosAdapter implements StoragePort, DestinationStor
         private array $options = [],
     ) {
         if (!isset($this->credentials['client_id']) || !isset($this->credentials['client_secret'])) {
-            throw new \InvalidArgumentException('Google Photos adapter requires client_id and client_secret');
+            throw ConfigurationException::missingCredentials('Google Photos', 'client_id and client_secret');
         }
     }
 
@@ -38,7 +39,7 @@ final readonly class GooglePhotosAdapter implements StoragePort, DestinationStor
     {
         // TODO: Implement Google Photos API scanning
         // This would use Google Photos Library API to list media items
-        throw new \RuntimeException('Google Photos adapter scan() not yet implemented');
+        throw ConfigurationException::adapterNotImplemented('scan');
     }
 
     public function read(StorageItem $item): string

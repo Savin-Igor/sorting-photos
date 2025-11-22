@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Helper;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 /**
  * Helper class for formatting byte sizes into human-readable format.
  */
@@ -24,7 +26,7 @@ final readonly class ByteFormatter
     public function format(int $size): string
     {
         if ($size < 0) {
-            throw new \InvalidArgumentException('Size cannot be negative');
+            throw ValidationException::negativeValue('Size');
         }
 
         $unitIndex = 0;

@@ -9,6 +9,8 @@ use SortingPhotosByDate\Domain\Policies\DatePolicy;
 use SortingPhotosByDate\Domain\Policies\DateTypePolicy;
 use SortingPhotosByDate\Domain\Policies\OrganizerPolicy;
 use SortingPhotosByDate\Domain\Policies\TypeDatePolicy;
+use SortingPhotosByDate\Exceptions\ConfigurationException;
+use SortingPhotosByDate\Exceptions\ValidationException;
 use SortingPhotosByDate\Infrastructure\Filter\FilterChainFactory;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -407,13 +409,13 @@ final readonly class ContainerFactory
         $adapterClass = match ($config->type) {
             \SortingPhotosByDate\Domain\Storage\StorageType::LOCAL => \SortingPhotosByDate\Adapters\Storage\Local\LocalStorageAdapter::class,
             \SortingPhotosByDate\Domain\Storage\StorageType::GOOGLE_PHOTOS => \SortingPhotosByDate\Adapters\Storage\GooglePhotos\GooglePhotosAdapter::class,
-            default => throw new \RuntimeException("Storage type {$config->type->value} not yet fully implemented"),
+            default => throw ConfigurationException::storageNotImplemented($config->type->value),
         };
 
         $serviceId = match ($type) {
             'source' => \SortingPhotosByDate\Ports\Storage\StoragePort::class,
             'destination' => \SortingPhotosByDate\Ports\Storage\DestinationStoragePort::class,
-            default => throw new \InvalidArgumentException("Invalid storage type: {$type}"),
+            default => throw ValidationException::invalidType('storage type', $type),
         };
 
         // Configure adapter service if it's not local (local is already configured)
@@ -431,7 +433,7 @@ final readonly class ContainerFactory
                         $config->credentials,
                         $config->options,
                     ]),
-                    default => throw new \RuntimeException("Storage type {$config->type->value} configuration not implemented"),
+                    default => throw ConfigurationException::storageConfigNotImplemented($config->type->value),
                 };
 
                 $container->setDefinition($adapterServiceId, $adapterDefinition);
@@ -928,7 +930,7 @@ final readonly class ContainerFactory
     public function validateRequiredParameters(ContainerBuilder $container): void
     {
         if (!$container->hasParameter('app.source_directory') || !$container->hasParameter('app.destination_directory')) {
-            throw new \RuntimeException('SOURCE_DIRECTORY and DESTINATION_DIRECTORY must be set in .env file or environment variables');
+            throw ConfigurationException::missingEnv('SOURCE_DIRECTORY and DESTINATION_DIRECTORY');
         }
 
         /** @var string $sourceDirectory */
@@ -937,7 +939,7 @@ final readonly class ContainerFactory
         $destinationDirectory = $container->getParameter('app.destination_directory');
 
         if ('' === $sourceDirectory || '' === $destinationDirectory) {
-            throw new \RuntimeException('SOURCE_DIRECTORY and DESTINATION_DIRECTORY must be set in .env file or environment variables');
+            throw ConfigurationException::missingEnv('SOURCE_DIRECTORY and DESTINATION_DIRECTORY');
         }
     }
 }

@@ -12,6 +12,8 @@ use Psr\Http\Message\StreamFactoryInterface;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\OffsetMismatchException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\QuotaExceededException;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\ServiceUnavailableException;
+use SortingPhotosByDate\Exceptions\AuthenticationException;
+use SortingPhotosByDate\Exceptions\GooglePhotosApiException;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchCreateResponse;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\BatchItemRequest;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\Error;
@@ -57,7 +59,7 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
         $refreshToken = $this->tokenStorage->getRefreshToken();
 
         if (null === $refreshToken) {
-            throw new \RuntimeException('No refresh token available. Please run: php bin/console google-photos:authorize');
+            throw AuthenticationException::noRefreshToken();
         }
 
         return $this->credentialsFactory->createUserRefreshCredentials(
@@ -114,12 +116,12 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                 'body_preview' => \substr($body, 0, 2048),
                 'body_length' => \strlen($body),
             ]);
-            throw new \RuntimeException(\sprintf('Failed to initiate resumable upload: %s %s', $response->getStatusCode(), $body));
+            throw GooglePhotosApiException::failedInitiateUpload($response->getStatusCode(), $body);
         }
 
         $sessionUri = $response->getHeaderLine('X-Goog-Upload-URL');
         if ('' === $sessionUri) {
-            throw new \RuntimeException('No X-Goog-Upload-URL header in response');
+            throw GooglePhotosApiException::noUploadUrl();
         }
 
         $this->logger->info('Resumable upload session created', [
@@ -176,20 +178,20 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                 'status' => $response->getStatusCode(),
                 'body_preview' => \substr($body, 0, 1024),
             ]);
-            throw new \RuntimeException(\sprintf('Failed to upload chunk: %s %s', $response->getStatusCode(), $body));
+            throw GooglePhotosApiException::failedUploadChunk($response->getStatusCode(), $body);
         }
 
         // Check Range in 308 response to confirm accepted bytes
         if (308 === $response->getStatusCode()) {
             $range = $response->getHeaderLine('Range');
             if ('' === $range) {
-                throw new \RuntimeException('No Range header in 308 response');
+                throw GooglePhotosApiException::noRangeHeader();
             }
 
             $confirmedBytes = $this->parseRange($range);
             // Verify that confirmed range matches expected
             if ($confirmedBytes < $offset + $chunkLength) {
-                throw new \RuntimeException(\sprintf('Range mismatch: expected at least %d bytes, got %d', $offset + $chunkLength, $confirmedBytes));
+                throw GooglePhotosApiException::rangeMismatch($offset + $chunkLength, $confirmedBytes);
             }
             $this->logger->debug('Chunk acknowledged (308)', [
                 'range' => $range,
@@ -219,7 +221,7 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             // Response body should contain upload token
             $token = \trim($body);
             if ('' === $token) {
-                throw new \RuntimeException('Empty upload token in response');
+                throw GooglePhotosApiException::emptyUploadToken();
             }
 
             $this->logger->info('Upload session finalized', [
@@ -235,7 +237,7 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             'status' => $response->getStatusCode(),
             'body_preview' => \substr($response->getBody()->getContents(), 0, 2048),
         ]);
-        throw new \RuntimeException(\sprintf('Upload not complete: %s %s', $response->getStatusCode(), $response->getBody()->getContents()));
+        throw GooglePhotosApiException::uploadNotComplete($response->getStatusCode(), $response->getBody()->getContents());
     }
 
     public function queryUploadStatus(string $sessionUri): UploadStatus
@@ -339,13 +341,13 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                     'body_preview' => \substr($errorBody, 0, 4096),
                     'body_length' => \strlen($errorBody),
                 ]);
-                throw new \RuntimeException(\sprintf('Failed to batch create media items: %s %s', $response->getStatusCode(), $errorBody));
+                throw GooglePhotosApiException::failedBatchCreate($response->getStatusCode(), $errorBody);
             }
 
             $data = \json_decode($response->getBody()->getContents(), true, 512, \JSON_THROW_ON_ERROR);
 
             if (false === $data) {
-                throw new \RuntimeException('Invalid JSON response from API');
+                throw GooglePhotosApiException::invalidJsonResponse();
             }
 
             // Optional: debug preview of Google response
@@ -423,7 +425,7 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             $this->logger->error('Failed to decode JSON response from Google Photos', [
                 'error' => $e->getMessage(),
             ]);
-            throw new \RuntimeException('Failed to decode JSON response: '.$e->getMessage(), 0, $e);
+            throw GooglePhotosApiException::failedDecodeJson($e->getMessage(), $e);
         }
     }
 
@@ -469,7 +471,7 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                 throw QuotaExceededException::requestsExceeded($resetTime);
             }
 
-            throw new \RuntimeException(\sprintf('Failed to list media items: %s', $e->getMessage()), $e->getCode(), $e);
+            throw GooglePhotosApiException::failedListMedia($e->getCode(), $e->getMessage());
         }
     }
 
@@ -516,7 +518,7 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                 throw QuotaExceededException::requestsExceeded($resetTime);
             }
 
-            throw new \RuntimeException(\sprintf('Failed to list albums: %s', $e->getMessage()), $e->getCode(), $e);
+            throw GooglePhotosApiException::failedListAlbums($e->getCode(), $e->getMessage());
         }
     }
 
@@ -553,6 +555,6 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
             return (int) $matches[1] + 1;
         }
 
-        throw new \RuntimeException(\sprintf('Invalid Range header format: %s', $range));
+        throw GooglePhotosApiException::invalidRangeHeader($range);
     }
 }

@@ -7,6 +7,8 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 use Carbon\Carbon;
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
+use SortingPhotosByDate\Exceptions\MetadataException;
+use SortingPhotosByDate\Exceptions\ValidationException;
 use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
@@ -31,12 +33,12 @@ final readonly class ExifAdapter implements MetadataExtractorPort
     public function extract(string $filePath): MediaMeta
     {
         if (!function_exists('exif_read_data')) {
-            throw new \RuntimeException('EXIF extension is not available');
+            throw MetadataException::exifNotAvailable();
         }
 
         $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
         if (!$this->filesystem->exists($filePathObj)) {
-            throw new \InvalidArgumentException("File does not exist: {$filePath}");
+            throw ValidationException::fileNotExists($filePath);
         }
 
         $exifData = @exif_read_data($filePath);
@@ -95,7 +97,7 @@ final readonly class ExifAdapter implements MetadataExtractorPort
     {
         $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
         if (!$this->filesystem->exists($filePathObj)) {
-            throw new \InvalidArgumentException("File does not exist: {$filePath}");
+            throw ValidationException::fileNotExists($filePath);
         }
 
         // Priority 1: Extract from filename (most reliable - filename changes less often than metadata)

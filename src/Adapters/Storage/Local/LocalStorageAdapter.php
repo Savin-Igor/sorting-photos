@@ -8,6 +8,7 @@ use SortingPhotosByDate\Domain\Storage\StorageItem;
 use SortingPhotosByDate\Domain\Storage\StorageMetadata;
 use SortingPhotosByDate\Domain\Storage\StorageType;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\ValidationException;
 use SortingPhotosByDate\Infrastructure\Storage\Attribute\StorageAdapter;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\ScannerPort;
@@ -27,7 +28,7 @@ final readonly class LocalStorageAdapter implements StoragePort, DestinationStor
         private string $basePath,
     ) {
         if (!is_dir($this->basePath)) {
-            throw new \InvalidArgumentException("Base path does not exist: {$this->basePath}");
+            throw ValidationException::directoryNotExists($this->basePath);
         }
     }
 

@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Adapters\Filesystem;
 
 use League\Flysystem\FilesystemOperator;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\FileOperationException;
 use SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier;
 use SortingPhotosByDate\Ports\FilesystemPort;
 
@@ -161,7 +162,7 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
             if (str_starts_with($path, '/') && !str_starts_with($path, $this->getFilesystemRoot())) {
                 $size = filesize($path);
                 if (false === $size) {
-                    throw new \RuntimeException("Failed to get file size: {$path}");
+                    throw FileOperationException::failedGetSize($path);
                 }
 
                 return $size;
@@ -172,7 +173,7 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
             // Fallback to native PHP if Flysystem fails
             $size = filesize($path);
             if (false === $size) {
-                throw new \RuntimeException("Failed to get file size: {$path}", 0, $e);
+                throw FileOperationException::failedGetSize($path, $e);
             }
 
             return $size;
@@ -189,7 +190,7 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
 
             return $this->visibilityToPermissions($visibility);
         } catch (\Exception $e) {
-            throw new \RuntimeException("Failed to get file permissions: {$path}", 0, $e);
+            throw FileOperationException::failedGetPermissions($path, $e);
         }
     }
 
@@ -215,7 +216,7 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
         try {
             return $this->filesystem->lastModified($path);
         } catch (\Exception $e) {
-            throw new \RuntimeException("Failed to get file modification time: {$path}", 0, $e);
+            throw FileOperationException::failedGetModificationTime($path, $e);
         }
     }
 
@@ -247,17 +248,17 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
 
         try {
             if (!$this->filesystem->fileExists($path)) {
-                throw new \RuntimeException("File does not exist: {$path}");
+                throw FileOperationException::fileNotExists($path);
             }
 
             $atime = fileatime($path);
             if (false === $atime) {
-                throw new \RuntimeException("Failed to get file access time: {$path}");
+                throw FileOperationException::failedGetAccessTime($path);
             }
 
             return $atime;
         } catch (\Exception $e) {
-            throw new \RuntimeException("Failed to get file access time: {$path}", 0, $e);
+            throw FileOperationException::failedGetAccessTime($path, $e);
         }
     }
 
@@ -289,7 +290,7 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
             if (str_starts_with($path, '/') && !str_starts_with($path, $this->getFilesystemRoot())) {
                 $content = file_get_contents($path);
                 if (false === $content) {
-                    throw new \RuntimeException("Failed to read file: {$path}");
+                    throw FileOperationException::failedRead($path);
                 }
 
                 return $content;
@@ -300,7 +301,7 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
             // Fallback to native PHP if Flysystem fails
             $content = file_get_contents($path);
             if (false === $content) {
-                throw new \RuntimeException("Failed to read file: {$path}", 0, $e);
+                throw FileOperationException::failedRead($path, $e);
             }
 
             return $content;
@@ -317,7 +318,7 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
             if (str_starts_with($path, '/') && !str_starts_with($path, $this->getFilesystemRoot())) {
                 $hash = hash_file('sha256', $path);
                 if (false === $hash) {
-                    throw new \RuntimeException("Failed to calculate hash for file: {$path}");
+                    throw FileOperationException::failedCalculateHash($path);
                 }
 
                 return $hash;
@@ -330,7 +331,7 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
             // Fallback to native PHP if Flysystem fails
             $hash = hash_file('sha256', $path);
             if (false === $hash) {
-                throw new \RuntimeException("Failed to calculate hash for file: {$path}", 0, $e);
+                throw FileOperationException::failedCalculateHash($path, $e);
             }
 
             return $hash;
@@ -349,7 +350,7 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
 
             $this->filesystem->write($path, $content);
         } catch (\Exception $e) {
-            throw new \RuntimeException("Failed to write file: {$path}", 0, $e);
+            throw FileOperationException::failedWrite($path, $e);
         }
     }
 

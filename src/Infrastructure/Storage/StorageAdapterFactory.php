@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Infrastructure\Storage;
 
 use Psr\Container\ContainerInterface;
 use SortingPhotosByDate\Domain\Storage\StorageType;
+use SortingPhotosByDate\Exceptions\ConfigurationException;
 use SortingPhotosByDate\Infrastructure\Storage\RateLimiting\RateLimiter;
 use SortingPhotosByDate\Infrastructure\Storage\RateLimiting\RateLimitedDestinationStoragePort;
 use SortingPhotosByDate\Infrastructure\Storage\RateLimiting\RateLimitedStoragePort;
@@ -35,7 +36,7 @@ final readonly class StorageAdapterFactory
         $adapter = $this->createAdapter($config);
 
         if (!$adapter instanceof StoragePort) {
-            throw new \RuntimeException(\sprintf('Adapter for storage type %s does not implement StoragePort', $config->type->value));
+            throw ConfigurationException::adapterDoesNotImplement($config->type->value, 'StoragePort');
         }
 
         // Apply rate limiting if configured
@@ -60,7 +61,7 @@ final readonly class StorageAdapterFactory
         $adapter = $this->createAdapter($config);
 
         if (!$adapter instanceof DestinationStoragePort) {
-            throw new \RuntimeException(\sprintf('Adapter for storage type %s does not implement DestinationStoragePort', $config->type->value));
+            throw ConfigurationException::adapterDoesNotImplement($config->type->value, 'DestinationStoragePort');
         }
 
         // Apply rate limiting if configured
@@ -104,7 +105,7 @@ final readonly class StorageAdapterFactory
             }
         }
         // Fallback: create directly (will be replaced by DI later)
-        throw new \RuntimeException('Local storage adapter must be configured via DI container');
+        throw ConfigurationException::localStorageAdapterDi();
     }
 
     /**
@@ -119,7 +120,7 @@ final readonly class StorageAdapterFactory
                 return $adapter;
             }
         }
-        throw new \RuntimeException('Google Photos adapter not yet implemented. Please configure via DI container.');
+        throw ConfigurationException::googlePhotosAdapterDi();
     }
 
     /**
@@ -127,7 +128,7 @@ final readonly class StorageAdapterFactory
      */
     private function createDropboxAdapter(): StoragePort&DestinationStoragePort
     {
-        throw new \RuntimeException('Dropbox adapter not yet implemented');
+        throw ConfigurationException::dropboxAdapterNotImplemented();
     }
 
     /**
@@ -135,7 +136,7 @@ final readonly class StorageAdapterFactory
      */
     private function createS3Adapter(): StoragePort&DestinationStoragePort
     {
-        throw new \RuntimeException('S3 adapter not yet implemented');
+        throw ConfigurationException::s3AdapterNotImplemented();
     }
 
     /**

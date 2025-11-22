@@ -6,6 +6,8 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
+use SortingPhotosByDate\Exceptions\MetadataException;
+use SortingPhotosByDate\Exceptions\ValidationException;
 use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
@@ -32,7 +34,7 @@ final readonly class GenericAdapter implements MetadataExtractorPort
     {
         $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
         if (!$this->filesystem->exists($filePathObj)) {
-            throw new \InvalidArgumentException("File does not exist: {$filePath}");
+            throw ValidationException::fileNotExists($filePath);
         }
 
         $fileInfo = new \SplFileInfo($filePath);
@@ -51,7 +53,7 @@ final readonly class GenericAdapter implements MetadataExtractorPort
     {
         $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
         if (!$this->filesystem->exists($filePathObj)) {
-            throw new \InvalidArgumentException("File does not exist: {$filePath}");
+            throw ValidationException::fileNotExists($filePath);
         }
 
         // Priority 1: Extract from filename (most reliable for files without metadata)
@@ -73,6 +75,6 @@ final readonly class GenericAdapter implements MetadataExtractorPort
             }
         }
 
-        throw new \RuntimeException("Failed to get file timestamp: {$filePath}");
+        throw MetadataException::failedGetTimestamp($filePath);
     }
 }

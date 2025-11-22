@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Storage;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 /**
  * Rate limit configuration value object.
  */
@@ -15,10 +17,10 @@ final readonly class RateLimitConfiguration
         public ?int $burst = null,
     ) {
         if ($this->requests <= 0) {
-            throw new \InvalidArgumentException('Rate limit requests must be greater than 0');
+            throw ValidationException::positiveValue('Rate limit requests');
         }
         if ($this->perSeconds <= 0) {
-            throw new \InvalidArgumentException('Rate limit perSeconds must be greater than 0');
+            throw ValidationException::positiveValue('Rate limit perSeconds');
         }
     }
 }

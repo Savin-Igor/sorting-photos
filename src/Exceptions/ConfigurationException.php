@@ -20,6 +20,11 @@ final class ConfigurationException extends \RuntimeException
     private const string ADAPTER_INTERFACE = 'Adapter for storage type %s does not implement %s';
     private const string INVALID_STORAGE_TYPE = 'Invalid storage type: %s';
     private const string REDIS_FACTORY_NOT_FOUND = 'Redis transport factory not found. Please install symfony/redis-messenger.';
+    private const string LOCAL_STORAGE_ADAPTER_DI = 'Local storage adapter must be configured via DI container';
+    private const string GOOGLE_PHOTOS_ADAPTER_DI = 'Google Photos adapter not yet implemented. Please configure via DI container.';
+    private const string DROPBOX_ADAPTER_NOT_IMPLEMENTED = 'Dropbox adapter not yet implemented';
+    private const string S3_ADAPTER_NOT_IMPLEMENTED = 'S3 adapter not yet implemented';
+    private const string ADAPTER_NOT_IMPLEMENTED = 'Google Photos adapter %s() not yet implemented';
 
     public static function missingEnv(string $variable): self
     {
@@ -89,5 +94,30 @@ final class ConfigurationException extends \RuntimeException
     public static function redisFactoryNotFound(): self
     {
         return new self(self::REDIS_FACTORY_NOT_FOUND);
+    }
+
+    public static function localStorageAdapterDi(): self
+    {
+        return new self(self::LOCAL_STORAGE_ADAPTER_DI);
+    }
+
+    public static function googlePhotosAdapterDi(): self
+    {
+        return new self(self::GOOGLE_PHOTOS_ADAPTER_DI);
+    }
+
+    public static function dropboxAdapterNotImplemented(): self
+    {
+        return new self(self::DROPBOX_ADAPTER_NOT_IMPLEMENTED);
+    }
+
+    public static function s3AdapterNotImplemented(): self
+    {
+        return new self(self::S3_ADAPTER_NOT_IMPLEMENTED);
+    }
+
+    public static function adapterNotImplemented(string $methodName): self
+    {
+        return new self(\sprintf(self::ADAPTER_NOT_IMPLEMENTED, $methodName));
     }
 }

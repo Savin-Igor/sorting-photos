@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Storage\RateLimiting;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 /**
  * Token bucket rate limiter implementation.
  */
@@ -19,10 +21,10 @@ final class TokenBucketRateLimiter implements RateLimiter
         private readonly ?int $burst = null,
     ) {
         if ($this->requestsPerWindow <= 0) {
-            throw new \InvalidArgumentException('Requests per window must be greater than 0');
+            throw ValidationException::positiveValue('Requests per window');
         }
         if ($this->windowSeconds <= 0) {
-            throw new \InvalidArgumentException('Window seconds must be greater than 0');
+            throw ValidationException::positiveValue('Window seconds');
         }
     }
 

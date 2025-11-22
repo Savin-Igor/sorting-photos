@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Messenger;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
 use SortingPhotosByDate\Ports\RetryPolicyInterface;
 
 /**
@@ -26,19 +27,19 @@ final readonly class RetryPolicy implements RetryPolicyInterface
         ],
     ) {
         if ($this->maxRetries < 0) {
-            throw new \InvalidArgumentException('Max retries must be >= 0');
+            throw ValidationException::negativeValue('Max retries');
         }
 
         if ($this->delay < 0) {
-            throw new \InvalidArgumentException('Delay must be >= 0');
+            throw ValidationException::negativeValue('Delay');
         }
 
         if ($this->multiplier < 1.0) {
-            throw new \InvalidArgumentException('Multiplier must be >= 1.0');
+            throw ValidationException::positiveValue('Multiplier');
         }
 
         if ($this->maxDelay < 0) {
-            throw new \InvalidArgumentException('Max delay must be >= 0');
+            throw ValidationException::negativeValue('Max delay');
         }
     }
 

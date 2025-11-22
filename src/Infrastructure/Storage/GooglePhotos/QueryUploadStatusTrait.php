@@ -7,6 +7,7 @@ namespace SortingPhotosByDate\Infrastructure\Storage\GooglePhotos;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use SortingPhotosByDate\Application\Service\GooglePhotos\Exception\SessionExpiredException;
+use SortingPhotosByDate\Exceptions\GooglePhotosApiException;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadStatus;
 
 /**
@@ -45,7 +46,7 @@ trait QueryUploadStatusTrait
             $data = \json_decode($body, true);
 
             if (!\is_array($data) || !isset($data['uploadToken'])) {
-                throw new \RuntimeException('No uploadToken in response');
+                throw GooglePhotosApiException::noUploadToken();
             }
 
             if (null !== $onCompleted) {
@@ -59,7 +60,7 @@ trait QueryUploadStatusTrait
             // Not completed, get uploaded bytes from Range header
             $range = $response->getHeaderLine('Range');
             if ('' === $range) {
-                throw new \RuntimeException('No Range header in 308 response');
+                throw GooglePhotosApiException::noRangeHeader();
             }
 
             $uploadedBytes = $this->parseRange($range);
@@ -84,7 +85,7 @@ trait QueryUploadStatusTrait
         if (null !== $onError) {
             $onError($response->getStatusCode(), $body);
         }
-        throw new \RuntimeException(\sprintf('Unexpected status code: %s %s', $response->getStatusCode(), $body));
+        throw GooglePhotosApiException::unexpectedStatusCode($response->getStatusCode(), $body);
     }
 
     /**

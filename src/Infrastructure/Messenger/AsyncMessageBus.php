@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Infrastructure\Messenger;
 
 use Psr\Container\ContainerInterface;
+use SortingPhotosByDate\Exceptions\ConfigurationException;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Messenger\Middleware\SendMessageMiddleware;
@@ -59,7 +60,7 @@ final readonly class AsyncMessageBus implements MessageBusInterface
             return $factory->createTransport($this->transportDsn, [], $serializer);
         }
 
-        throw new \RuntimeException('Redis transport factory not found. Please ensure symfony/redis-messenger is installed and RedisTransportFactory is available.');
+        throw ConfigurationException::redisFactoryNotFound();
     }
 
     /**

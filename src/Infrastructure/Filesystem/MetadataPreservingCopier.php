@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Infrastructure\Filesystem;
 
 use League\Flysystem\FilesystemOperator;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\FileOperationException;
 
 /**
  * Service for copying files while preserving all metadata.
@@ -108,7 +109,7 @@ final readonly class MetadataPreservingCopier
 
         // Standard Flysystem copy (both files within root)
         if (!$this->filesystem->fileExists($sourcePath)) {
-            throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
+            throw FileOperationException::sourceFileNotExists($sourcePath);
         }
 
         // Ensure destination directory exists (recursively)
@@ -160,7 +161,7 @@ final readonly class MetadataPreservingCopier
     private function copyWithNativePHP(string $sourcePath, string $destPath): bool
     {
         if (!file_exists($sourcePath)) {
-            throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
+            throw FileOperationException::sourceFileNotExists($sourcePath);
         }
 
         // Ensure destination directory exists (recursively)
@@ -188,7 +189,7 @@ final readonly class MetadataPreservingCopier
                     foreach ($parts as $part) {
                         $currentPath = rtrim($currentPath, '/').'/'.$part;
                         if (!is_dir($currentPath) && (!@mkdir($currentPath, 0755, false) && !is_dir($currentPath))) {
-                            throw new \RuntimeException("Failed to create destination directory: {$currentPath}");
+                            throw FileOperationException::failedCreateDirectory($currentPath);
                         }
                     }
                 }
@@ -202,7 +203,7 @@ final readonly class MetadataPreservingCopier
 
         // Copy file
         if (!copy($sourcePath, $destPath)) {
-            throw new \RuntimeException("Failed to copy file from {$sourcePath} to {$destPath}");
+            throw FileOperationException::failedCopy($sourcePath, $destPath);
         }
 
         // Restore metadata
@@ -224,7 +225,7 @@ final readonly class MetadataPreservingCopier
     private function copyFromNativeToFlysystem(string $sourcePath, string $destPath): bool
     {
         if (!file_exists($sourcePath)) {
-            throw new \InvalidArgumentException("Source file does not exist: {$sourcePath}");
+            throw FileOperationException::sourceFileNotExists($sourcePath);
         }
 
         // Ensure destination directory exists (recursively)
@@ -238,7 +239,7 @@ final readonly class MetadataPreservingCopier
         // Read source with native PHP
         $content = file_get_contents($sourcePath);
         if (false === $content) {
-            throw new \RuntimeException("Failed to read source file: {$sourcePath}");
+            throw FileOperationException::failedRead($sourcePath);
         }
 
         // Write destination with Flysystem
@@ -250,7 +251,7 @@ final readonly class MetadataPreservingCopier
         $destHash = hash('sha256', $destContent);
         if ($sourceHash !== $destHash) {
             $this->filesystem->delete($destPath);
-            throw new \RuntimeException("File integrity check failed: source hash {$sourceHash} does not match destination hash {$destHash}");
+            throw FileOperationException::hashMismatch($sourceHash, $destHash);
         }
 
         // Restore metadata using native PHP (Flysystem doesn't support setting timestamps)
@@ -273,11 +274,15 @@ final readonly class MetadataPreservingCopier
         $sourceHash = hash_file('sha256', $sourcePath);
         $destHash = hash_file('sha256', $destPath);
 
+        if (false === $sourceHash || false === $destHash) {
+            throw FileOperationException::failedCalculateHash($sourcePath);
+        }
+
         if ($sourceHash !== $destHash) {
             if (file_exists($destPath)) {
                 unlink($destPath);
             }
-            throw new \RuntimeException("File integrity check failed: source hash {$sourceHash} does not match destination hash {$destHash}");
+            throw FileOperationException::hashMismatch($sourceHash, $destHash);
         }
     }
 
@@ -295,7 +300,7 @@ final readonly class MetadataPreservingCopier
         if ($sourceHash !== $destHash) {
             // Clean up destination file if integrity check fails
             $this->filesystem->delete($destPath);
-            throw new \RuntimeException("File integrity check failed: source hash {$sourceHash} does not match destination hash {$destHash}");
+            throw FileOperationException::hashMismatch($sourceHash, $destHash);
         }
     }
 
@@ -346,14 +351,14 @@ final readonly class MetadataPreservingCopier
                         // If directory already exists (race condition), verify it exists
                         // @phpstan-ignore-next-line (directoryExists may return true if directory was created by another process)
                         if (!$this->filesystem->directoryExists($currentPath)) {
-                            throw new \RuntimeException("Failed to create directory: {$currentPath}", 0, $e);
+                            throw FileOperationException::failedCreateDirectory($currentPath, $e);
                         }
                     }
                 }
             } elseif (!is_dir($currentPath)) {
                 // Use native PHP for paths outside root
                 if (!@mkdir($currentPath, 0755, false) && !is_dir($currentPath)) {
-                    throw new \RuntimeException("Failed to create directory: {$currentPath}");
+                    throw FileOperationException::failedCreateDirectory($currentPath);
                 }
             }
         }

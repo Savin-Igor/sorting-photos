@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Infrastructure\Metadata;
 
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
+use SortingPhotosByDate\Exceptions\MetadataException;
 use SortingPhotosByDate\Ports\MimeTypeDetectorInterface;
 use SortingPhotosByDate\Ports\MetadataExtractorPort;
 
@@ -76,6 +77,6 @@ final readonly class MetadataExtractorChain implements MetadataExtractorPort
             }
         }
 
-        throw new \RuntimeException("No extractor found for MIME type: {$mimeType}");
+        throw MetadataException::noExtractorFound($mimeType);
     }
 }

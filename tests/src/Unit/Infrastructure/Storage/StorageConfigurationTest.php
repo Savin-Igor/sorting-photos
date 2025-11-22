@@ -54,13 +54,13 @@ final class StorageConfigurationTest extends TestCase
 
     public function testFromDsnInvalidThrowsException(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(\SortingPhotosByDate\Exceptions\ConfigurationException::class);
         StorageConfiguration::fromDsn('invalid-dsn');
     }
 
     public function testValidateGooglePhotos(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(\SortingPhotosByDate\Exceptions\ConfigurationException::class);
         $this->expectExceptionMessage('Google Photos storage requires client_id and client_secret credentials');
         new StorageConfiguration(
             type: StorageType::GOOGLE_PHOTOS,
@@ -70,7 +70,7 @@ final class StorageConfigurationTest extends TestCase
 
     public function testValidateLocal(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(\SortingPhotosByDate\Exceptions\ConfigurationException::class);
         $this->expectExceptionMessage('Local storage requires path option');
         new StorageConfiguration(
             type: StorageType::LOCAL,
@@ -80,8 +80,8 @@ final class StorageConfigurationTest extends TestCase
 
     public function testValidateDropbox(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Dropbox storage requires access_token credential');
+        $this->expectException(\SortingPhotosByDate\Exceptions\ConfigurationException::class);
+        $this->expectExceptionMessage('Dropbox storage requires access_token credentials');
         new StorageConfiguration(
             type: StorageType::DROPBOX,
             credentials: []
@@ -90,7 +90,7 @@ final class StorageConfigurationTest extends TestCase
 
     public function testValidateS3(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(\SortingPhotosByDate\Exceptions\ConfigurationException::class);
         $this->expectExceptionMessage('S3 storage requires access_key and secret_key credentials');
         new StorageConfiguration(
             type: StorageType::S3,
@@ -100,7 +100,7 @@ final class StorageConfigurationTest extends TestCase
 
     public function testValidateS3MissingBucket(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(\SortingPhotosByDate\Exceptions\ConfigurationException::class);
         $this->expectExceptionMessage('S3 storage requires bucket option');
         new StorageConfiguration(
             type: StorageType::S3,

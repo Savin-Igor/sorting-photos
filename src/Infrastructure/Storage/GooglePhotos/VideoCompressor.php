@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Storage\GooglePhotos;
 
+use SortingPhotosByDate\Exceptions\CompressionException;
+
 final readonly class VideoCompressor
 {
     public function __construct(
@@ -29,7 +31,7 @@ final readonly class VideoCompressor
 
         $fileSize = \filesize($filePath);
         if (false === $fileSize) {
-            throw new \RuntimeException(\sprintf('Failed to get file size: %s', $filePath));
+            throw CompressionException::failedGetFileSize($filePath);
         }
 
         if ($fileSize <= $this->maxSizeBytes) {
@@ -59,7 +61,7 @@ final readonly class VideoCompressor
     {
         $tempFile = \tempnam(\sys_get_temp_dir(), 'gphotos_video_');
         if (false === $tempFile) {
-            throw new \RuntimeException('Failed to create temp file');
+            throw CompressionException::failedCreateTempFile();
         }
         \unlink($tempFile);
         $tempFile .= '.mp4';
@@ -103,7 +105,7 @@ final readonly class VideoCompressor
                 \unlink($tempFile);
             }
 
-            throw new \RuntimeException(\sprintf('ffmpeg compression failed: %s', \implode("\n", $output)));
+            throw CompressionException::ffmpegCompressionFailed(\implode("\n", $output));
         }
 
         return $tempFile;

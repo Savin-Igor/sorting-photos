@@ -10,6 +10,7 @@ namespace SortingPhotosByDate\Exceptions;
 final class FileOperationException extends \RuntimeException
 {
     private const string FILE_NOT_EXISTS = 'File does not exist: %s';
+    private const string SOURCE_FILE_NOT_EXISTS = 'Source file does not exist: %s';
     private const string DIRECTORY_NOT_EXISTS = 'Directory does not exist: %s';
     private const string FAILED_READ = 'Failed to read file: %s';
     private const string FAILED_WRITE = 'Failed to write file: %s';
@@ -26,6 +27,11 @@ final class FileOperationException extends \RuntimeException
     public static function fileNotExists(string $filePath): self
     {
         return new self(\sprintf(self::FILE_NOT_EXISTS, $filePath));
+    }
+
+    public static function sourceFileNotExists(string $filePath): self
+    {
+        return new self(\sprintf(self::SOURCE_FILE_NOT_EXISTS, $filePath));
     }
 
     public static function directoryNotExists(string $directory): self

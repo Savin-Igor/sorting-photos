@@ -7,6 +7,7 @@ namespace SortingPhotosByDate\Infrastructure\Storage\Bridge;
 use SortingPhotosByDate\Domain\Storage\StorageItem;
 use SortingPhotosByDate\Domain\Storage\StorageMetadata;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\FileOperationException;
 use SortingPhotosByDate\Ports\FilesystemPort;
 use SortingPhotosByDate\Ports\Storage\DestinationStoragePort;
 use SortingPhotosByDate\Ports\Storage\StoragePort;
@@ -70,7 +71,7 @@ final readonly class StorageToFilesystemBridge implements FilesystemPort
 
         // Get size from source storage only
         if (!$this->sourceStorage->exists($item)) {
-            throw new \RuntimeException("File does not exist in source storage: {$filePath->getPath()}");
+            throw FileOperationException::fileNotExists($filePath->getPath());
         }
 
         $metadata = $this->sourceStorage->getMetadata($item);
@@ -148,7 +149,7 @@ final readonly class StorageToFilesystemBridge implements FilesystemPort
         $metadata = new StorageMetadata();
 
         if (!$this->destinationStorage->write($item, $content, $metadata)) {
-            throw new \RuntimeException("Failed to write file: {$filePath->getPath()}");
+            throw FileOperationException::failedWrite($filePath->getPath());
         }
     }
 }

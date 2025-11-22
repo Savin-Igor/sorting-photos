@@ -6,6 +6,8 @@ namespace SortingPhotosByDate\Infrastructure\Storage\GooglePhotos;
 
 use Google\Auth\Credentials\UserRefreshCredentials;
 use Google\Auth\OAuth2;
+use SortingPhotosByDate\Exceptions\AuthenticationException;
+use SortingPhotosByDate\Exceptions\ValidationException;
 use SortingPhotosByDate\Ports\LoggerPort;
 
 final readonly class CredentialsFactory
@@ -18,7 +20,7 @@ final readonly class CredentialsFactory
         private LoggerPort $logger,
     ) {
         if ('' === $this->credentialsPath) {
-            throw new \InvalidArgumentException('Credentials path cannot be empty');
+            throw ValidationException::emptyValue('Credentials path');
         }
 
         // Don't check file existence here - check will be done when used
@@ -74,7 +76,7 @@ final readonly class CredentialsFactory
         $clientSecret = $credentials['installed']['client_secret'] ?? $credentials['web']['client_secret'] ?? '';
 
         if ('' === $clientId || '' === $clientSecret) {
-            throw new \RuntimeException('Invalid credentials file: missing client_id or client_secret');
+            throw AuthenticationException::invalidCredentialsFile('missing client_id or client_secret');
         }
 
         return new UserRefreshCredentials(
@@ -121,7 +123,7 @@ final readonly class CredentialsFactory
         $authToken = $oauth2->fetchAuthToken();
 
         if (!isset($authToken['access_token'])) {
-            throw new \RuntimeException('Failed to exchange authorization code: no access_token in response');
+            throw AuthenticationException::failedExchangeCode();
         }
 
         $this->logger->info('Successfully exchanged authorization code for tokens', [
@@ -144,22 +146,22 @@ final readonly class CredentialsFactory
     private function loadCredentials(): array
     {
         if (!\file_exists($this->credentialsPath)) {
-            throw new \RuntimeException(\sprintf('Credentials file not found: %s. Please ensure the file exists and is mounted correctly. Set GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST in .env to point to the directory containing credentials.json', $this->credentialsPath));
+            throw AuthenticationException::credentialsFileNotFound($this->credentialsPath);
         }
 
         $content = \file_get_contents($this->credentialsPath);
         if (false === $content) {
-            throw new \RuntimeException(\sprintf('Failed to read credentials file: %s', $this->credentialsPath));
+            throw AuthenticationException::failedReadCredentialsFile($this->credentialsPath);
         }
 
         $credentials = \json_decode($content, true);
         if (false === $credentials || null === $credentials) {
-            throw new \RuntimeException(\sprintf('Invalid JSON in credentials file: %s', $this->credentialsPath));
+            throw AuthenticationException::invalidJsonInCredentialsFile($this->credentialsPath);
         }
 
         // Check credentials.json format
         if (!isset($credentials['installed']) && !isset($credentials['web'])) {
-            throw new \RuntimeException('Invalid credentials file format: missing "installed" or "web" key');
+            throw AuthenticationException::invalidCredentialsFileFormat();
         }
 
         return $credentials;

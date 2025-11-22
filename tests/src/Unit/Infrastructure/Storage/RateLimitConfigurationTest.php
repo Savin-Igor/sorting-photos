@@ -29,15 +29,15 @@ final class RateLimitConfigurationTest extends TestCase
 
     public function testInvalidRequestsThrowsException(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Rate limit requests must be greater than 0');
+        $this->expectException(\SortingPhotosByDate\Exceptions\ValidationException::class);
+        $this->expectExceptionMessage('Rate limit requests must be positive');
         new RateLimitConfiguration(0, 60);
     }
 
     public function testInvalidPerSecondsThrowsException(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Rate limit perSeconds must be greater than 0');
+        $this->expectException(\SortingPhotosByDate\Exceptions\ValidationException::class);
+        $this->expectExceptionMessage('Rate limit perSeconds must be positive');
         new RateLimitConfiguration(100, 0);
     }
 }

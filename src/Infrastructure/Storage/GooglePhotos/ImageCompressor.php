@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Infrastructure\Storage\GooglePhotos;
 
+use SortingPhotosByDate\Exceptions\CompressionException;
 use SortingPhotosByDate\Ports\LoggerPort;
 
 final readonly class ImageCompressor
@@ -66,16 +67,16 @@ final readonly class ImageCompressor
             'image/png' => \imagecreatefrompng($filePath),
             'image/gif' => \imagecreatefromgif($filePath),
             'image/webp' => \imagecreatefromwebp($filePath),
-            default => throw new \RuntimeException(\sprintf('Unsupported image type: %s', $mimeType)),
+            default => throw CompressionException::unsupportedImageType($mimeType),
         };
 
         if (false === $source) {
-            throw new \RuntimeException(\sprintf('Failed to create image from: %s', $filePath));
+            throw CompressionException::failedCreateImage($filePath);
         }
 
         $destination = \imagecreatetruecolor($newWidth, $newHeight);
         if (false === $destination) {
-            throw new \RuntimeException('Failed to create destination image');
+            throw CompressionException::failedCreateDestinationImage();
         }
 
         // Preserve transparency for PNG
@@ -92,7 +93,7 @@ final readonly class ImageCompressor
 
         $tempFile = \tempnam(\sys_get_temp_dir(), 'gphotos_');
         if (false === $tempFile) {
-            throw new \RuntimeException('Failed to create temp file');
+            throw CompressionException::failedCreateTempFile();
         }
 
         $success = match ($mimeType) {
@@ -109,7 +110,7 @@ final readonly class ImageCompressor
         if (!$success) {
             \unlink($tempFile);
 
-            throw new \RuntimeException('Failed to save resized image');
+            throw CompressionException::failedSaveResizedImage();
         }
 
         // For JPEG images, preserve EXIF data from original file

@@ -57,15 +57,15 @@ final class TokenBucketRateLimiterTest extends TestCase
 
     public function testInvalidRequestsPerWindowThrowsException(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Requests per window must be greater than 0');
+        $this->expectException(\SortingPhotosByDate\Exceptions\ValidationException::class);
+        $this->expectExceptionMessage('Requests per window must be positive');
         new TokenBucketRateLimiter(0, 60);
     }
 
     public function testInvalidWindowSecondsThrowsException(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Window seconds must be greater than 0');
+        $this->expectException(\SortingPhotosByDate\Exceptions\ValidationException::class);
+        $this->expectExceptionMessage('Window seconds must be positive');
         new TokenBucketRateLimiter(100, 0);
     }
 

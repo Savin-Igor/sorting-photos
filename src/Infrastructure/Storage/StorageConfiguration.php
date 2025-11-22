@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Infrastructure\Storage;
 
 use SortingPhotosByDate\Domain\Storage\StorageType;
+use SortingPhotosByDate\Exceptions\ConfigurationException;
 
 /**
  * Storage configuration value object.
@@ -47,7 +48,7 @@ final readonly class StorageConfiguration
         $parsed = parse_url($normalizedDsn);
 
         if (false === $parsed || !isset($parsed['scheme'])) {
-            throw new \InvalidArgumentException("Invalid DSN format: {$dsn}");
+            throw ConfigurationException::invalidDsn($dsn);
         }
 
         $scheme = $parsed['scheme'];
@@ -127,31 +128,31 @@ final readonly class StorageConfiguration
     private function validateGooglePhotos(): void
     {
         if (!isset($this->credentials['client_id']) || !isset($this->credentials['client_secret'])) {
-            throw new \InvalidArgumentException('Google Photos storage requires client_id and client_secret credentials');
+            throw ConfigurationException::missingCredentials('Google Photos', 'client_id and client_secret');
         }
     }
 
     private function validateDropbox(): void
     {
         if (!isset($this->credentials['access_token'])) {
-            throw new \InvalidArgumentException('Dropbox storage requires access_token credential');
+            throw ConfigurationException::missingCredentials('Dropbox', 'access_token');
         }
     }
 
     private function validateS3(): void
     {
         if (!isset($this->credentials['access_key']) || !isset($this->credentials['secret_key'])) {
-            throw new \InvalidArgumentException('S3 storage requires access_key and secret_key credentials');
+            throw ConfigurationException::missingCredentials('S3', 'access_key and secret_key');
         }
         if (!isset($this->options['bucket'])) {
-            throw new \InvalidArgumentException('S3 storage requires bucket option');
+            throw ConfigurationException::missingOption('S3', 'bucket');
         }
     }
 
     private function validateLocal(): void
     {
         if (!isset($this->options['path'])) {
-            throw new \InvalidArgumentException('Local storage requires path option');
+            throw ConfigurationException::missingOption('Local', 'path');
         }
     }
 }

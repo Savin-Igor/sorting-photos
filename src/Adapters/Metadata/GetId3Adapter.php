@@ -7,6 +7,7 @@ namespace SortingPhotosByDate\Adapters\Metadata;
 use Carbon\Carbon;
 use SortingPhotosByDate\Domain\ValueObjects\MediaDate;
 use SortingPhotosByDate\Domain\ValueObjects\MediaMeta;
+use SortingPhotosByDate\Exceptions\ValidationException;
 use SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor;
 use SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface;
 use SortingPhotosByDate\Ports\FilesystemPort;
@@ -36,7 +37,7 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
     {
         $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
         if (!$this->filesystem->exists($filePathObj)) {
-            throw new \InvalidArgumentException("File does not exist: {$filePath}");
+            throw ValidationException::fileNotExists($filePath);
         }
 
         /** @var array<string, mixed> $fileInfo */
@@ -112,7 +113,7 @@ final readonly class GetId3Adapter implements MetadataExtractorPort
     {
         $filePathObj = new \SortingPhotosByDate\Domain\ValueObjects\FilePath($filePath);
         if (!$this->filesystem->exists($filePathObj)) {
-            throw new \InvalidArgumentException("File does not exist: {$filePath}");
+            throw ValidationException::fileNotExists($filePath);
         }
 
         // Priority 1: Extract from filename (most reliable - filename changes less often than metadata)

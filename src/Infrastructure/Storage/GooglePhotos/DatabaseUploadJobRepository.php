@@ -10,6 +10,7 @@ use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJobId;
 use SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadState;
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
+use SortingPhotosByDate\Exceptions\RepositoryException;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryReadPort;
 use SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryWritePort;
@@ -154,7 +155,7 @@ final readonly class DatabaseUploadJobRepository implements UploadJobRepositoryP
             ));
 
             // Re-throw with context
-            throw new \RuntimeException(\sprintf('Failed to save batch of %d jobs: %s', \count($jobs), $e->getMessage()), 0, $e);
+            throw RepositoryException::failedSaveBatch(\count($jobs), $e->getMessage(), $e);
         }
     }
 

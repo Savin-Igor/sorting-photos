@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Infrastructure\Storage\GooglePhotos;
 
 use Google\Auth\Credentials\UserRefreshCredentials;
+use SortingPhotosByDate\Exceptions\AuthenticationException;
 use SortingPhotosByDate\Ports\LoggerPort;
 
 final class TokenManager
@@ -50,7 +51,7 @@ final class TokenManager
                 $tokenData = $this->credentials->fetchAuthToken();
 
                 if (!isset($tokenData['access_token'])) {
-                    throw new \RuntimeException('No access_token in response from UserRefreshCredentials');
+                    throw AuthenticationException::noAccessToken();
                 }
 
                 $accessToken = $tokenData['access_token'];
@@ -94,7 +95,7 @@ final class TokenManager
             return $this->fallbackAccessToken;
         }
 
-        throw new \RuntimeException('No valid access token available. Please run: php bin/console google-photos:authorize');
+        throw AuthenticationException::noValidAccessToken();
     }
 
     /**

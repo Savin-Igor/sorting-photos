@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Infrastructure\Search;
 
 use SortingPhotosByDate\Domain\Search\FileSearchCriteria;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\ValidationException;
 use SortingPhotosByDate\Ports\LoggerPort;
 use SortingPhotosByDate\Ports\Search\FileSearcherPort;
 use SortingPhotosByDate\Ports\Search\SearcherNotAvailableException;
@@ -54,7 +55,7 @@ final readonly class FindCommandSearcher implements FileSearcherPort
 
         if (!\is_dir($directory)) {
             $this->logger->error('Directory does not exist', ['directory' => $directory]);
-            throw new \InvalidArgumentException(\sprintf('Directory does not exist: %s', $directory));
+            throw ValidationException::directoryNotExists($directory);
         }
 
         $startTime = \microtime(true);
