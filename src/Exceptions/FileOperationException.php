@@ -23,6 +23,8 @@ final class FileOperationException extends \RuntimeException
     private const string FAILED_CALCULATE_HASH = 'Failed to calculate hash for file: %s';
     private const string HASH_MISMATCH = 'File integrity check failed: source hash %s does not match destination hash %s';
     private const string HASH_MISMATCH_EXPECTED = 'File integrity check failed: expected hash %s does not match target hash %s';
+    private const string SOURCE_AND_DESTINATION_SAME = 'Source and destination paths are the same: %s. This is not allowed for safety reasons.';
+    private const string ATTEMPTED_DELETE_SOURCE = 'CRITICAL SAFETY ERROR: Attempted to delete source file: %s. Source files must NEVER be deleted.';
 
     public static function fileNotExists(string $filePath): self
     {
@@ -92,5 +94,15 @@ final class FileOperationException extends \RuntimeException
     public static function hashMismatchExpected(string $expectedHash, string $targetHash): self
     {
         return new self(\sprintf(self::HASH_MISMATCH_EXPECTED, $expectedHash, $targetHash));
+    }
+
+    public static function sourceAndDestinationSame(string $filePath): self
+    {
+        return new self(\sprintf(self::SOURCE_AND_DESTINATION_SAME, $filePath));
+    }
+
+    public static function attemptedDeleteSource(string $filePath): self
+    {
+        return new self(\sprintf(self::ATTEMPTED_DELETE_SOURCE, $filePath));
     }
 }

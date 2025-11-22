@@ -73,6 +73,17 @@ final readonly class LocalFilesystemAdapter implements FilesystemPort
         }
     }
 
+    /**
+     * Delete file from filesystem.
+     *
+     * WARNING: This method should NEVER be used to delete source files.
+     * Source files must remain untouched. This method is only for:
+     * - Deleting destination files (organized files)
+     * - Deleting temporary files (e.g., compressed files in temp directory)
+     *
+     * The StorageToFilesystemBridge provides protection by only allowing
+     * deletion from destination storage, not source storage.
+     */
     #[\Override]
     public function delete(FilePath $filePath): bool
     {

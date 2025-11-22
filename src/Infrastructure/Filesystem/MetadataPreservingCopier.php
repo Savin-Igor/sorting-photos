@@ -93,6 +93,12 @@ final readonly class MetadataPreservingCopier
         $sourcePath = $source->getPath();
         $destPath = $destination->getPath();
 
+        // CRITICAL SAFETY CHECK: Ensure destination is never the same as source
+        // We must NEVER delete source files - only destination files can be deleted
+        if ($sourcePath === $destPath) {
+            throw FileOperationException::sourceAndDestinationSame($sourcePath);
+        }
+
         // Check if files are within Flysystem root
         $sourceInRoot = $this->isWithinFilesystemRoot($sourcePath);
         $destInRoot = $this->isWithinFilesystemRoot($destPath);
@@ -250,7 +256,9 @@ final readonly class MetadataPreservingCopier
         $sourceHash = hash('sha256', $content);
         $destHash = hash('sha256', $destContent);
         if ($sourceHash !== $destHash) {
-            $this->filesystem->delete($destPath);
+            // SAFETY: Only delete destination file, NEVER source file
+            // $destPath is guaranteed to be different from $sourcePath (checked in copy())
+            $this->safeDeleteDestination($destPath, $sourcePath);
             throw FileOperationException::hashMismatch($sourceHash, $destHash);
         }
 
@@ -279,9 +287,9 @@ final readonly class MetadataPreservingCopier
         }
 
         if ($sourceHash !== $destHash) {
-            if (file_exists($destPath)) {
-                unlink($destPath);
-            }
+            // SAFETY: Only delete destination file, NEVER source file
+            // $destPath is guaranteed to be different from $sourcePath (checked in copy())
+            $this->safeDeleteDestination($destPath, $sourcePath);
             throw FileOperationException::hashMismatch($sourceHash, $destHash);
         }
     }
@@ -298,8 +306,10 @@ final readonly class MetadataPreservingCopier
         $destHash = hash('sha256', $destContent);
 
         if ($sourceHash !== $destHash) {
+            // SAFETY: Only delete destination file, NEVER source file
             // Clean up destination file if integrity check fails
-            $this->filesystem->delete($destPath);
+            // $destPath is guaranteed to be different from $sourcePath (checked in copy())
+            $this->safeDeleteDestination($destPath, $sourcePath);
             throw FileOperationException::hashMismatch($sourceHash, $destHash);
         }
     }
@@ -361,6 +371,42 @@ final readonly class MetadataPreservingCopier
                     throw FileOperationException::failedCreateDirectory($currentPath);
                 }
             }
+        }
+    }
+
+    /**
+     * Safely delete destination file, ensuring we never delete source file.
+     * This is a critical safety check to prevent accidental deletion of original files.
+     *
+     * @param string $destPath   Destination file path to delete
+     * @param string $sourcePath Source file path (for safety validation)
+     */
+    private function safeDeleteDestination(string $destPath, string $sourcePath): void
+    {
+        // CRITICAL SAFETY CHECK: Never delete source files
+        if ($destPath === $sourcePath) {
+            throw FileOperationException::attemptedDeleteSource($sourcePath);
+        }
+
+        // Additional safety: Normalize paths to catch cases where paths might be equivalent
+        $normalizedDest = realpath($destPath);
+        $normalizedSource = realpath($sourcePath);
+
+        // Only compare normalized paths if both were successfully normalized
+        if (false !== $normalizedDest && false !== $normalizedSource && $normalizedDest === $normalizedSource) {
+            throw FileOperationException::attemptedDeleteSource($sourcePath);
+        }
+
+        // Safe to delete - it's a destination file, not the source
+        try {
+            if ($this->isWithinFilesystemRoot($destPath)) {
+                $this->filesystem->delete($destPath);
+            } elseif (file_exists($destPath)) {
+                unlink($destPath);
+            }
+        } catch (\Exception) {
+            // Ignore deletion errors - file might already be deleted or not exist
+            // This is cleanup, not critical operation
         }
     }
 
