@@ -56,14 +56,15 @@ parameters:
     google_photos.monitoring.alert_on_upload_failed: false
 
     # Logging parameters
-    # Default values - can be overridden by environment variables via ParameterResolver
+    # These are default values - can be overridden by environment variables via ParameterResolver:
+    #   LOG_FILE_ENABLED, LOG_FILE_LEVEL, LOG_CONSOLE_LEVEL
     # LOG_CONSOLE_LEVEL can be:
     #   - Single level string: 'ERROR' (shows ERROR and above: ERROR, CRITICAL, ALERT, EMERGENCY)
     #   - Comma-separated string in .env: "ERROR,WARNING" (will be parsed as array: ['ERROR', 'WARNING'])
     #   - Array in YAML: ['ERROR', 'WARNING'] (shows only ERROR and WARNING)
-    app.logging.file_enabled: true
-    app.logging.file_level: 'DEBUG'  # DEBUG, INFO, WARNING, ERROR, or OFF to disable file logging
-    app.logging.console_level: 'INFO'
+    app.logging.file_enabled: true  # Override with LOG_FILE_ENABLED env var
+    app.logging.file_level: 'DEBUG'  # Override with LOG_FILE_LEVEL env var (DEBUG, INFO, WARNING, ERROR, or OFF)
+    app.logging.console_level: 'INFO'  # Override with LOG_CONSOLE_LEVEL env var
 
     # File filters
     app.filters.enabled: true
