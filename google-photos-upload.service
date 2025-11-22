@@ -8,7 +8,7 @@ Type=simple
 WorkingDirectory=/home/isavins/Desktop/sorting-photos
 ExecStart=/usr/bin/php /home/isavins/Desktop/sorting-photos/bin/console google-photos:upload --force --no-interactive
 Restart=always
-RestartSec=600
+RestartSec=60
 StandardOutput=journal
 StandardError=journal
 

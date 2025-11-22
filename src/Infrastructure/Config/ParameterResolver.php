@@ -10,35 +10,105 @@ namespace SortingPhotosByDate\Infrastructure\Config;
 final readonly class ParameterResolver
 {
     /**
-     * Resolve application parameters from environment variables with defaults.
+     * Resolve application parameters from environment variables.
+     * Only returns values for environment variables that are actually set.
      *
-     * @return array<string, mixed> Array of parameter name => value
+     * @return array<string, mixed> Array of parameter name => value (only for set env vars)
      */
     public static function resolveFromEnvironment(): array
     {
-        $albumId = self::getEnv('GOOGLE_PHOTOS_ALBUM_ID', '');
+        $parameters = [];
 
-        return [
-            'app.source_directory' => self::getEnv('SOURCE_DIRECTORY', ''),
-            'app.destination_directory' => self::getEnv('DESTINATION_DIRECTORY', ''),
-            'app.organizer_policy' => self::getEnv('ORGANIZER_POLICY', 'date-type'),
-            'app.dry_run' => filter_var(self::getEnv('DRY_RUN', 'false'), FILTER_VALIDATE_BOOLEAN),
-            'app.filesystem.default_dir_permissions' => (int) self::getEnv('FILESYSTEM_DEFAULT_DIR_PERMISSIONS', '0755'),
-            'app.google_photos.access_token' => self::getEnv('GOOGLE_PHOTOS_ACCESS_TOKEN', ''),
-            'app.google_photos.album_id' => '' !== $albumId ? $albumId : null,
-            'app.google_photos.credentials_path' => self::getEnv('GOOGLE_PHOTOS_CREDENTIALS_PATH', ''),
-            'app.google_photos.full_access' => filter_var(self::getEnv('GOOGLE_PHOTOS_FULL_ACCESS', 'false'), FILTER_VALIDATE_BOOLEAN),
-            // Compression settings
-            'app.compression.enabled' => filter_var(self::getEnv('COMPRESSION_ENABLED', 'false'), FILTER_VALIDATE_BOOLEAN),
-            'app.compression.jpeg_max_pixels' => (int) self::getEnv('COMPRESSION_JPEG_MAX_PIXELS', '75000000'),
-            'app.compression.png_max_pixels' => (int) self::getEnv('COMPRESSION_PNG_MAX_PIXELS', '200000000'),
-            'app.compression.video_max_size_bytes' => (int) self::getEnv('COMPRESSION_VIDEO_MAX_SIZE_BYTES', '10737418240'), // 10 GB
-            'app.compression.min_file_size_bytes' => (int) self::getEnv('COMPRESSION_MIN_FILE_SIZE_BYTES', '2097152'), // 2 MB
-            // Logging settings
-            'app.logging.file_enabled' => filter_var(self::getEnv('LOG_FILE_ENABLED', 'true'), FILTER_VALIDATE_BOOLEAN),
-            'app.logging.file_level' => strtoupper(self::getEnv('LOG_FILE_LEVEL', 'DEBUG')),
-            'app.logging.console_level' => strtoupper(self::getEnv('LOG_CONSOLE_LEVEL', 'INFO')),
-        ];
+        // Required parameters - always include if set
+        $sourceDir = self::getEnv('SOURCE_DIRECTORY', '');
+        if ('' !== $sourceDir) {
+            $parameters['app.source_directory'] = $sourceDir;
+        }
+
+        $destDir = self::getEnv('DESTINATION_DIRECTORY', '');
+        if ('' !== $destDir) {
+            $parameters['app.destination_directory'] = $destDir;
+        }
+
+        // Optional parameters - only include if env var is set
+        $organizerPolicy = self::getEnv('ORGANIZER_POLICY', '');
+        if ('' !== $organizerPolicy) {
+            $parameters['app.organizer_policy'] = $organizerPolicy;
+        }
+
+        $dryRun = self::getEnv('DRY_RUN', '');
+        if ('' !== $dryRun) {
+            $parameters['app.dry_run'] = filter_var($dryRun, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        $dirPerms = self::getEnv('FILESYSTEM_DEFAULT_DIR_PERMISSIONS', '');
+        if ('' !== $dirPerms) {
+            $parameters['app.filesystem.default_dir_permissions'] = (int) $dirPerms;
+        }
+
+        $accessToken = self::getEnv('GOOGLE_PHOTOS_ACCESS_TOKEN', '');
+        if ('' !== $accessToken) {
+            $parameters['app.google_photos.access_token'] = $accessToken;
+        }
+
+        $albumId = self::getEnv('GOOGLE_PHOTOS_ALBUM_ID', '');
+        if ('' !== $albumId) {
+            $parameters['app.google_photos.album_id'] = $albumId;
+        }
+
+        $credentialsPath = self::getEnv('GOOGLE_PHOTOS_CREDENTIALS_PATH', '');
+        if ('' !== $credentialsPath) {
+            $parameters['app.google_photos.credentials_path'] = $credentialsPath;
+        }
+
+        $fullAccess = self::getEnv('GOOGLE_PHOTOS_FULL_ACCESS', '');
+        if ('' !== $fullAccess) {
+            $parameters['app.google_photos.full_access'] = filter_var($fullAccess, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        // Compression settings
+        $compressionEnabled = self::getEnv('COMPRESSION_ENABLED', '');
+        if ('' !== $compressionEnabled) {
+            $parameters['app.compression.enabled'] = filter_var($compressionEnabled, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        $jpegMaxPixels = self::getEnv('COMPRESSION_JPEG_MAX_PIXELS', '');
+        if ('' !== $jpegMaxPixels) {
+            $parameters['app.compression.jpeg_max_pixels'] = (int) $jpegMaxPixels;
+        }
+
+        $pngMaxPixels = self::getEnv('COMPRESSION_PNG_MAX_PIXELS', '');
+        if ('' !== $pngMaxPixels) {
+            $parameters['app.compression.png_max_pixels'] = (int) $pngMaxPixels;
+        }
+
+        $videoMaxSize = self::getEnv('COMPRESSION_VIDEO_MAX_SIZE_BYTES', '');
+        if ('' !== $videoMaxSize) {
+            $parameters['app.compression.video_max_size_bytes'] = (int) $videoMaxSize;
+        }
+
+        $minFileSize = self::getEnv('COMPRESSION_MIN_FILE_SIZE_BYTES', '');
+        if ('' !== $minFileSize) {
+            $parameters['app.compression.min_file_size_bytes'] = (int) $minFileSize;
+        }
+
+        // Logging settings - only override if env vars are set
+        $logFileEnabled = self::getEnv('LOG_FILE_ENABLED', '');
+        if ('' !== $logFileEnabled) {
+            $parameters['app.logging.file_enabled'] = filter_var($logFileEnabled, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        $logFileLevel = self::getEnv('LOG_FILE_LEVEL', '');
+        if ('' !== $logFileLevel) {
+            $parameters['app.logging.file_level'] = strtoupper($logFileLevel);
+        }
+
+        $logConsoleLevel = self::getEnv('LOG_CONSOLE_LEVEL', '');
+        if ('' !== $logConsoleLevel) {
+            $parameters['app.logging.console_level'] = strtoupper($logConsoleLevel);
+        }
+
+        return $parameters;
     }
 
     /**
