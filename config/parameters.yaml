@@ -5,25 +5,25 @@ parameters:
     app.destination_directory: '%env(string:DESTINATION_DIRECTORY)%'
     app.source_directory_host: '%env(string:SOURCE_DIRECTORY_HOST)%'
     app.destination_directory_host: '%env(string:DESTINATION_DIRECTORY_HOST)%'
-    app.organizer_policy: '%env(string:default:date-type:ORGANIZER_POLICY)%'
-    app.dry_run: '%env(bool:default:false:DRY_RUN)%'
+    app.organizer_policy: 'date-type'
+    app.dry_run: false
     
     # Filesystem parameters
-    # FILESYSTEM_DEFAULT_DIR_PERMISSIONS is in octal (0755), convert to decimal (493)
-    app.filesystem.default_dir_permissions: '%env(int:default:493:FILESYSTEM_DEFAULT_DIR_PERMISSIONS)%'
+    app.filesystem.default_dir_permissions: 493  # 0755 in decimal
     
     # Google Photos API parameters
-    app.google_photos.access_token: '%env(string:default::GOOGLE_PHOTOS_ACCESS_TOKEN)%'
-    app.google_photos.album_id: '%env(string:default::GOOGLE_PHOTOS_ALBUM_ID)%'
-    app.google_photos.credentials_path: '%env(string:default::GOOGLE_PHOTOS_CREDENTIALS_PATH)%'
-    app.google_photos.full_access: '%env(bool:default:false:GOOGLE_PHOTOS_FULL_ACCESS)%'
+    app.google_photos.access_token: ''
+    app.google_photos.album_id: null
+    app.google_photos.credentials_path: ''
+    app.google_photos.full_access: false
     
     # Compression parameters
-    app.compression.enabled: '%env(bool:default:false:COMPRESSION_ENABLED)%'
-    app.compression.jpeg_max_pixels: '%env(int:default:75000000:COMPRESSION_JPEG_MAX_PIXELS)%'  # 75 MP (Google Photos limit)
-    app.compression.png_max_pixels: '%env(int:default:200000000:COMPRESSION_PNG_MAX_PIXELS)%'  # 200 MP (Google Photos limit)
-    app.compression.video_max_size_bytes: '%env(int:default:10737418240:COMPRESSION_VIDEO_MAX_SIZE_BYTES)%'  # 10 GB (Google Photos limit)
-    app.compression.min_file_size_bytes: '%env(int:default:2097152:COMPRESSION_MIN_FILE_SIZE_BYTES)%'  # 2 MB - don't compress files smaller than this
+    # Default values - can be overridden by environment variables via ParameterResolver
+    app.compression.enabled: false
+    app.compression.jpeg_max_pixels: 75000000  # 75 MP (Google Photos limit)
+    app.compression.png_max_pixels: 200000000  # 200 MP (Google Photos limit)
+    app.compression.video_max_size_bytes: 10737418240  # 10 GB (Google Photos limit)
+    app.compression.min_file_size_bytes: 2097152  # 2 MB - don't compress files smaller than this
 
     # Google Photos compression parameters
     google_photos.compression.enabled: false
@@ -56,14 +56,14 @@ parameters:
     google_photos.monitoring.alert_on_upload_failed: false
 
     # Logging parameters
-    # These parameters use Symfony %env()% syntax to read from .env file
+    # Default values - can be overridden by environment variables via ParameterResolver
     # LOG_CONSOLE_LEVEL can be:
     #   - Single level string: 'ERROR' (shows ERROR and above: ERROR, CRITICAL, ALERT, EMERGENCY)
     #   - Comma-separated string in .env: "ERROR,WARNING" (will be parsed as array: ['ERROR', 'WARNING'])
     #   - Array in YAML: ['ERROR', 'WARNING'] (shows only ERROR and WARNING)
-    app.logging.file_enabled: '%env(bool:default:true:LOG_FILE_ENABLED)%'
-    app.logging.file_level: '%env(string:default:DEBUG:LOG_FILE_LEVEL)%'  # DEBUG, INFO, WARNING, ERROR, or OFF to disable file logging
-    app.logging.console_level: '%env(string:default:INFO:LOG_CONSOLE_LEVEL)%'
+    app.logging.file_enabled: true
+    app.logging.file_level: 'DEBUG'  # DEBUG, INFO, WARNING, ERROR, or OFF to disable file logging
+    app.logging.console_level: 'INFO'
 
     # File filters
     app.filters.enabled: true

@@ -15,7 +15,6 @@ use SortingPhotosByDate\Infrastructure\Filter\FilterChainFactory;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
-use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Messenger\MessageBusInterface;
 
@@ -53,11 +52,7 @@ final readonly class ContainerFactory
      */
     private function createContainer(): ContainerBuilder
     {
-        // Use EnvPlaceholderParameterBag to support %env()% syntax in YAML files
-        $parameterBag = new EnvPlaceholderParameterBag();
-        $container = new ContainerBuilder($parameterBag);
-
-        return $container;
+        return new ContainerBuilder();
     }
 
     /**
@@ -963,132 +958,7 @@ final readonly class ContainerFactory
      */
     private function compileContainer(ContainerBuilder $container): void
     {
-        // Resolve environment variable placeholders before compilation
-        $this->resolveEnvPlaceholders($container);
         $container->compile();
-    }
-
-    /**
-     * Resolve %env()% placeholders in parameters using Symfony's standard mechanism.
-     */
-    private function resolveEnvPlaceholders(ContainerBuilder $container): void
-    {
-        $parameterBag = $container->getParameterBag();
-        if (!$parameterBag instanceof EnvPlaceholderParameterBag) {
-            return;
-        }
-
-        // Use Symfony's built-in method to resolve env placeholders
-        // This requires registering EnvVarProcessor, but we can do it manually
-        $envPlaceholders = $parameterBag->getEnvPlaceholders();
-
-        // Create a simple processor to resolve values
-        /** @var array<string, bool|float|int|string> $resolved */
-        $resolved = [];
-        foreach ($envPlaceholders as $envVar => $placeholders) {
-            $envValue = $_ENV[$envVar] ?? getenv($envVar);
-
-            foreach ($placeholders as $placeholder) {
-                if (!isset($resolved[$placeholder])) {
-                    // Try to extract processor and default from placeholder format
-                    // Format: env_<hash>_<processor>_default:<default>_<var>_<hash>
-                    $default = $this->extractDefaultFromPlaceholder($placeholder);
-                    $processor = $this->extractProcessorFromPlaceholder($placeholder);
-
-                    $value = false !== $envValue ? $envValue : $default;
-                    $resolved[$placeholder] = $this->processValue($value, $processor);
-                }
-            }
-        }
-
-        // Replace all placeholders in parameters
-        $parameters = $parameterBag->all();
-        foreach ($parameters as $key => $value) {
-            $newValue = $this->replacePlaceholdersRecursive($value, $resolved);
-            if ($newValue !== $value) {
-                // Ensure type is compatible with Container::setParameter()
-                if (is_array($newValue) || is_bool($newValue) || is_float($newValue) || is_int($newValue) || is_string($newValue) || null === $newValue) {
-                    $container->setParameter($key, $newValue);
-                }
-            }
-        }
-    }
-
-    /**
-     * Extract default value from placeholder.
-     */
-    private function extractDefaultFromPlaceholder(string $placeholder): string
-    {
-        // Try to match: _default:<value>_
-        if (preg_match('/_default:([^_]+)_/', $placeholder, $matches)) {
-            return $matches[1];
-        }
-
-        return '';
-    }
-
-    /**
-     * Extract processor type from placeholder.
-     */
-    private function extractProcessorFromPlaceholder(string $placeholder): string
-    {
-        // Try to match processor: env_<hash>_<processor>_
-        if (preg_match('/^env_[a-f0-9]+_(string|bool|int|float)_/', $placeholder, $matches)) {
-            return $matches[1];
-        }
-
-        return 'string';
-    }
-
-    /**
-     * Process value according to processor type.
-     *
-     * @return bool|float|int|string
-     */
-    private function processValue(mixed $value, string $processor): bool|float|int|string
-    {
-        return match ($processor) {
-            'bool' => filter_var((string) $value, FILTER_VALIDATE_BOOLEAN) ?: false,
-            'int' => is_numeric($value) ? (int) $value : 0,
-            'float' => is_numeric($value) ? (float) $value : 0.0,
-            default => (string) $value,
-        };
-    }
-
-    /**
-     * Replace placeholders recursively in a value.
-     *
-     * @param array<string, bool|float|int|string> $resolved
-     */
-    private function replacePlaceholdersRecursive(mixed $value, array $resolved): mixed
-    {
-        if (is_string($value)) {
-            /** @var array<string> $keys */
-            $keys = array_keys($resolved);
-            /** @var array<string> $values */
-            $values = [];
-
-            foreach (array_values($resolved) as $resolvedValue) {
-                if (is_string($resolvedValue)) {
-                    $values[] = $resolvedValue;
-                } else {
-                    $values[] = (string) $resolvedValue;
-                }
-            }
-
-            return str_replace($keys, $values, $value);
-        }
-
-        if (is_array($value)) {
-            $result = [];
-            foreach ($value as $key => $item) {
-                $result[$key] = $this->replacePlaceholdersRecursive($item, $resolved);
-            }
-
-            return $result;
-        }
-
-        return $value;
     }
 
     /**
