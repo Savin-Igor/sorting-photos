@@ -97,7 +97,7 @@ final readonly class StorageToFilesystemBridge implements FilesystemPort
 
         // Get modification time from source storage only
         if (!$this->sourceStorage->exists($item)) {
-            throw new \RuntimeException("File does not exist in source storage: {$filePath->getPath()}");
+            throw FileOperationException::fileNotExists($filePath->getPath());
         }
 
         $metadata = $this->sourceStorage->getMetadata($item);
@@ -130,7 +130,7 @@ final readonly class StorageToFilesystemBridge implements FilesystemPort
         // Read from source storage only
         // Note: Destination storage is write-only in our abstraction
         if (!$this->sourceStorage->exists($item)) {
-            throw new \RuntimeException("File does not exist in source storage: {$filePath->getPath()}");
+            throw FileOperationException::fileNotExists($filePath->getPath());
         }
 
         return $this->sourceStorage->read($item);

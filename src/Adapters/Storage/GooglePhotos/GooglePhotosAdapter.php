@@ -46,32 +46,32 @@ final readonly class GooglePhotosAdapter implements StoragePort, DestinationStor
     {
         // TODO: Implement Google Photos API reading
         // This would download media item from Google Photos
-        throw new \RuntimeException('Google Photos adapter read() not yet implemented');
+        throw ConfigurationException::adapterNotImplemented('read');
     }
 
     public function getMetadata(StorageItem $item): StorageMetadata
     {
         // TODO: Implement Google Photos API metadata retrieval
-        throw new \RuntimeException('Google Photos adapter getMetadata() not yet implemented');
+        throw ConfigurationException::adapterNotImplemented('getMetadata');
     }
 
     public function exists(StorageItem $item): bool
     {
         // TODO: Implement Google Photos API existence check
-        throw new \RuntimeException('Google Photos adapter exists() not yet implemented');
+        throw ConfigurationException::adapterNotImplemented('exists');
     }
 
     public function write(StorageItem $item, string $content, StorageMetadata $metadata): bool
     {
         // TODO: Implement Google Photos API upload
         // This would upload media item to Google Photos
-        throw new \RuntimeException('Google Photos adapter write() not yet implemented');
+        throw ConfigurationException::adapterNotImplemented('write');
     }
 
     public function delete(StorageItem $item): bool
     {
         // TODO: Implement Google Photos API deletion
-        throw new \RuntimeException('Google Photos adapter delete() not yet implemented');
+        throw ConfigurationException::adapterNotImplemented('delete');
     }
 
     public function ensureDirectory(string $path): bool
