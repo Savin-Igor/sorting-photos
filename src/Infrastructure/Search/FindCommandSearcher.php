@@ -50,7 +50,7 @@ final readonly class FindCommandSearcher implements FileSearcherPort
 
         if (!$this->isAvailable()) {
             $this->logger->error('find command is not available');
-            throw new SearcherNotAvailableException('find command is not available');
+            throw SearcherNotAvailableException::commandNotAvailable('find');
         }
 
         if (!\is_dir($directory)) {
@@ -88,7 +88,7 @@ final readonly class FindCommandSearcher implements FileSearcherPort
                 'command' => $command,
                 'stdout' => $output,
             ]);
-            throw new SearcherNotAvailableException(\sprintf('find command failed with exit code %d: %s', $exitCode, $errorOutput));
+            throw SearcherNotAvailableException::commandFailed('find', \sprintf('exit code %d: %s', $exitCode, $errorOutput));
         }
 
         // Exit code 1 with empty output means grep found no matches (OK - return empty)

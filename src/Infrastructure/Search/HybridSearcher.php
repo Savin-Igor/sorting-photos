@@ -95,7 +95,7 @@ final class HybridSearcher implements FileSearcherPort
             return;
         }
 
-        throw new SearcherNotAvailableException('Neither locate nor find searcher is available');
+        throw SearcherNotAvailableException::noSearcherAvailable();
     }
 
     /**

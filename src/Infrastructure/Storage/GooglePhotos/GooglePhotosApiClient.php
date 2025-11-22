@@ -109,7 +109,7 @@ final readonly class GooglePhotosApiClient implements GooglePhotosApiClientPort
             // Check for offset mismatch error (400)
             if (400 === $response->getStatusCode() && \preg_match('/instead of (\d+)/', $body, $matches)) {
                 $expectedOffset = (int) $matches[1];
-                throw new OffsetMismatchException(\sprintf('Failed to upload chunk: %s %s', $response->getStatusCode(), $body), $expectedOffset);
+                throw OffsetMismatchException::failedUploadChunk($response->getStatusCode(), $body, $expectedOffset);
             }
 
             throw GooglePhotosApiException::failedUploadChunk($response->getStatusCode(), $body);

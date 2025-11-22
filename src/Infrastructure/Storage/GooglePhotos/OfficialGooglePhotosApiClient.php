@@ -171,7 +171,7 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                     'body_preview' => \substr($body, 0, 1024),
                     'expected_offset' => $expectedOffset,
                 ]);
-                throw new OffsetMismatchException(\sprintf('Failed to upload chunk: %s %s', $response->getStatusCode(), $body), $expectedOffset);
+                throw OffsetMismatchException::failedUploadChunk($response->getStatusCode(), $body, $expectedOffset);
             }
 
             $this->logger->error('Chunk upload failed', [
@@ -265,7 +265,7 @@ final readonly class OfficialGooglePhotosApiClient implements GooglePhotosApiCli
                     $this->logger->warning('Google Photos service temporarily unavailable', [
                         'status' => 503,
                     ]);
-                    throw new ServiceUnavailableException('Service temporarily unavailable');
+                    throw ServiceUnavailableException::serviceTemporarilyUnavailable();
                 }
 
                 // Handle session expired (404/410) - already handled in trait, but log here

@@ -47,7 +47,7 @@ final readonly class LocateSearcher implements FileSearcherPort
     public function search(string $directory, FileSearchCriteria $criteria): iterable
     {
         if (!$this->isAvailable()) {
-            throw new SearcherNotAvailableException('locate command is not available');
+            throw SearcherNotAvailableException::commandNotAvailable('locate');
         }
 
         // Update locate database before search
@@ -71,7 +71,7 @@ final readonly class LocateSearcher implements FileSearcherPort
                 'error' => $error,
                 'exit_code' => $process->getExitCode(),
             ]);
-            throw new SearcherNotAvailableException(\sprintf('locate command failed: %s', $error));
+            throw SearcherNotAvailableException::commandFailed('locate', $error);
         }
 
         $output = $process->getOutput();

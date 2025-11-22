@@ -77,7 +77,7 @@ trait QueryUploadStatusTrait
             if (null !== $onError) {
                 $onError($response->getStatusCode(), '');
             }
-            throw new SessionExpiredException('Resumable session expired');
+            throw SessionExpiredException::resumableSessionExpired();
         }
 
         // Handle other status codes (503, etc.) - let caller handle via onError callback
