@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SortingPhotosByDate\Domain\Storage;
 
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\ValidationException;
 
 /**
  * Storage item value object representing a file/item in a storage.
@@ -19,10 +20,10 @@ final readonly class StorageItem
         private ?int $modifiedTime = null,
     ) {
         if ('' === $this->identifier) {
-            throw new \InvalidArgumentException('Storage item identifier cannot be empty');
+            throw ValidationException::emptyValue('Storage item identifier');
         }
         if ('' === $this->path) {
-            throw new \InvalidArgumentException('Storage item path cannot be empty');
+            throw ValidationException::emptyValue('Storage item path');
         }
     }
 

@@ -25,7 +25,7 @@ parameters:
     app.compression.min_file_size_bytes: 2097152  # 2 MB - don't compress files smaller than this
 
     # Google Photos compression parameters
-    google_photos.compression.enabled: true
+    google_photos.compression.enabled: false
     google_photos.compression.quality: 95
     google_photos.compression.max_width: 4096
     google_photos.compression.max_height: 4096
@@ -64,9 +64,9 @@ parameters:
     app.filters.context: both  # local_organizing | google_photos | both
     
     # Filter by file type
-    app.filters.file_type.enabled: false
-    app.filters.file_type.allowed: null  # ['image', 'video'] or null
-    app.filters.file_type.denied: null    # ['image'] or null
+    app.filters.file_type.enabled: true
+    app.filters.file_type.allowed: ['image']
+    app.filters.file_type.denied: ['video']
     
     # Filter by MIME type
     app.filters.mime_type.enabled: false
@@ -100,22 +100,22 @@ parameters:
         - jpg
         - jpeg
         - png
-        - gif
-        - webp
-        - bmp
-        - tiff
-        - tif
-        - heic
-        - heif
-        - mp4
-        - mov
-        - avi
-        - mkv
-        - wmv
-        - flv
-        - webm
-        - m4v
-        - 3gp
+#        - gif
+#        - webp
+#        - bmp
+#        - tiff
+#        - tif
+#        - heic
+#        - heif
+#        - mp4
+#        - mov
+#        - avi
+#        - mkv
+#        - wmv
+#        - flv
+#        - webm
+#        - m4v
+#        - 3gp
     
     app.search.min_size_bytes: null  # Minimum file size in bytes
     app.search.max_size_bytes: null  # Maximum file size in bytes
@@ -179,7 +179,7 @@ parameters:
     # Examples: IMG_20240101_120000.jpg, 2024-01-15_photo.jpg, etc.
     # NOTE: Use date filter (app.filters.date) to filter by creation date from metadata instead!
     app.search.command.filename_patterns:
-        - '/2023/'  # Files containing "2024" in filename
+        - '/2024/'  # Files containing "2024" in filename
     #    - '/IMG_2024\d{4}/'  # IMG_20240101 format
     #    - '/2024-\d{2}-\d{2}/'  # 2024-01-01 format
     

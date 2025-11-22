@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Domain\Storage\GooglePhotos;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 final readonly class ResumableSession
 {
     private const int SESSION_TTL_DAYS = 7;
@@ -16,16 +18,16 @@ final readonly class ResumableSession
         private \DateTimeImmutable $expiresAt,
     ) {
         if ($this->uploadedBytes < 0) {
-            throw new \InvalidArgumentException('Uploaded bytes cannot be negative');
+            throw ValidationException::negativeValue('Uploaded bytes');
         }
         if ($this->totalBytes <= 0) {
-            throw new \InvalidArgumentException('Total bytes must be positive');
+            throw ValidationException::positiveValue('Total bytes');
         }
         if ($this->uploadedBytes > $this->totalBytes) {
-            throw new \InvalidArgumentException('Uploaded bytes cannot exceed total bytes');
+            throw ValidationException::invalidRange('Uploaded bytes', 'total bytes');
         }
         if ('' === $this->sessionUri) {
-            throw new \InvalidArgumentException('Session URI cannot be empty');
+            throw ValidationException::emptyValue('Session URI');
         }
     }
 
@@ -48,10 +50,10 @@ final readonly class ResumableSession
     public function withProgress(int $newUploadedBytes): self
     {
         if ($newUploadedBytes < $this->uploadedBytes) {
-            throw new \InvalidArgumentException('Uploaded bytes cannot decrease');
+            throw ValidationException::bytesCannotDecrease();
         }
         if ($newUploadedBytes > $this->totalBytes) {
-            throw new \InvalidArgumentException('Uploaded bytes cannot exceed total bytes');
+            throw ValidationException::invalidRange('Uploaded bytes', 'total bytes');
         }
 
         return new self(

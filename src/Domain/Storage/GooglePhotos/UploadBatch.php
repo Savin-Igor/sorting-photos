@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Domain\Storage\GooglePhotos;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 final readonly class UploadBatch
 {
     public function __construct(
@@ -20,23 +22,23 @@ final readonly class UploadBatch
         private \DateTimeImmutable $updatedAt,
     ) {
         if ([] === $this->items) {
-            throw new \InvalidArgumentException('Batch must have at least one item');
+            throw ValidationException::batchEmpty();
         }
         if ($this->currentIndex < 0) {
-            throw new \InvalidArgumentException('Current index cannot be negative');
+            throw ValidationException::negativeValue('Current index');
         }
         if ($this->currentIndex > \count($this->items)) {
-            throw new \InvalidArgumentException('Current index cannot exceed items count');
+            throw ValidationException::indexOutOfRange();
         }
         if ($this->totalSize <= 0) {
-            throw new \InvalidArgumentException('Total size must be positive');
+            throw ValidationException::positiveValue('Total size');
         }
     }
 
     public static function create(array $items): self
     {
         if ([] === $items) {
-            throw new \InvalidArgumentException('Cannot create batch with empty items');
+            throw ValidationException::cannotCreateEmptyBatch();
         }
 
         $totalSize = \array_sum(\array_map(fn (BatchItem $item): int => $item->getFileSize(), $items));
@@ -102,7 +104,7 @@ final readonly class UploadBatch
     public function markItemProcessed(int $index): self
     {
         if ($index < 0 || $index >= \count($this->items)) {
-            throw new \InvalidArgumentException('Invalid item index');
+            throw ValidationException::invalidIndex('item', $index);
         }
 
         $items = $this->items;
@@ -129,7 +131,7 @@ final readonly class UploadBatch
     public function markItemFailed(int $index, string $error): self
     {
         if ($index < 0 || $index >= \count($this->items)) {
-            throw new \InvalidArgumentException('Invalid item index');
+            throw ValidationException::invalidIndex('item', $index);
         }
 
         $items = $this->items;
@@ -172,7 +174,7 @@ final readonly class UploadBatch
     public function resume(): self
     {
         if (BatchState::PAUSED !== $this->state) {
-            throw new \RuntimeException('Can only resume paused batches');
+            throw ValidationException::cannotResume('batches');
         }
 
         $this->assertValidTransition(BatchState::PROCESSING);
@@ -255,7 +257,7 @@ final readonly class UploadBatch
     private function assertValidTransition(BatchState $newState): void
     {
         if (!$this->state->canTransitionTo($newState)) {
-            throw new \RuntimeException(\sprintf('Invalid state transition from %s to %s', $this->state->value, $newState->value));
+            throw ValidationException::invalidStateTransition($this->state->value, $newState->value);
         }
     }
 

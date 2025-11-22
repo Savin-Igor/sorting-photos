@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Domain\Storage\GooglePhotos;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 final readonly class UploadJobId implements \Stringable
 {
     public function __construct(
         private string $id,
     ) {
         if ('' === $this->id) {
-            throw new \InvalidArgumentException('UploadJobId cannot be empty');
+            throw ValidationException::emptyValue('UploadJobId');
         }
     }
 

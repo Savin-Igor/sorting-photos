@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Domain\Storage\GooglePhotos;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 final readonly class UploadBatchId implements \Stringable
 {
     public function __construct(
         private string $id,
     ) {
         if ('' === $this->id) {
-            throw new \InvalidArgumentException('UploadBatchId cannot be empty');
+            throw ValidationException::emptyValue('UploadBatchId');
         }
     }
 

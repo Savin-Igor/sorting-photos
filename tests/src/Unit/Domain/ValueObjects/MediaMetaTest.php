@@ -99,7 +99,7 @@ final class MediaMetaTest extends TestCase
     public function testNegativeFileSizeThrowsException(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('File size cannot be negative');
+        $this->expectExceptionMessage('File size must be non-negative');
         new MediaMeta('test.jpg', 'image/jpeg', -1);
     }
 }

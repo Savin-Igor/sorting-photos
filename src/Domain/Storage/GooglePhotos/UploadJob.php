@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Domain\Storage\GooglePhotos;
 
 use SortingPhotosByDate\Domain\ValueObjects\FileHash;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\ValidationException;
 
 final readonly class UploadJob
 {
@@ -29,10 +30,10 @@ final readonly class UploadJob
         private \DateTimeImmutable $updatedAt,
     ) {
         if ($this->fileSize <= 0) {
-            throw new \InvalidArgumentException('File size must be positive');
+            throw ValidationException::positiveValue('File size');
         }
         if ('' === $this->mimeType) {
-            throw new \InvalidArgumentException('MIME type cannot be empty');
+            throw ValidationException::emptyValue('MIME type');
         }
     }
 
@@ -141,7 +142,7 @@ final readonly class UploadJob
     public function updateProgress(int $uploadedBytes): self
     {
         if (!$this->resumableSession instanceof ResumableSession) {
-            throw new \RuntimeException('Cannot update progress: no resumable session');
+            throw ValidationException::cannotUpdateProgress();
         }
 
         $newSession = $this->resumableSession->withProgress($uploadedBytes);
@@ -295,7 +296,7 @@ final readonly class UploadJob
     public function resume(): self
     {
         if (UploadState::PAUSED !== $this->state) {
-            throw new \RuntimeException('Can only resume paused jobs');
+            throw ValidationException::cannotResume('jobs');
         }
 
         $newState = $this->resumableSession instanceof ResumableSession ? UploadState::UPLOADING : UploadState::PENDING;
@@ -445,7 +446,7 @@ final readonly class UploadJob
     public function unarchive(): self
     {
         if (UploadState::ARCHIVED !== $this->state) {
-            throw new \RuntimeException('Can only unarchive archived jobs');
+            throw ValidationException::cannotUnarchive();
         }
 
         $this->assertValidTransition(UploadState::PENDING);
@@ -513,7 +514,7 @@ final readonly class UploadJob
     private function assertValidTransition(UploadState $newState): void
     {
         if (!$this->state->canTransitionTo($newState)) {
-            throw new \RuntimeException(\sprintf('Invalid state transition from %s to %s', $this->state->value, $newState->value));
+            throw ValidationException::invalidStateTransition($this->state->value, $newState->value);
         }
     }
 

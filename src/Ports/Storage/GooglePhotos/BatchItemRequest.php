@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Ports\Storage\GooglePhotos;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 final readonly class BatchItemRequest
 {
     public function __construct(
@@ -13,10 +15,10 @@ final readonly class BatchItemRequest
         private string $mimeType,
     ) {
         if ('' === $this->uploadToken) {
-            throw new \InvalidArgumentException('Upload token cannot be empty');
+            throw ValidationException::emptyValue('Upload token');
         }
         if ('' === $this->filename) {
-            throw new \InvalidArgumentException('Filename cannot be empty');
+            throw ValidationException::emptyValue('Filename');
         }
     }
 

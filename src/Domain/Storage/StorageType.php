@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Domain\Storage;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 /**
  * Storage type enumeration.
  */
@@ -24,7 +26,7 @@ enum StorageType: string
             'google-photos', 'gphotos' => self::GOOGLE_PHOTOS,
             'dropbox' => self::DROPBOX,
             's3', 'aws-s3' => self::S3,
-            default => throw new \InvalidArgumentException("Unknown storage scheme: {$scheme}"),
+            default => throw ValidationException::invalidType('storage scheme', $scheme),
         };
     }
 

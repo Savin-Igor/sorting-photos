@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Domain\Search;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 /**
  * Value Object representing search criteria for file search.
  * Validates regex patterns at construction time.
@@ -33,13 +35,13 @@ final readonly class FileSearchCriteria
 
         // Validate size constraints
         if (null !== $this->minSizeBytes && $this->minSizeBytes < 0) {
-            throw new \InvalidArgumentException('minSizeBytes must be non-negative');
+            throw ValidationException::negativeValue('minSizeBytes');
         }
         if (null !== $this->maxSizeBytes && $this->maxSizeBytes < 0) {
-            throw new \InvalidArgumentException('maxSizeBytes must be non-negative');
+            throw ValidationException::negativeValue('maxSizeBytes');
         }
         if (null !== $this->minSizeBytes && null !== $this->maxSizeBytes && $this->minSizeBytes > $this->maxSizeBytes) {
-            throw new \InvalidArgumentException('minSizeBytes cannot be greater than maxSizeBytes');
+            throw ValidationException::invalidRange('minSizeBytes', 'maxSizeBytes');
         }
     }
 
@@ -115,7 +117,7 @@ final readonly class FileSearchCriteria
                     \PREG_BAD_UTF8_OFFSET_ERROR => 'Bad UTF-8 offset error',
                     default => 'Unknown regex error',
                 };
-                throw new \InvalidArgumentException(\sprintf('Invalid regex pattern "%s": %s', $pattern, $errorMsg));
+                throw ValidationException::invalidRegex($pattern, $errorMsg);
             }
         }
     }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Ports\Storage\GooglePhotos;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 final readonly class MediaItem
 {
     public function __construct(
@@ -11,7 +13,7 @@ final readonly class MediaItem
         private string $productUrl,
     ) {
         if ('' === $this->id) {
-            throw new \InvalidArgumentException('Media item ID cannot be empty');
+            throw ValidationException::emptyValue('Media item ID');
         }
     }
 

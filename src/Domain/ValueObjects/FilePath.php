@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Domain\ValueObjects;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 final readonly class FilePath implements \Stringable
 {
     public function __construct(
         private string $path,
     ) {
         if ('' === $this->path || '0' === $this->path) {
-            throw new \InvalidArgumentException('File path cannot be empty');
+            throw ValidationException::emptyValue('File path');
         }
     }
 

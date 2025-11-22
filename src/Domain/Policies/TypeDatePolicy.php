@@ -6,6 +6,7 @@ namespace SortingPhotosByDate\Domain\Policies;
 
 use SortingPhotosByDate\Domain\MediaAsset;
 use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\ValidationException;
 
 final readonly class TypeDatePolicy implements OrganizerPolicy
 {
@@ -13,7 +14,7 @@ final readonly class TypeDatePolicy implements OrganizerPolicy
         private string $baseDirectory,
     ) {
         if ('' === $this->baseDirectory || '0' === $this->baseDirectory) {
-            throw new \InvalidArgumentException('Base directory cannot be empty');
+            throw ValidationException::emptyValue('Base directory');
         }
     }
 

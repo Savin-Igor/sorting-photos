@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SortingPhotosByDate\Domain\ValueObjects;
 
+use SortingPhotosByDate\Exceptions\ValidationException;
+
 final class MediaMeta
 {
     public function __construct(
@@ -20,11 +22,11 @@ final class MediaMeta
         private array $additionalMetadata = [],
     ) {
         if ('' === $this->fileName || '0' === $this->fileName) {
-            throw new \InvalidArgumentException('File name cannot be empty');
+            throw ValidationException::emptyValue('File name');
         }
 
         if ($this->fileSize < 0) {
-            throw new \InvalidArgumentException('File size cannot be negative');
+            throw ValidationException::negativeValue('File size');
         }
     }
 
