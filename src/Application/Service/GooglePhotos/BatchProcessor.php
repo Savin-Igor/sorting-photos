@@ -54,15 +54,18 @@ final readonly class BatchProcessor
 
         // Short-circuit: nothing to process
         if ([] === $itemsToProcess) {
-            if ($batch->allItemsProcessed()) {
+            // Check if all items are finished (either processed or failed)
+            if ($batch->allItemsFinished()) {
                 // Batch is effectively done but not marked yet
                 if ($batch->getState()->value !== \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::COMPLETED->value) {
                     $batch = $batch->complete();
                     $this->batchRepository->save($batch);
                     $successfulCount = \count(\array_filter($batch->getItems(), fn (BatchItem $item): bool => $item->isProcessed()));
+                    $failedCount = \count($batch->getFailedItems());
                     $this->logger->info('Batch completed (nothing left to process)', [
                         'batch_id' => $batch->getId()->getId(),
                         'successful_items' => $successfulCount,
+                        'failed_items' => $failedCount,
                         'total_items' => \count($batch->getItems()),
                     ]);
                 }
@@ -70,15 +73,16 @@ final readonly class BatchProcessor
                 return;
             }
 
-            // Stuck batch: no items left but not all processed (likely failed items)
+            // This should not happen if getItemsToProcess() filters correctly
+            // But keep as safety check
             $failedItems = $batch->getFailedItems();
-            $this->logger->warning('Stuck batch detected: no items to process, but not all processed. Marking as failed.', [
+            $this->logger->warning('Stuck batch detected: no items to process, but not all finished. Marking as failed.', [
                 'batch_id' => $batch->getId()->getId(),
                 'failed_count' => \count($failedItems),
                 'current_index' => $batch->getCurrentIndex(),
                 'total_items' => \count($batch->getItems()),
             ]);
-            $batch = $batch->markAsFailed('No items to process, but not all processed. Skipping batch.');
+            $batch = $batch->markAsFailed('No items to process, but not all finished. Skipping batch.');
             $this->batchRepository->save($batch);
 
             return;
@@ -169,7 +173,7 @@ final readonly class BatchProcessor
                 $failedItems = [];
                 foreach ($results as $idx => $r) {
                     if (!$r->getStatus()->isSuccess()) {
-                        $filename = $chunk[$idx]->getFilename() ?? null;
+                        $filename = isset($chunk[$idx]) ? $chunk[$idx]->getFilename() : null;
                         $failedItems[] = [
                             'index' => $idx,
                             'filename' => $filename,
@@ -227,8 +231,8 @@ final readonly class BatchProcessor
             }
         }
 
-        // Check if all items are processed
-        if ($batch->allItemsProcessed()) {
+        // Check if all items are finished (either processed successfully or failed)
+        if ($batch->allItemsFinished()) {
             // Check if batch should be marked as FAILED due to unsupported media files
             // If all items failed with unsupported format errors, mark batch as FAILED
             if ($this->shouldMarkBatchAsFailed($batch)) {
@@ -247,10 +251,28 @@ final readonly class BatchProcessor
 
             // Only complete if batch is not already completed
             if ($batch->getState()->value !== \SortingPhotosByDate\Domain\Storage\GooglePhotos\BatchState::COMPLETED->value) {
+                // Ensure all failed items have their jobs marked as FAILED
+                // This handles cases where items failed but jobs weren't updated yet
+                $failedItems = $batch->getFailedItems();
+                foreach ($failedItems as $failedItem) {
+                    $job = $this->jobRepository->findById($failedItem->getJobId());
+                    // Only update if job is still in IN_BATCH state
+                    if ($job instanceof \SortingPhotosByDate\Domain\Storage\GooglePhotos\UploadJob && ('in_batch' === $job->getState()->value && $job->getBatchId()?->getId() === $batch->getId()->getId())) {
+                        $error = $failedItem->getError() ?? 'Batch item failed';
+                        $job = $job->markAsFailed($error);
+                        $this->jobRepository->save($job);
+                        $this->logger->debug('Marked job as failed during batch completion', [
+                            'job_id' => $job->getId()->getId(),
+                            'error' => $error,
+                        ]);
+                    }
+                }
+
                 $batch = $batch->complete();
                 $this->batchRepository->save($batch);
 
                 $successfulCount = \count(\array_filter($batch->getItems(), fn (BatchItem $item): bool => $item->isProcessed()));
+                $failedCount = \count($batch->getFailedItems());
 
                 $this->messageBus->dispatch(new BatchCompleted(
                     batchId: $batch->getId(),
@@ -261,6 +283,7 @@ final readonly class BatchProcessor
                 $this->logger->info('Batch completed', [
                     'batch_id' => $batch->getId()->getId(),
                     'successful_items' => $successfulCount,
+                    'failed_items' => $failedCount,
                     'total_items' => \count($batch->getItems()),
                 ]);
             } else {

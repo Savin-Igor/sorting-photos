@@ -13,12 +13,6 @@ parameters:
 			path: src/Application/Service/FileOrganizingService.php
 
 		-
-			message: '#^Cannot call method getFilename\(\) on mixed\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: src/Application/Service/GooglePhotos/BatchProcessor.php
-
-		-
 			message: '#^Cannot call method format\(\) on DateTimeImmutable\|null\.$#'
 			identifier: method.nonObject
 			count: 1
@@ -173,7 +167,6 @@ parameters:
 			identifier: cast.int
 			count: 2
 			path: src/Command/GooglePhotosStatusCommand.php
-
 
 		-
 			message: '#^Possibly invalid array key type float\|int\.$#'
@@ -374,19 +367,7 @@ parameters:
 			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
 
 		-
-			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:allItemsProcessed\(\) has parameter \$items with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
-
-		-
 			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:create\(\) has parameter \$items with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
-
-		-
-			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:getFailedItems\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
@@ -394,12 +375,6 @@ parameters:
 		-
 			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:getItems\(\) should return array\<SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\BatchItem\> but returns array\.$#'
 			identifier: return.type
-			count: 1
-			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
-
-		-
-			message: '#^Method SortingPhotosByDate\\Domain\\Storage\\GooglePhotos\\UploadBatch\:\:getItemsToProcess\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
 			count: 1
 			path: src/Domain/Storage/GooglePhotos/UploadBatch.php
 
@@ -552,7 +527,6 @@ parameters:
 			identifier: cast.int
 			count: 1
 			path: src/Infrastructure/Storage/GooglePhotos/DatabaseUploadBatchRepository.php
-
 
 		-
 			message: '#^Method SortingPhotosByDate\\Infrastructure\\Storage\\GooglePhotos\\DatabaseUploadBatchRepository\:\:hydrate\(\) has parameter \$row with no value type specified in iterable type array\.$#'

@@ -447,6 +447,19 @@ google-photos-init-schema: ## Initialize Google Photos database schema
 	${DOCKER_COMPOSE} exec app php bin/console google-photos:upload --init-schema
 .PHONY: google-photos-init-schema
 
+google-photos-process-in-batch: ## Process batches containing jobs in IN_BATCH state (usage: make google-photos-process-in-batch LIMIT=10)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Processing batches with IN_BATCH jobs..."
+	@if [ -n "$$LIMIT" ]; then \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:process-in-batch --limit=$$LIMIT; \
+	else \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:process-in-batch; \
+	fi
+.PHONY: google-photos-process-in-batch
+
 ##@ RabbitMQ commands (when using RabbitMQ profile)
 
 rabbitmq-management: ## Open RabbitMQ management UI in browser (Linux)

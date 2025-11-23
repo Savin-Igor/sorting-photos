@@ -111,7 +111,8 @@ final readonly class UploadBatch
         $items[$index] = $items[$index]->markProcessed();
 
         $newCurrentIndex = \max($this->currentIndex, $index + 1);
-        $newState = $this->allItemsProcessed($items) ? BatchState::COMPLETED : $this->state;
+        /** @var array<BatchItem> $items */
+        $newState = $this->allItemsFinished($items) ? BatchState::COMPLETED : $this->state;
 
         return new self(
             id: $this->id,
@@ -137,17 +138,23 @@ final readonly class UploadBatch
         $items = $this->items;
         $items[$index] = $items[$index]->markFailed($error);
 
+        // Update currentIndex to skip failed items (same as markItemProcessed)
+        $newCurrentIndex = \max($this->currentIndex, $index + 1);
+        // Check if all items are processed (either successfully or failed)
+        /** @var array<BatchItem> $items */
+        $newState = $this->allItemsFinished($items) ? BatchState::COMPLETED : $this->state;
+
         return new self(
             id: $this->id,
-            state: $this->state,
+            state: $newState,
             items: $items,
-            currentIndex: $this->currentIndex,
+            currentIndex: $newCurrentIndex,
             totalSize: $this->totalSize,
             errorMessage: $this->errorMessage,
             quotaResetTime: $this->quotaResetTime,
             createdAt: $this->createdAt,
             startedAt: $this->startedAt,
-            completedAt: $this->completedAt,
+            completedAt: BatchState::COMPLETED === $newState ? new \DateTimeImmutable() : $this->completedAt,
             updatedAt: new \DateTimeImmutable(),
         );
     }
@@ -232,26 +239,67 @@ final readonly class UploadBatch
         );
     }
 
+    /**
+     * @return list<BatchItem>
+     */
     public function getItemsToProcess(): array
     {
-        return \array_slice($this->items, $this->currentIndex);
+        // Get items starting from currentIndex and filter out already failed items
+        // Failed items should not be processed again
+        $items = \array_slice($this->items, $this->currentIndex);
+
+        /** @var list<BatchItem> $filtered */
+        $filtered = \array_values(\array_filter($items, fn (BatchItem $item): bool => null === $item->getError() && !$item->isProcessed()));
+
+        return $filtered;
     }
 
+    /**
+     * @return list<BatchItem>
+     */
     public function getFailedItems(): array
     {
-        return \array_filter($this->items, fn (BatchItem $item): bool => null !== $item->getError());
+        /** @var list<BatchItem> $filtered */
+        $filtered = \array_values(\array_filter($this->items, fn (BatchItem $item): bool => null !== $item->getError()));
+
+        return $filtered;
     }
 
+    /**
+     * @param array<BatchItem>|null $items
+     */
     public function allItemsProcessed(?array $items = null): bool
     {
         $itemsToCheck = $items ?? $this->items;
 
-        return \count($itemsToCheck) === \count(\array_filter($itemsToCheck, fn (BatchItem $item): bool => $item->isProcessed()));
+        /** @var array<BatchItem> $itemsToCheck */
+        $processed = \array_filter($itemsToCheck, fn (BatchItem $item): bool => $item->isProcessed());
+
+        return \count($itemsToCheck) === \count($processed);
+    }
+
+    /**
+     * Check if all items are finished (either processed successfully or failed).
+     * This is used to determine if batch can be completed.
+     *
+     * @param array<BatchItem>|null $items
+     */
+    public function allItemsFinished(?array $items = null): bool
+    {
+        $itemsToCheck = $items ?? $this->items;
+
+        /** @var array<BatchItem> $itemsToCheck */
+        $finished = \array_filter($itemsToCheck, fn (BatchItem $item): bool => $item->isProcessed() || null !== $item->getError());
+
+        return \count($itemsToCheck) === \count($finished);
     }
 
     public function hasVideo(): bool
     {
-        return \count(\array_filter($this->items, fn (BatchItem $item): bool => $item->isVideo())) > 0;
+        /** @var array<BatchItem> $videos */
+        $videos = \array_filter($this->items, fn (BatchItem $item): bool => $item->isVideo());
+
+        return \count($videos) > 0;
     }
 
     private function assertValidTransition(BatchState $newState): void
