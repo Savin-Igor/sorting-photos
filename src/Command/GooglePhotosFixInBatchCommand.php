@@ -80,6 +80,26 @@ final class GooglePhotosFixInBatchCommand extends Command
             [UploadState::IN_BATCH->value, BatchState::COMPLETED->value]
         );
 
+        // Also find jobs in UPLOADED state that belong to completed batches
+        $uploadedCompletedRows = $this->connection->fetchAllAssociative(
+            'SELECT j.id, j.batch_id, j.file_path, b.state as batch_state
+             FROM google_photos_upload_jobs j
+             INNER JOIN google_photos_upload_batches b ON j.batch_id = b.id
+             WHERE j.state = ?
+             AND b.state = ?',
+            [UploadState::UPLOADED->value, BatchState::COMPLETED->value]
+        );
+
+        // Also find jobs in UPLOADED state that belong to failed batches
+        $uploadedFailedRows = $this->connection->fetchAllAssociative(
+            'SELECT j.id, j.batch_id, j.file_path, b.state as batch_state, b.error_message
+             FROM google_photos_upload_jobs j
+             INNER JOIN google_photos_upload_batches b ON j.batch_id = b.id
+             WHERE j.state = ?
+             AND b.state = ?',
+            [UploadState::UPLOADED->value, BatchState::FAILED->value]
+        );
+
         // Find jobs in IN_BATCH state that belong to failed batches
         $failedRows = $this->connection->fetchAllAssociative(
             'SELECT j.id, j.batch_id, j.file_path, b.state as batch_state, b.error_message
@@ -90,20 +110,24 @@ final class GooglePhotosFixInBatchCommand extends Command
             [UploadState::IN_BATCH->value, BatchState::FAILED->value]
         );
 
-        $rows = \array_merge($completedRows, $failedRows);
+        $rows = \array_merge($completedRows, $failedRows, $uploadedCompletedRows, $uploadedFailedRows);
 
         if ([] === $rows) {
-            $io->success('No jobs found in IN_BATCH state that need fixing.');
+            $io->success('No jobs found that need fixing.');
 
             return Command::SUCCESS;
         }
 
         $io->writeln(\sprintf(
-            'Found <info>%d</info> jobs in IN_BATCH state that need fixing (%d from completed batches, %d from failed batches).',
-            \count($rows),
-            \count($completedRows),
-            \count($failedRows)
+            'Found <info>%d</info> jobs that need fixing:',
+            \count($rows)
         ));
+        $io->listing([
+            \sprintf('%d IN_BATCH jobs from completed batches', \count($completedRows)),
+            \sprintf('%d IN_BATCH jobs from failed batches', \count($failedRows)),
+            \sprintf('%d UPLOADED jobs from completed batches', \count($uploadedCompletedRows)),
+            \sprintf('%d UPLOADED jobs from failed batches', \count($uploadedFailedRows)),
+        ]);
 
         if ($dryRun) {
             $io->note('DRY RUN mode - no changes will be made');
@@ -163,16 +187,28 @@ final class GooglePhotosFixInBatchCommand extends Command
                     continue;
                 }
 
-                // Check if job is actually in IN_BATCH state
-                if (UploadState::IN_BATCH !== $job->getState()) {
-                    $io->warning(\sprintf('Job is not in IN_BATCH state: %s (state: %s)', $jobIdStr, $job->getState()->value));
+                // Check if job is actually in IN_BATCH or UPLOADED state
+                $currentState = $job->getState();
+                if (UploadState::IN_BATCH !== $currentState && UploadState::UPLOADED !== $currentState) {
+                    $io->warning(\sprintf('Job is not in IN_BATCH or UPLOADED state: %s (state: %s)', $jobIdStr, $currentState->value));
                     continue;
                 }
 
                 if (BatchState::COMPLETED === $batch->getState()) {
-                    // Mark job as completed
-                    $completedJob = $job->markCompleted();
-                    $this->jobRepository->save($completedJob);
+                    // For UPLOADED jobs, first transition to IN_BATCH, then to COMPLETED
+                    if (UploadState::UPLOADED === $currentState) {
+                        // Check if this job was successfully processed in the batch
+                        // If batch is completed, assume all items were processed successfully
+                        $job = $job->assignToBatch($batch->getId());
+                        $this->jobRepository->save($job);
+                        // Now mark as completed
+                        $completedJob = $job->markCompleted();
+                        $this->jobRepository->save($completedJob);
+                    } else {
+                        // Already in IN_BATCH, just mark as completed
+                        $completedJob = $job->markCompleted();
+                        $this->jobRepository->save($completedJob);
+                    }
                     ++$fixed;
                 } elseif (BatchState::FAILED === $batch->getState()) {
                     // For failed batches, mark job as FAILED so it can be retried later

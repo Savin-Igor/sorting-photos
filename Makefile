@@ -460,6 +460,19 @@ google-photos-process-in-batch: ## Process batches containing jobs in IN_BATCH s
 	fi
 .PHONY: google-photos-process-in-batch
 
+google-photos-collect-batches: ## Collect batches from UPLOADED files and process them (usage: make google-photos-collect-batches LIMIT=10)
+	@if ! ${DOCKER_COMPOSE} ps app | grep -q "Up"; then \
+		echo "Containers are not running. Starting them..."; \
+		${MAKE} up; \
+	fi
+	@echo "Collecting batches from UPLOADED files..."
+	@if [ -n "$$LIMIT" ]; then \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:collect-batches --limit=$$LIMIT; \
+	else \
+		${DOCKER_COMPOSE} exec app php bin/console google-photos:collect-batches; \
+	fi
+.PHONY: google-photos-collect-batches
+
 ##@ RabbitMQ commands (when using RabbitMQ profile)
 
 rabbitmq-management: ## Open RabbitMQ management UI in browser (Linux)

@@ -31,23 +31,24 @@ final class GooglePhotosStatusCommand extends Command
         $sizeStats = $this->getSizeStatistics();
         $fileTypeStats = $this->getFileTypeStatistics();
         $batchStats = $this->getBatchStatistics();
+        $typeStatsByState = $this->getFileTypeStatisticsByState();
 
         // Display statistics
         $io->title('Upload Statistics');
         $io->table(
-            ['State', 'Count', 'Percentage', 'Total Size'],
+            ['State', 'Count', 'Percentage', 'Total Size', 'Images / Videos'],
             [
-                ['Pending', $stats['pending'], $this->formatPercentage($stats['pending'], $stats['total']), $this->formatBytes($sizeStats['pending'])],
-                ['Uploading', $stats['uploading'], $this->formatPercentage($stats['uploading'], $stats['total']), $this->formatBytes($sizeStats['uploading'])],
-                ['Uploaded', $stats['uploaded'], $this->formatPercentage($stats['uploaded'], $stats['total']), $this->formatBytes($sizeStats['uploaded'])],
-                ['In Batch', $stats['in_batch'], $this->formatPercentage($stats['in_batch'], $stats['total']), $this->formatBytes($sizeStats['in_batch'])],
-                ['Completed', $stats['completed'], $this->formatPercentage($stats['completed'], $stats['total']), $this->formatBytes($sizeStats['completed'])],
-                ['Paused', $stats['paused'], $this->formatPercentage($stats['paused'], $stats['total']), $this->formatBytes($sizeStats['paused'])],
-                ['Failed', $stats['failed'], $this->formatPercentage($stats['failed'], $stats['total']), $this->formatBytes($sizeStats['failed'])],
-                ['<fg=red>Not Found</>', '<fg=red>'.$stats['not_found'].'</>', '<fg=red>'.$this->formatPercentage($stats['not_found'], $stats['total']).'</>', '<fg=red>'.$this->formatBytes($sizeStats['not_found']).'</>'],
-                ['<fg=gray>Archived</>', '<fg=gray>'.$stats['archived'].'</>', '<fg=gray>'.$this->formatPercentage($stats['archived'], $stats['total']).'</>', '<fg=gray>'.$this->formatBytes($sizeStats['archived']).'</>'],
-                ['---', '---', '---', '---'],
-                ['<fg=cyan>Total</>', '<fg=cyan>'.$stats['total'].'</>', '<fg=cyan>100%</>', '<fg=cyan>'.$this->formatBytes($sizeStats['total']).'</>'],
+                ['Pending', $stats['pending'], $this->formatPercentage($stats['pending'], $stats['total']), $this->formatBytes($sizeStats['pending']), $this->formatTypeBreakdown($typeStatsByState['pending'] ?? ['images' => 0, 'videos' => 0])],
+                ['Uploading', $stats['uploading'], $this->formatPercentage($stats['uploading'], $stats['total']), $this->formatBytes($sizeStats['uploading']), $this->formatTypeBreakdown($typeStatsByState['uploading'] ?? ['images' => 0, 'videos' => 0])],
+                ['Uploaded', $stats['uploaded'], $this->formatPercentage($stats['uploaded'], $stats['total']), $this->formatBytes($sizeStats['uploaded']), $this->formatTypeBreakdown($typeStatsByState['uploaded'] ?? ['images' => 0, 'videos' => 0])],
+                ['In Batch', $stats['in_batch'], $this->formatPercentage($stats['in_batch'], $stats['total']), $this->formatBytes($sizeStats['in_batch']), $this->formatTypeBreakdown($typeStatsByState['in_batch'] ?? ['images' => 0, 'videos' => 0])],
+                ['Completed', $stats['completed'], $this->formatPercentage($stats['completed'], $stats['total']), $this->formatBytes($sizeStats['completed']), $this->formatTypeBreakdown($typeStatsByState['completed'] ?? ['images' => 0, 'videos' => 0])],
+                ['Paused', $stats['paused'], $this->formatPercentage($stats['paused'], $stats['total']), $this->formatBytes($sizeStats['paused']), $this->formatTypeBreakdown($typeStatsByState['paused'] ?? ['images' => 0, 'videos' => 0])],
+                ['Failed', $stats['failed'], $this->formatPercentage($stats['failed'], $stats['total']), $this->formatBytes($sizeStats['failed']), $this->formatTypeBreakdown($typeStatsByState['failed'] ?? ['images' => 0, 'videos' => 0])],
+                ['<fg=red>Not Found</>', '<fg=red>'.$stats['not_found'].'</>', '<fg=red>'.$this->formatPercentage($stats['not_found'], $stats['total']).'</>', '<fg=red>'.$this->formatBytes($sizeStats['not_found']).'</>', '<fg=red>'.$this->formatTypeBreakdown($typeStatsByState['not_found'] ?? ['images' => 0, 'videos' => 0]).'</>'],
+                ['<fg=gray>Archived</>', '<fg=gray>'.$stats['archived'].'</>', '<fg=gray>'.$this->formatPercentage($stats['archived'], $stats['total']).'</>', '<fg=gray>'.$this->formatBytes($sizeStats['archived']).'</>', '<fg=gray>'.$this->formatTypeBreakdown($typeStatsByState['archived'] ?? ['images' => 0, 'videos' => 0]).'</>'],
+                ['---', '---', '---', '---', '---'],
+                ['<fg=cyan>Total</>', '<fg=cyan>'.$stats['total'].'</>', '<fg=cyan>100%</>', '<fg=cyan>'.$this->formatBytes($sizeStats['total']).'</>', '<fg=cyan>'.$this->formatTypeBreakdown(['images' => $fileTypeStats['images'], 'videos' => $fileTypeStats['videos'], 'images_size' => $fileTypeStats['images_size'], 'videos_size' => $fileTypeStats['videos_size']]).'</>'],
             ]
         );
 
@@ -205,6 +206,65 @@ final class GooglePhotosStatusCommand extends Command
             'total' => isset($result['total_count']) && \is_numeric($result['total_count']) ? (int) $result['total_count'] : 0,
             'total_size' => isset($result['total_size']) && \is_numeric($result['total_size']) ? (int) $result['total_size'] : 0,
         ];
+    }
+
+    /**
+     * @return array<string, array{images: int, videos: int, images_size: int, videos_size: int}>
+     */
+    private function getFileTypeStatisticsByState(): array
+    {
+        $result = $this->connection->fetchAllAssociative(
+            'SELECT 
+                state,
+                SUM(CASE WHEN is_video = 0 THEN 1 ELSE 0 END) as images_count,
+                SUM(CASE WHEN is_video = 1 THEN 1 ELSE 0 END) as videos_count,
+                COALESCE(SUM(CASE WHEN is_video = 0 THEN file_size ELSE 0 END), 0) as images_size,
+                COALESCE(SUM(CASE WHEN is_video = 1 THEN file_size ELSE 0 END), 0) as videos_size
+             FROM google_photos_upload_jobs
+             GROUP BY state'
+        );
+
+        $stats = [];
+
+        foreach ($result as $row) {
+            $state = \is_string($row['state']) ? $row['state'] : '';
+            $images = isset($row['images_count']) && \is_numeric($row['images_count']) ? (int) $row['images_count'] : 0;
+            $videos = isset($row['videos_count']) && \is_numeric($row['videos_count']) ? (int) $row['videos_count'] : 0;
+            $imagesSize = isset($row['images_size']) && \is_numeric($row['images_size']) ? (int) $row['images_size'] : 0;
+            $videosSize = isset($row['videos_size']) && \is_numeric($row['videos_size']) ? (int) $row['videos_size'] : 0;
+            $stats[$state] = [
+                'images' => $images,
+                'videos' => $videos,
+                'images_size' => $imagesSize,
+                'videos_size' => $videosSize,
+            ];
+        }
+
+        return $stats;
+    }
+
+    /**
+     * @param array{images: int, videos: int, images_size?: int, videos_size?: int} $breakdown
+     */
+    private function formatTypeBreakdown(array $breakdown): string
+    {
+        $images = $breakdown['images'];
+        $videos = $breakdown['videos'];
+        $imagesSize = $breakdown['images_size'] ?? 0;
+        $videosSize = $breakdown['videos_size'] ?? 0;
+
+        if (0 === $images && 0 === $videos) {
+            return '0 / 0';
+        }
+
+        $imagesPart = $images > 0 && $imagesSize > 0
+            ? \sprintf('%d (%s)', $images, $this->formatBytes($imagesSize))
+            : (string) $images;
+        $videosPart = $videos > 0 && $videosSize > 0
+            ? \sprintf('%d (%s)', $videos, $this->formatBytes($videosSize))
+            : (string) $videos;
+
+        return \sprintf('%s / %s', $imagesPart, $videosPart);
     }
 
     /**
