@@ -93,6 +93,20 @@ final readonly class ContainerFactory
                 $container->setParameter($key, $value);
             }
         }
+
+        // Set Redis URL parameter from environment variable
+        // Check both getenv() and $_ENV (which includes .env file values)
+        $redisUrl = $_ENV['REDIS_URL'] ?? getenv('REDIS_URL') ?: '';
+        $redisUrl = trim((string) $redisUrl);
+
+        // If REDIS_URL is set but empty (explicitly set to empty in .env), treat as unavailable
+        // Also check if it's set to '0' (disabled)
+        if ('' !== $redisUrl && '0' !== $redisUrl) {
+            $container->setParameter('app.redis_url', $redisUrl);
+        } else {
+            // Explicitly set to empty string to signal Redis is not available
+            $container->setParameter('app.redis_url', '');
+        }
     }
 
     /**
@@ -155,6 +169,34 @@ final readonly class ContainerFactory
             $definition->setAutoconfigured(false);
 
             $container->setDefinition(MessageBusInterface::class, $definition);
+        }
+
+        // Make Redis services optional - remove if REDIS_URL is not set
+        $this->configureRedisServices($container);
+    }
+
+    /**
+     * Configure Redis services conditionally based on REDIS_URL environment variable.
+     * If REDIS_URL is not set or empty, remove Redis-related services to allow
+     * the application to run without Redis (statistics will be null).
+     */
+    private function configureRedisServices(ContainerBuilder $container): void
+    {
+        // Check if Redis URL parameter is set and not empty
+        $redisUrlParam = $container->getParameter('app.redis_url');
+        $redisUrl = \is_string($redisUrlParam) ? trim($redisUrlParam) : '';
+
+        // If REDIS_URL is not set, empty, or commented out, remove Redis services
+        if ('' === $redisUrl || '0' === $redisUrl) {
+            // Remove RedisStatisticsService - services that depend on it will receive null
+            if ($container->hasDefinition(\SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService::class)) {
+                $container->removeDefinition(\SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService::class);
+            }
+
+            // Remove Predis\ClientInterface - not needed if Redis is not available
+            if ($container->hasDefinition(\Predis\ClientInterface::class)) {
+                $container->removeDefinition(\Predis\ClientInterface::class);
+            }
         }
     }
 

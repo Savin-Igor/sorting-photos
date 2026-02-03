@@ -20,7 +20,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class ShowProgressCommand extends Command
 {
     public function __construct(
-        private readonly RedisStatisticsService $statistics,
+        private readonly ?RedisStatisticsService $statistics = null,
     ) {
         parent::__construct();
     }
@@ -56,6 +56,18 @@ final class ShowProgressCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
+
+        // Check if Redis is available
+        if (!$this->statistics instanceof RedisStatisticsService) {
+            $io->error('Redis is not available. This command requires Redis for statistics tracking.');
+            $io->note('To enable Redis:');
+            $io->writeln('  1. Set REDIS_URL in .env file (e.g., REDIS_URL=tcp://redis:6379)');
+            $io->writeln('  2. Or start Redis service locally');
+            $io->writeln('  3. Or use Docker: make up');
+
+            return Command::FAILURE;
+        }
+
         $intervalOption = $input->getOption('interval');
         $timeoutOption = $input->getOption('timeout');
         $interval = \is_numeric($intervalOption) ? (float) $intervalOption : 0.5;

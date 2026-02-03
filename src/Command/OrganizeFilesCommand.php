@@ -196,45 +196,65 @@ HELP
         }
 
         // Integrity checks
+        // NOTE: Files are COPIED (not moved), so source files remain in place
         $warnings = [];
         $errors = [];
 
-        // Check 1: Verify total size matches (accounting for duplicates)
+        // Check 1: Verify total size matches (accounting for copied files)
+        // When files are copied, total size should increase by the size of copied files
         $totalSizeAfter = $result['destination_size_after'] + $result['source_size_after'];
         $totalSizeBefore = $result['source_size_before'] + $result['destination_size_before'];
+        $expectedTotalSizeAfter = $totalSizeBefore + $movedSize;
 
-        if ($totalSizeAfter !== $totalSizeBefore) {
-            $difference = \abs($totalSizeAfter - $totalSizeBefore);
+        // Allow small rounding differences (1 MB tolerance)
+        $tolerance = 1024 * 1024; // 1 MB
+        $totalSizeDifference = \abs($totalSizeAfter - $expectedTotalSizeAfter);
+
+        if ($totalSizeDifference > $tolerance) {
             $errorMsg = \sprintf(
                 'ALERT!!! Total size mismatch: Expected %s, Got %s (Difference: %s)',
-                $this->byteFormatter->format($totalSizeBefore),
+                $this->byteFormatter->format($expectedTotalSizeAfter),
                 $this->byteFormatter->format($totalSizeAfter),
-                $this->byteFormatter->format($difference)
+                $this->byteFormatter->format($totalSizeDifference)
             );
             $errors[] = $errorMsg;
             $io->error($errorMsg);
         }
 
-        // Check 2: Verify expected final size (accounting for duplicates)
-        $expectedFinalSize = $result['source_size_before'] + $result['destination_size_before'] - $result['duplicate_size'];
-        $sizeDifference = \abs($result['destination_size_after'] - $expectedFinalSize);
-        $sizeDifferencePercent = $expectedFinalSize > 0 ? ($sizeDifference / $expectedFinalSize) * 100 : 0;
-
-        if ($sizeDifferencePercent > 0.1) { // More than 0.1% difference
+        // Check 2: Verify source size remains unchanged (files are copied, not moved)
+        $sourceSizeDifference = \abs($result['source_size_after'] - $result['source_size_before']);
+        if ($sourceSizeDifference > $tolerance) {
             $warningMsg = \sprintf(
-                'Destination size differs from expected: Expected %s, Got %s (Difference: %s, %.2f%%)',
-                $this->byteFormatter->format($expectedFinalSize),
-                $this->byteFormatter->format($result['destination_size_after']),
-                $this->byteFormatter->format($sizeDifference),
-                $sizeDifferencePercent
+                'Source size changed unexpectedly: Before %s, After %s (Difference: %s). Files should not be deleted from source.',
+                $this->byteFormatter->format($result['source_size_before']),
+                $this->byteFormatter->format($result['source_size_after']),
+                $this->byteFormatter->format($sourceSizeDifference)
             );
             $warnings[] = $warningMsg;
             $io->warning($warningMsg);
         }
 
-        // Check 3: Verify files were actually moved (if not dry-run)
+        // Check 3: Verify destination size increased correctly
+        // Expected destination size = previous size + copied size (excluding duplicates)
+        $expectedDestinationSize = $result['destination_size_before'] + $movedSize;
+        $destinationSizeDifference = \abs($result['destination_size_after'] - $expectedDestinationSize);
+        $destinationSizeDifferencePercent = $expectedDestinationSize > 0 ? ($destinationSizeDifference / $expectedDestinationSize) * 100 : 0;
+
+        if ($destinationSizeDifferencePercent > 0.1) { // More than 0.1% difference
+            $warningMsg = \sprintf(
+                'Destination size differs from expected: Expected %s, Got %s (Difference: %s, %.2f%%)',
+                $this->byteFormatter->format($expectedDestinationSize),
+                $this->byteFormatter->format($result['destination_size_after']),
+                $this->byteFormatter->format($destinationSizeDifference),
+                $destinationSizeDifferencePercent
+            );
+            $warnings[] = $warningMsg;
+            $io->warning($warningMsg);
+        }
+
+        // Check 4: Verify files were actually copied (if not dry-run)
         if (!$dryRun && 0 === $movedSize && $result['source_size_before'] > 0) {
-            $warningMsg = 'No files were moved, but source directory is not empty';
+            $warningMsg = 'No files were copied, but source directory is not empty';
             $warnings[] = $warningMsg;
             $io->warning($warningMsg);
         }
