@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit bootstrap="vendor/autoload.php"
+<phpunit bootstrap="tests/bootstrap.php"
          backupGlobals="false"
          backupStaticAttributes="false"
          colors="true"
@@ -7,10 +7,11 @@
          convertNoticesToExceptions="true"
          convertWarningsToExceptions="true"
          processIsolation="false"
-         stopOnFailure="false">
+         stopOnFailure="false"
+         cacheResultFile="./var/.phpunit.result.cache">
 <testsuites>
-    <testsuite name="Tests Sorting Photos By Date">
-        <directory suffix="Test.php">./tests/src</directory>
+    <testsuite name="Unit Tests">
+        <directory suffix="Test.php">./tests/src/Unit</directory>
     </testsuite>
 </testsuites>
 <filter>

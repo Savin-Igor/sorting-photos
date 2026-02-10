@@ -1,0 +1,159 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+    container_name: sorting-photos-app
+    volumes:
+      - ./:/var/www/html
+      # Mount source directory from host - can be any path (USB drive, network share, etc.)
+      # Set SOURCE_DIRECTORY_HOST env var to mount your source directory
+      # Format: /host/path (will be mounted to /var/data/source:ro)
+      # Example: SOURCE_DIRECTORY_HOST=/home/user/Pictures
+      # Or: SOURCE_DIRECTORY_HOST=/mnt/usb/photos
+      - ${SOURCE_DIRECTORY_HOST:-./var/data/source}:/var/data/source:ro
+      # Mount destination directory from host - can be any path
+      # Set DESTINATION_DIRECTORY_HOST env var to mount your destination directory
+      # Format: /host/path (will be mounted to /var/data/destination)
+      # Example: DESTINATION_DIRECTORY_HOST=/mnt/external
+      - ${DESTINATION_DIRECTORY_HOST:-./var/data/destination}:/var/data/destination
+      - ./var:/var/www/html/var
+      # Mount Google Photos credentials directory
+      # Set GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST env var to mount your credentials directory
+      # Format: /host/path/to/directory (directory containing credentials.json file)
+      # The directory will be mounted to /var/www/html/config/credentials:ro
+      # Example: GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST=/home/user/.config/google-photos
+      # Important: The file must be named credentials.json (exactly this name!)
+      - ${GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST:-./config/credentials}:/var/www/html/config/credentials:ro
+    environment:
+      # These paths are ALWAYS INSIDE the container (after volume mount)
+      # DO NOT set SOURCE_DIRECTORY/DESTINATION_DIRECTORY on host - use SOURCE_DIRECTORY_HOST/DESTINATION_DIRECTORY_HOST instead
+      # These are fixed container paths where volumes are mounted
+      - SOURCE_DIRECTORY=/var/data/source
+      - DESTINATION_DIRECTORY=/var/data/destination
+      - ORGANIZER_POLICY=${ORGANIZER_POLICY:-date-type}
+      - DRY_RUN=${DRY_RUN:-false}
+      - ASYNC_MODE=${ASYNC_MODE:-false}
+      - MESSENGER_TRANSPORT_DSN=${MESSENGER_TRANSPORT_DSN:-redis://redis:6379/messages}
+      - MESSENGER_MAX_RETRIES=${MESSENGER_MAX_RETRIES:-3}
+      - MESSENGER_RETRY_DELAY=${MESSENGER_RETRY_DELAY:-1000}
+      - MESSENGER_RETRY_MULTIPLIER=${MESSENGER_RETRY_MULTIPLIER:-2}
+      - MESSENGER_RETRY_MAX_DELAY=${MESSENGER_RETRY_MAX_DELAY:-10000}
+      - FILESYSTEM_LOCAL_ROOT=${FILESYSTEM_LOCAL_ROOT:-/var/www/html}
+      - FILESYSTEM_DEFAULT_DIR_PERMISSIONS=${FILESYSTEM_DEFAULT_DIR_PERMISSIONS:-0755}
+      - GOOGLE_PHOTOS_CREDENTIALS_PATH=${GOOGLE_PHOTOS_CREDENTIALS_PATH:-/var/www/html/config/credentials/credentials.json}
+      - GOOGLE_PHOTOS_ALBUM_ID=${GOOGLE_PHOTOS_ALBUM_ID:-}
+      - GOOGLE_PHOTOS_FULL_ACCESS=${GOOGLE_PHOTOS_FULL_ACCESS:-false}
+      # Logging configuration
+      - LOG_FILE_ENABLED=${LOG_FILE_ENABLED:-true}
+      - LOG_FILE_LEVEL=${LOG_FILE_LEVEL:-DEBUG}
+      - LOG_CONSOLE_LEVEL=${LOG_CONSOLE_LEVEL:-INFO}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - sorting-photos-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: sorting-photos-redis
+    # Port mapping: Redis is accessible only within Docker network by default
+    # To expose Redis port, uncomment the line below and set REDIS_PORT (e.g., REDIS_PORT=6380:6379)
+    # ports:
+    #   - "${REDIS_PORT:-6380:6379}"
+    volumes:
+      - redis-data:/data
+    networks:
+      - sorting-photos-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: sorting-photos-rabbitmq
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - sorting-photos-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - rabbitmq
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+    container_name: sorting-photos-worker
+    volumes:
+      - ./:/var/www/html
+      # Mount source and destination directories - same as app service
+      - "${SOURCE_DIRECTORY_HOST:-./var/data/source}:/var/data/source:ro"
+      - "${DESTINATION_DIRECTORY_HOST:-./var/data/destination}:/var/data/destination"
+      - ./var:/var/www/html/var
+      # Mount Google Photos credentials directory - same as app service
+      # Format: /host/path/to/directory (directory containing credentials.json file)
+      # Important: The file must be named credentials.json (exactly this name!)
+      - ${GOOGLE_PHOTOS_CREDENTIALS_DIR_HOST:-./config/credentials}:/var/www/html/config/credentials:ro
+    environment:
+      # These paths are ALWAYS INSIDE the container (after volume mount)
+      - SOURCE_DIRECTORY=/var/data/source
+      - DESTINATION_DIRECTORY=/var/data/destination
+      - ORGANIZER_POLICY=${ORGANIZER_POLICY:-date-type}
+      - DRY_RUN=${DRY_RUN:-false}
+      - ASYNC_MODE=${ASYNC_MODE:-false}
+      - MESSENGER_TRANSPORT_DSN=${MESSENGER_TRANSPORT_DSN:-redis://redis:6379/messages}
+      - MESSENGER_MAX_RETRIES=${MESSENGER_MAX_RETRIES:-3}
+      - MESSENGER_RETRY_DELAY=${MESSENGER_RETRY_DELAY:-1000}
+      - MESSENGER_RETRY_MULTIPLIER=${MESSENGER_RETRY_MULTIPLIER:-2}
+      - MESSENGER_RETRY_MAX_DELAY=${MESSENGER_RETRY_MAX_DELAY:-10000}
+      - FILESYSTEM_LOCAL_ROOT=${FILESYSTEM_LOCAL_ROOT:-/var/www/html}
+      - FILESYSTEM_DEFAULT_DIR_PERMISSIONS=${FILESYSTEM_DEFAULT_DIR_PERMISSIONS:-0755}
+      - GOOGLE_PHOTOS_CREDENTIALS_PATH=${GOOGLE_PHOTOS_CREDENTIALS_PATH:-/var/www/html/config/credentials/credentials.json}
+      - GOOGLE_PHOTOS_ALBUM_ID=${GOOGLE_PHOTOS_ALBUM_ID:-}
+      - GOOGLE_PHOTOS_FULL_ACCESS=${GOOGLE_PHOTOS_FULL_ACCESS:-false}
+      # Logging configuration
+      - LOG_FILE_ENABLED=${LOG_FILE_ENABLED:-true}
+      - LOG_FILE_LEVEL=${LOG_FILE_LEVEL:-DEBUG}
+      - LOG_CONSOLE_LEVEL=${LOG_CONSOLE_LEVEL:-INFO}
+    depends_on:
+      redis:
+        condition: service_healthy
+      app:
+        condition: service_started
+    networks:
+      - sorting-photos-network
+    restart: unless-stopped
+    command: php bin/console messenger:consume -vv --time-limit=3600
+    profiles:
+      - worker
+
+volumes:
+  redis-data:
+  rabbitmq-data:
+
+networks:
+  sorting-photos-network:
+    driver: bridge

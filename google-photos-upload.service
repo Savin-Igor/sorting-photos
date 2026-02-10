@@ -1,0 +1,21 @@
+[Unit]
+Description=Google Photos Upload Service
+After=network.target
+
+[Service]
+Type=simple
+# User=isavins  # Раскомментируйте и укажите ваше имя пользователя, если нужно запускать от другого пользователя
+WorkingDirectory=/home/isavins/Desktop/sorting-photos
+ExecStart=/usr/bin/php /home/isavins/Desktop/sorting-photos/bin/console google-photos:upload --force --no-interactive
+Restart=always
+RestartSec=60
+StandardOutput=journal
+StandardError=journal
+
+# Ограничения ресурсов (опционально)
+# MemoryLimit=2G
+# CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target
+

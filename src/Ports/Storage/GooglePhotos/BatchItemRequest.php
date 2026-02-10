@@ -1,0 +1,44 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SortingPhotosByDate\Ports\Storage\GooglePhotos;
+
+use SortingPhotosByDate\Exceptions\ValidationException;
+
+final readonly class BatchItemRequest
+{
+    public function __construct(
+        private string $uploadToken,
+        private \DateTimeImmutable $creationTime,
+        private string $filename,
+        private string $mimeType,
+    ) {
+        if ('' === $this->uploadToken) {
+            throw ValidationException::emptyValue('Upload token');
+        }
+        if ('' === $this->filename) {
+            throw ValidationException::emptyValue('Filename');
+        }
+    }
+
+    public function getUploadToken(): string
+    {
+        return $this->uploadToken;
+    }
+
+    public function getCreationTime(): \DateTimeImmutable
+    {
+        return $this->creationTime;
+    }
+
+    public function getFilename(): string
+    {
+        return $this->filename;
+    }
+
+    public function getMimeType(): string
+    {
+        return $this->mimeType;
+    }
+}

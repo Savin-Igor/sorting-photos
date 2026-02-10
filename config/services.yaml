@@ -1,0 +1,416 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # Commands
+    SortingPhotosByDate\Command\:
+        resource: '../src/Command/*'
+        exclude:
+            - '../src/Command/ScanFilesCommand.php'
+            - '../src/Command/TestCompressionCommand.php'
+        tags: ['console.command']
+        public: true
+
+    # Application Handlers
+    SortingPhotosByDate\Application\Handler\:
+        resource: '../src/Application/Handler/*'
+        exclude:
+            - '../src/Application/Handler/OrganizeFileHandler.php'
+            - '../src/Application/Handler/IngestFileHandler.php'
+        public: true
+        # Explicitly bind RedisStatisticsService for handlers that need it
+        bind:
+            $statistics: '@SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService'
+
+    # Adapters
+    SortingPhotosByDate\Adapters\:
+        resource: '../src/Adapters/*'
+
+    # Infrastructure (exclude GetId3Adapter - it's configured explicitly below)
+    # Also exclude AsyncMessageBus - it's created via factory
+    SortingPhotosByDate\Infrastructure\:
+        resource: '../src/Infrastructure/*'
+        exclude:
+            - '../src/Infrastructure/Metadata/GetId3Adapter.php'
+            - '../src/Infrastructure/Messenger/AsyncMessageBus.php'
+
+    # Event Handlers
+    SortingPhotosByDate\Infrastructure\Messenger\:
+        resource: '../src/Infrastructure/Messenger/*'
+        tags: ['messenger.message_handler']
+        public: true
+        # Explicitly bind RedisStatisticsService for handlers that need it
+        bind:
+            $statistics: '@SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService'
+    
+    # FileProcessedHandler needs destinationBasePath
+    SortingPhotosByDate\Infrastructure\Messenger\FileProcessedHandler:
+        public: true
+        arguments:
+            $destinationBasePath: '%app.destination_directory%'
+
+    # ============================================
+    # Logger Configuration
+    # ============================================
+    
+    # Console handler - only important messages (INFO and above)
+    monolog.handler.console:
+        class: Monolog\Handler\StreamHandler
+        arguments:
+            $stream: 'php://stdout'
+            $level: !php/const Monolog\Logger::INFO
+        calls:
+            - ['setFormatter', ['@monolog.formatter.console']]
+    
+    # File handler - all detailed messages (DEBUG and above)
+    # Log file name includes timestamp for each run (e.g., 2025-11-06_15-30-45.log)
+    monolog.handler.file:
+        class: Monolog\Handler\StreamHandler
+        arguments:
+            $stream: '%kernel.project_dir%/var/log/%app.log_file%'
+            $level: !php/const Monolog\Logger::DEBUG
+        calls:
+            - ['setFormatter', ['@monolog.formatter.file']]
+    
+    # Console formatter - colored, structured output
+    monolog.formatter.console:
+        class: Monolog\Formatter\LineFormatter
+        arguments:
+            $format: "%%datetime%% | %%level_name%% | %%message%%\n"
+            $dateFormat: 'Y-m-d H:i:s'
+            $allowInlineLineBreaks: false
+            $ignoreEmptyContextAndExtra: true
+    
+    # File formatter - detailed JSON-like format
+    monolog.formatter.file:
+        class: Monolog\Formatter\LineFormatter
+        arguments:
+            $format: "[%%datetime%%] %%channel%%.%%level_name%%: %%message%% %%context%% %%extra%%\n"
+            $dateFormat: 'Y-m-d\TH:i:sP'
+            $allowInlineLineBreaks: true
+            $ignoreEmptyContextAndExtra: false
+    
+    # Monolog Logger with both handlers
+    Monolog\Logger:
+        arguments:
+            $name: 'file-sorter'
+            $handlers:
+                - '@monolog.handler.console'
+                - '@monolog.handler.file'
+    
+    # Bind LoggerPort interface to MonologAdapter
+    SortingPhotosByDate\Ports\LoggerPort:
+        alias: SortingPhotosByDate\Adapters\Logger\MonologAdapter
+        public: true
+    
+    SortingPhotosByDate\Adapters\Logger\MonologAdapter:
+        arguments:
+            $logger: '@Monolog\Logger'
+
+    # ============================================
+    # Scanner Configuration
+    # ============================================
+    
+    # Symfony Finder
+    Symfony\Component\Finder\Finder:
+        factory: ['Symfony\Component\Finder\Finder', 'create']
+    
+    # ============================================
+    # Redis Configuration
+    # ============================================
+    
+    # Redis client for statistics
+    # Connection string for Redis (default: tcp://redis:6379)
+    Predis\ClientInterface:
+        class: Predis\Client
+        arguments:
+            $parameters: 'tcp://redis:6379'
+        public: true
+    
+    # Redis Statistics Service
+    SortingPhotosByDate\Infrastructure\Statistics\RedisStatisticsService:
+        arguments:
+            $redis: '@Predis\ClientInterface'
+        public: true
+    
+    # Bind ScannerPort interface to SymfonyFinderAdapter
+    SortingPhotosByDate\Ports\ScannerPort:
+        alias: SortingPhotosByDate\Adapters\Scanner\SymfonyFinderAdapter
+        public: true
+    
+    SortingPhotosByDate\Adapters\Scanner\SymfonyFinderAdapter: ~
+
+    # ============================================
+    # Metadata Extractor Chain Configuration
+    # ============================================
+    
+    # Filename Date Extractor (shared service)
+    SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor: ~
+    
+    # ============================================
+    # File Filters Configuration
+    # ============================================
+    
+    # FilterChainFactory
+    SortingPhotosByDate\Infrastructure\Filter\FilterChainFactory:
+        arguments:
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+    
+    # FilterChain will be created dynamically in ContainerFactory
+    # See ContainerFactory::configureFilters()
+    
+    # ============================================
+    # Metadata Extractor Chain Configuration
+    # ============================================
+    
+    # Chain of extractors (tries ExifAdapter, GetId3Adapter, then GenericAdapter)
+    SortingPhotosByDate\Infrastructure\Metadata\MetadataExtractorChain:
+        arguments:
+            $extractors:
+                - '@SortingPhotosByDate\Adapters\Metadata\ExifAdapter'
+                - '@SortingPhotosByDate\Adapters\Metadata\GetId3Adapter'
+                - '@SortingPhotosByDate\Adapters\Metadata\GenericAdapter'
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+    
+    # Bind MetadataExtractorPort interface to chain
+    SortingPhotosByDate\Ports\MetadataExtractorPort:
+        alias: SortingPhotosByDate\Infrastructure\Metadata\MetadataExtractorChain
+    
+    # ============================================
+    # Metadata Extractors
+    # ============================================
+    
+    # GetID3 library instance
+    JamesHeinrich\GetID3\GetID3:
+        public: true
+    
+    # GetID3 Adapter for AudioVideoMetadataAnalyzerInterface
+    SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter:
+        class: SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter
+        public: true
+        arguments:
+            $getId3: '@JamesHeinrich\GetID3\GetID3'
+    
+    # Bind AudioVideoMetadataAnalyzerInterface to GetId3Adapter
+    SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface:
+        alias: SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter
+        public: true
+    
+    SortingPhotosByDate\Adapters\Metadata\GenericAdapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+    
+    SortingPhotosByDate\Adapters\Metadata\ExifAdapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+    
+    SortingPhotosByDate\Adapters\Metadata\GetId3Adapter:
+        public: true
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $metadataAnalyzer: '@SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+
+    # ============================================
+    # Organizer Policy Configuration
+    # ============================================
+    
+    # Policy factory based on configuration
+    SortingPhotosByDate\Domain\Policies\DateTypePolicy:
+        arguments:
+            $baseDirectory: '%app.destination_directory%'
+    
+    SortingPhotosByDate\Domain\Policies\DatePolicy:
+        arguments:
+            $baseDirectory: '%app.destination_directory%'
+    
+    SortingPhotosByDate\Domain\Policies\TypeDatePolicy:
+        arguments:
+            $baseDirectory: '%app.destination_directory%'
+    
+    # Select policy based on configuration (default: DateTypePolicy)
+    SortingPhotosByDate\Domain\Policies\OrganizerPolicy:
+        alias: SortingPhotosByDate\Domain\Policies\DateTypePolicy
+        # Override in index.php based on ORGANIZER_POLICY env var
+
+    # ============================================
+    # Repository Configuration
+    # ============================================
+    
+    # Doctrine DBAL Connection
+    Doctrine\DBAL\Connection:
+        factory: ['Doctrine\DBAL\DriverManager', 'getConnection']
+        arguments:
+            - 
+                driver: 'pdo_sqlite'
+                path: '%kernel.project_dir%/var/database.sqlite'
+    
+    # Database Metadata Repository
+    SortingPhotosByDate\Adapters\Repository\DatabaseMetadataRepository:
+        public: true
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+        calls:
+            - ['initializeSchema', []]
+    
+    # Bind MetadataRepositoryPort interface to implementation
+    SortingPhotosByDate\Ports\MetadataRepositoryPort:
+        alias: SortingPhotosByDate\Adapters\Repository\DatabaseMetadataRepository
+        public: true
+
+    # ============================================
+    # Messenger Configuration
+    # ============================================
+    
+    # Alias ContainerInterface to service_container for SynchronousMessageBus
+    Psr\Container\ContainerInterface:
+        alias: service_container
+    
+    # Explicitly exclude AsyncMessageBus from autowiring
+    SortingPhotosByDate\Infrastructure\Messenger\AsyncMessageBus:
+        autowire: false
+        autoconfigure: false
+    
+    # Temporary placeholder for MessageBusInterface (will be replaced after compilation)
+    # This is needed to satisfy autowiring during container compilation
+    # If ASYNC_MODE=true, this will be replaced with AsyncMessageBus in ContainerFactory
+    Symfony\Component\Messenger\MessageBusInterface:
+        class: SortingPhotosByDate\Infrastructure\Messenger\SynchronousMessageBus
+        public: true
+        autowire: false
+        arguments:
+            $container: '@service_container'
+        # This will be replaced with AsyncMessageBus if ASYNC_MODE=true in ContainerFactory::setupMessageBus()
+
+    # Application Services
+    SortingPhotosByDate\Application\Service\FileOrganizingService:
+        public: true
+    
+    # FileCompressionService - temporarily disabled due to configuration issues
+    # SortingPhotosByDate\Application\Service\FileCompressionServiceInterface:
+    #     alias: SortingPhotosByDate\Application\Service\FileCompressionService
+    
+    # Google Photos Application Services
+    SortingPhotosByDate\Application\Service\GooglePhotos\:
+        resource: '../src/Application/Service/GooglePhotos'
+        exclude:
+            - '../src/Application/Service/GooglePhotos/Exception'
+        public: true
+    
+    # Infrastructure Services
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\:
+        resource: '../src/Infrastructure/Storage/GooglePhotos/*'
+        exclude:
+            - '../src/Infrastructure/Storage/GooglePhotos/QuotaStatus.php'
+        public: true
+    
+    # Repositories
+    SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadJobRepositoryPort:
+        alias: SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseUploadJobRepository
+        public: true
+    
+    SortingPhotosByDate\Ports\Storage\GooglePhotos\UploadBatchRepositoryPort:
+        alias: SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseUploadBatchRepository
+        public: true
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseUploadJobRepository:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseUploadBatchRepository:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+    
+    # Google Photos API Client - Using official library
+    SortingPhotosByDate\Ports\Storage\GooglePhotos\GooglePhotosApiClientPort:
+        alias: SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\OfficialGooglePhotosApiClient
+        public: true
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\OfficialGooglePhotosApiClient:
+        lazy: true
+        arguments:
+            $httpClient: '@Psr\Http\Client\ClientInterface'
+            $requestFactory: '@Psr\Http\Message\RequestFactoryInterface'
+            $streamFactory: '@Psr\Http\Message\StreamFactoryInterface'
+            $tokenManager: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenManager'
+            $credentialsFactory: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\CredentialsFactory'
+            $tokenStorage: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenStorage'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+    
+    # Legacy GooglePhotosApiClient (kept for reference, can be removed later)
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\GooglePhotosApiClient:
+        arguments:
+            $httpClient: '@Psr\Http\Client\ClientInterface'
+            $requestFactory: '@Psr\Http\Message\RequestFactoryInterface'
+            $streamFactory: '@Psr\Http\Message\StreamFactoryInterface'
+            $tokenManager: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenManager'
+    
+    # Google Auth Library Integration
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\CredentialsFactory:
+        arguments:
+            $credentialsPath: '%app.google_photos.credentials_path%'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenStorage:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenManager:
+        arguments:
+            $credentialsFactory: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\CredentialsFactory'
+            $tokenStorage: '@SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\TokenStorage'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+            $fullAccess: '%app.google_photos.full_access%'
+            $fallbackAccessToken: '%app.google_photos.access_token%'
+    
+    # HTTP Client (Guzzle)
+    Psr\Http\Client\ClientInterface:
+        class: GuzzleHttp\Client
+        public: true
+    
+    Psr\Http\Message\RequestFactoryInterface:
+        class: GuzzleHttp\Psr7\HttpFactory
+        public: true
+    
+    Psr\Http\Message\StreamFactoryInterface:
+        class: GuzzleHttp\Psr7\HttpFactory
+        public: true
+    
+    # Quota Tracker
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\QuotaTracker:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+    
+    # Compressors
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\ImageCompressor:
+        arguments:
+            $enabled: '%app.compression.enabled%'
+            $jpegMaxPixels: '%app.compression.jpeg_max_pixels%'
+            $pngMaxPixels: '%app.compression.png_max_pixels%'
+            $minFileSizeBytes: '%app.compression.min_file_size_bytes%'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'
+    
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\VideoCompressor:
+        arguments:
+            $enabled: '%app.compression.enabled%'
+            $maxSizeBytes: '%app.compression.video_max_size_bytes%'
+    
+    # Database Schema Initializer
+    SortingPhotosByDate\Infrastructure\Storage\GooglePhotos\DatabaseSchemaInitializer:
+        arguments:
+            $connection: '@Doctrine\DBAL\Connection'
+    
+    # Batch Processor with optional album ID
+    SortingPhotosByDate\Application\Service\GooglePhotos\BatchProcessor:
+        arguments:
+            $albumId: '%app.google_photos.album_id%'
+

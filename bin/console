@@ -1,0 +1,38 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use SortingPhotosByDate\Infrastructure\Config\ContainerFactory;
+use Symfony\Component\Console\Application;
+use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Dotenv\Dotenv;
+
+require_once __DIR__.'/../vendor/autoload.php';
+
+// Load .env file if it exists
+$envFile = dirname(__DIR__).'/.env';
+if (file_exists($envFile)) {
+    $dotenv = new Dotenv();
+    $dotenv->load($envFile);
+}
+
+// Build and configure DI container using ContainerFactory
+$containerFactory = new ContainerFactory(dirname(__DIR__));
+$container = $containerFactory->build();
+
+// Set default destination directory if not set
+if (!$container->hasParameter('app.destination_directory')) {
+    $container->setParameter('app.destination_directory', getenv('DESTINATION_DIRECTORY') ?: '/var/data/destination');
+}
+
+// Create console application
+$application = new Application('File Sorter', '1.0.0');
+
+// Register commands from container
+foreach ($container->findTaggedServiceIds('console.command') as $id => $tags) {
+    $command = $container->get($id);
+    $application->add($command);
+}
+
+$application->run();

@@ -1,6 +1,17 @@
+includes:
+    - phpstan-baseline.neon
+
 parameters:
-    level: 1
+    level: max
     paths:
         - src
     excludePaths:
         - vendor
+        - tests
+        - bin
+        - config
+    ignoreErrors:
+        - '#Cannot cast mixed to string#'
+        - '#Call to function is_array\(\) with array will always evaluate to true#'
+        - '#Call to function is_string\(\) with string will always evaluate to true#'
+        - '#Cannot access offset.*on mixed#'

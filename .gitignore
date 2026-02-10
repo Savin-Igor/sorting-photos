@@ -1,12 +1,47 @@
 
+# Temporary directories
+/tmp/
+tmp/
+
 ### Project ###
 /fotos
 *-fotos/*
 fotos*
 reasons.md
+recup_dir*/
 
-# Log files (if you are creating logs in debug mode, uncomment this)
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.test
+
+# Google Photos credentials
+config/credentials/credentials.json
+*.json
+!composer.json
+!package.json
+
+# Source and destination directories
+/source/
+/destination/
+/var/
+!/var/.gitkeep
+!/var/*/
+!/var/*/.gitkeep
+!/var/*/*/
+!/var/*/*/.gitkeep
+
+# Log files
 *.log
+/logs/
+/var/log/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+/var/metadata.db
 
 ### Composer ###
 composer.phar
@@ -15,13 +50,51 @@ vendor/
 
 ### PHP-CS-Fixer ###
 /.php-cs-fixer.cache
+.php-cs-fixer.cache
+/var/.php-cs-fixer.cache
 
 ### Psalm ###
 /.psalm/cache
+.psalm/cache
 
 ### PHPUnit ###
 /.phpunit.cache
+.phpunit.cache
 .phpunit.result.cache
+/var/.phpunit.result.cache
+/var/cache/
+
+### PHPStan ###
+/.phpstan/
+.phpstan/
+
+### Symfony ###
+/var/
+!/var/.gitkeep
+!/var/*/
+!/var/*/.gitkeep
+/var/cache/*
+!/var/cache/.gitkeep
+/var/log/*
+!/var/log/.gitkeep
+/var/sessions/
+/var/metadata.db
+/config/packages/*.yaml.local
+/config/services/*.yaml.local
+
+### Doctrine ###
+*.db-shm
+*.db-wal
+
+### Messenger ###
+/var/messenger/*
+!/var/messenger/.gitkeep
+
+### IDE ###
+.vscode/
+*.swp
+*.swo
+*~
 
 ### Phive ###
 tools
@@ -31,6 +104,7 @@ tools
 .DS_Store
 .AppleDouble
 .LSOverride
+.cursor
 
 # Icon must end with two \r
 Icon

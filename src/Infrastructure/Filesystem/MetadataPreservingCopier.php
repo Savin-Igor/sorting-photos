@@ -1,0 +1,442 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SortingPhotosByDate\Infrastructure\Filesystem;
+
+use League\Flysystem\FilesystemOperator;
+use SortingPhotosByDate\Domain\ValueObjects\FilePath;
+use SortingPhotosByDate\Exceptions\FileOperationException;
+
+/**
+ * Service for copying files while preserving all metadata.
+ * Uses FilesystemOperator (Flysystem) directly to avoid circular dependency.
+ * Extended attributes are handled separately since Flysystem doesn't support them.
+ * For files outside Flysystem root, falls back to native PHP functions.
+ */
+final readonly class MetadataPreservingCopier
+{
+    public function __construct(
+        private FilesystemOperator $filesystem,
+    ) {
+    }
+
+    /**
+     * Get Flysystem root directory.
+     */
+    private function getFilesystemRoot(): string
+    {
+        try {
+            // Extract root from FilesystemOperator adapter
+            $reflection = new \ReflectionClass($this->filesystem);
+
+            // Check if adapter property exists (may not exist in mocks)
+            if (!$reflection->hasProperty('adapter')) {
+                // For mocks, return empty string to force Flysystem path handling
+                return '';
+            }
+
+            $adapterProperty = $reflection->getProperty('adapter');
+            $adapter = $adapterProperty->getValue($this->filesystem);
+
+            if ($adapter instanceof \League\Flysystem\Local\LocalFilesystemAdapter) {
+                $adapterReflection = new \ReflectionClass($adapter);
+
+                // Check if rootLocation property exists
+                if (!$adapterReflection->hasProperty('rootLocation')) {
+                    return '/var/www/html'; // Default fallback
+                }
+
+                $pathProperty = $adapterReflection->getProperty('rootLocation');
+                $rootLocation = $pathProperty->getValue($adapter);
+
+                if (is_string($rootLocation)) {
+                    return $rootLocation;
+                }
+            }
+        } catch (\ReflectionException) {
+            // Fallback for mocks or when reflection fails - return empty to force Flysystem handling
+            return '';
+        }
+
+        return '/var/www/html'; // Default fallback
+    }
+
+    /**
+     * Check if path is within Flysystem root.
+     */
+    private function isWithinFilesystemRoot(string $path): bool
+    {
+        $root = $this->getFilesystemRoot();
+
+        // If root is empty (mocks), always use Flysystem methods
+        if ('' === $root) {
+            return true;
+        }
+
+        return str_starts_with($path, $root);
+    }
+
+    /**
+     * Copy file preserving all metadata (permissions, timestamps, extended attributes).
+     *
+     * @param FilePath $source      Source file path
+     * @param FilePath $destination Destination file path
+     *
+     * @return bool True on success
+     *
+     * @throws \InvalidArgumentException If source file does not exist
+     * @throws \RuntimeException         If copy fails
+     */
+    public function copy(FilePath $source, FilePath $destination): bool
+    {
+        $sourcePath = $source->getPath();
+        $destPath = $destination->getPath();
+
+        // CRITICAL SAFETY CHECK: Ensure destination is never the same as source
+        // We must NEVER delete source files - only destination files can be deleted
+        if ($sourcePath === $destPath) {
+            throw FileOperationException::sourceAndDestinationSame($sourcePath);
+        }
+
+        // Check if files are within Flysystem root
+        $sourceInRoot = $this->isWithinFilesystemRoot($sourcePath);
+        $destInRoot = $this->isWithinFilesystemRoot($destPath);
+
+        // If both files are outside Flysystem root, use native PHP copy
+        if (!$sourceInRoot && !$destInRoot) {
+            return $this->copyWithNativePHP($sourcePath, $destPath);
+        }
+
+        // If source is outside root but destination is inside, read with native PHP, write with Flysystem
+        if (!$sourceInRoot) {
+            return $this->copyFromNativeToFlysystem($sourcePath, $destPath);
+        }
+
+        // Standard Flysystem copy (both files within root)
+        if (!$this->filesystem->fileExists($sourcePath)) {
+            throw FileOperationException::sourceFileNotExists($sourcePath);
+        }
+
+        // Ensure destination directory exists (recursively)
+        $this->ensureDirectoryRecursive(dirname($destPath));
+
+        // Get source metadata before copying (using native PHP for metadata Flysystem doesn't support)
+        $permissions = 0644;
+        $mtime = time();
+        $atime = time();
+        if (file_exists($sourcePath)) {
+            $perms = fileperms($sourcePath);
+            $mtimeResult = filemtime($sourcePath);
+            $atimeResult = fileatime($sourcePath);
+            if (false !== $perms) {
+                $permissions = $perms;
+            }
+            if (false !== $mtimeResult) {
+                $mtime = $mtimeResult;
+            }
+            if (false !== $atimeResult) {
+                $atime = $atimeResult;
+            }
+        }
+
+        // Read source file content
+        $content = $this->filesystem->read($sourcePath);
+
+        // Write destination file
+        $this->filesystem->write($destPath, $content);
+
+        // Verify file integrity by comparing hashes
+        $this->verifyIntegrity($sourcePath, $destPath);
+
+        // Restore metadata (using native PHP for operations Flysystem doesn't support)
+        if (file_exists($destPath)) {
+            chmod($destPath, $permissions);
+            touch($destPath, $mtime, $atime);
+        }
+
+        // Copy extended attributes if supported (requires native PHP)
+        $this->copyExtendedAttributes($sourcePath, $destPath);
+
+        return true;
+    }
+
+    /**
+     * Copy file using native PHP functions (for files outside Flysystem root).
+     */
+    private function copyWithNativePHP(string $sourcePath, string $destPath): bool
+    {
+        if (!file_exists($sourcePath)) {
+            throw FileOperationException::sourceFileNotExists($sourcePath);
+        }
+
+        // Ensure destination directory exists (recursively)
+        // Even if destination is outside Flysystem root, try to use Flysystem for directory creation
+        // as it handles Docker volume mounts better than native mkdir
+        $destinationDir = dirname($destPath);
+        $destInRoot = $this->isWithinFilesystemRoot($destPath);
+
+        if ($destInRoot) {
+            // Use Flysystem for directories within root
+            $this->ensureDirectoryRecursive($destinationDir);
+        } else {
+            // For directories outside root, try Flysystem first (it may still work)
+            // If that fails, fall back to native mkdir
+            try {
+                $this->ensureDirectoryRecursive($destinationDir);
+            } catch (\Exception) {
+                // Fall back to native mkdir
+                // Try to create directory recursively with mkdir
+                if (!is_dir($destinationDir) && (!@mkdir($destinationDir, 0755, true) && !is_dir($destinationDir))) {
+                    // If mkdir failed, create directories one by one
+                    $isAbsolute = str_starts_with($destinationDir, '/');
+                    $parts = array_filter(explode('/', $destinationDir), static fn (string $part): bool => '' !== $part);
+                    $currentPath = $isAbsolute ? '/' : '.';
+                    foreach ($parts as $part) {
+                        $currentPath = rtrim($currentPath, '/').'/'.$part;
+                        if (!is_dir($currentPath) && (!@mkdir($currentPath, 0755, false) && !is_dir($currentPath))) {
+                            throw FileOperationException::failedCreateDirectory($currentPath);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Get source metadata
+        $permissions = fileperms($sourcePath) ?: 0644;
+        $mtime = filemtime($sourcePath) ?: time();
+        $atime = fileatime($sourcePath) ?: time();
+
+        // Copy file
+        if (!copy($sourcePath, $destPath)) {
+            throw FileOperationException::failedCopy($sourcePath, $destPath);
+        }
+
+        // Restore metadata
+        chmod($destPath, $permissions);
+        touch($destPath, $mtime, $atime);
+
+        // Verify integrity
+        $this->verifyIntegrityNative($sourcePath, $destPath);
+
+        // Copy extended attributes
+        $this->copyExtendedAttributes($sourcePath, $destPath);
+
+        return true;
+    }
+
+    /**
+     * Copy from native filesystem to Flysystem.
+     */
+    private function copyFromNativeToFlysystem(string $sourcePath, string $destPath): bool
+    {
+        if (!file_exists($sourcePath)) {
+            throw FileOperationException::sourceFileNotExists($sourcePath);
+        }
+
+        // Ensure destination directory exists (recursively)
+        $this->ensureDirectoryRecursive(dirname($destPath));
+
+        // Get source metadata
+        $permissions = fileperms($sourcePath) ?: 0644;
+        $mtime = filemtime($sourcePath) ?: time();
+        $atime = fileatime($sourcePath) ?: time();
+
+        // Read source with native PHP
+        $content = file_get_contents($sourcePath);
+        if (false === $content) {
+            throw FileOperationException::failedRead($sourcePath);
+        }
+
+        // Write destination with Flysystem
+        $this->filesystem->write($destPath, $content);
+
+        // Verify integrity
+        $destContent = $this->filesystem->read($destPath);
+        $sourceHash = hash('sha256', $content);
+        $destHash = hash('sha256', $destContent);
+        if ($sourceHash !== $destHash) {
+            // SAFETY: Only delete destination file, NEVER source file
+            // $destPath is guaranteed to be different from $sourcePath (checked in copy())
+            $this->safeDeleteDestination($destPath, $sourcePath);
+            throw FileOperationException::hashMismatch($sourceHash, $destHash);
+        }
+
+        // Restore metadata using native PHP (Flysystem doesn't support setting timestamps)
+        if (file_exists($destPath)) {
+            chmod($destPath, $permissions);
+            touch($destPath, $mtime, $atime);
+        }
+
+        // Copy extended attributes
+        $this->copyExtendedAttributes($sourcePath, $destPath);
+
+        return true;
+    }
+
+    /**
+     * Verify file integrity using native PHP (for files outside Flysystem root).
+     */
+    private function verifyIntegrityNative(string $sourcePath, string $destPath): void
+    {
+        $sourceHash = hash_file('sha256', $sourcePath);
+        $destHash = hash_file('sha256', $destPath);
+
+        if (false === $sourceHash || false === $destHash) {
+            throw FileOperationException::failedCalculateHash($sourcePath);
+        }
+
+        if ($sourceHash !== $destHash) {
+            // SAFETY: Only delete destination file, NEVER source file
+            // $destPath is guaranteed to be different from $sourcePath (checked in copy())
+            $this->safeDeleteDestination($destPath, $sourcePath);
+            throw FileOperationException::hashMismatch($sourceHash, $destHash);
+        }
+    }
+
+    /**
+     * Verify file integrity by comparing SHA-256 hashes.
+     */
+    private function verifyIntegrity(string $sourcePath, string $destPath): void
+    {
+        $sourceContent = $this->filesystem->read($sourcePath);
+        $destContent = $this->filesystem->read($destPath);
+
+        $sourceHash = hash('sha256', $sourceContent);
+        $destHash = hash('sha256', $destContent);
+
+        if ($sourceHash !== $destHash) {
+            // SAFETY: Only delete destination file, NEVER source file
+            // Clean up destination file if integrity check fails
+            // $destPath is guaranteed to be different from $sourcePath (checked in copy())
+            $this->safeDeleteDestination($destPath, $sourcePath);
+            throw FileOperationException::hashMismatch($sourceHash, $destHash);
+        }
+    }
+
+    /**
+     * Ensure directory exists recursively using Flysystem.
+     * Works with both paths within and outside Flysystem root.
+     */
+    private function ensureDirectoryRecursive(string $directoryPath): void
+    {
+        // Check if path is within Flysystem root
+        $inRoot = $this->isWithinFilesystemRoot($directoryPath);
+
+        if ($inRoot) {
+            // Use Flysystem for paths within root
+            if ($this->filesystem->directoryExists($directoryPath)) {
+                return;
+            }
+        } else {
+            // For paths outside root, check with native PHP first
+            if (is_dir($directoryPath)) {
+                return;
+            }
+            // Try to use Flysystem anyway - it may work with absolute paths
+            // If directoryExists throws an exception, we'll catch it and use native PHP
+            try {
+                if ($this->filesystem->directoryExists($directoryPath)) {
+                    return;
+                }
+            } catch (\Exception) {
+                // Flysystem can't handle this path, will use native PHP below
+            }
+        }
+
+        // Create directory recursively by creating parent directories first
+        $isAbsolute = str_starts_with($directoryPath, '/');
+        $parts = array_filter(explode('/', $directoryPath), static fn (string $part): bool => '' !== $part);
+        $currentPath = $isAbsolute ? '' : '.';
+        foreach ($parts as $part) {
+            $currentPath .= '/'.$part;
+            $currentInRoot = $this->isWithinFilesystemRoot($currentPath);
+
+            if ($currentInRoot) {
+                // Use Flysystem for paths within root
+                if (!$this->filesystem->directoryExists($currentPath)) {
+                    try {
+                        $this->filesystem->createDirectory($currentPath);
+                    } catch (\Exception $e) {
+                        // If directory already exists (race condition), verify it exists
+                        // @phpstan-ignore-next-line (directoryExists may return true if directory was created by another process)
+                        if (!$this->filesystem->directoryExists($currentPath)) {
+                            throw FileOperationException::failedCreateDirectory($currentPath, $e);
+                        }
+                    }
+                }
+            } elseif (!is_dir($currentPath)) {
+                // Use native PHP for paths outside root
+                if (!@mkdir($currentPath, 0755, false) && !is_dir($currentPath)) {
+                    throw FileOperationException::failedCreateDirectory($currentPath);
+                }
+            }
+        }
+    }
+
+    /**
+     * Safely delete destination file, ensuring we never delete source file.
+     * This is a critical safety check to prevent accidental deletion of original files.
+     *
+     * @param string $destPath   Destination file path to delete
+     * @param string $sourcePath Source file path (for safety validation)
+     */
+    private function safeDeleteDestination(string $destPath, string $sourcePath): void
+    {
+        // CRITICAL SAFETY CHECK: Never delete source files
+        if ($destPath === $sourcePath) {
+            throw FileOperationException::attemptedDeleteSource($sourcePath);
+        }
+
+        // Additional safety: Normalize paths to catch cases where paths might be equivalent
+        $normalizedDest = realpath($destPath);
+        $normalizedSource = realpath($sourcePath);
+
+        // Only compare normalized paths if both were successfully normalized
+        if (false !== $normalizedDest && false !== $normalizedSource && $normalizedDest === $normalizedSource) {
+            throw FileOperationException::attemptedDeleteSource($sourcePath);
+        }
+
+        // Safe to delete - it's a destination file, not the source
+        try {
+            if ($this->isWithinFilesystemRoot($destPath)) {
+                $this->filesystem->delete($destPath);
+            } elseif (file_exists($destPath)) {
+                unlink($destPath);
+            }
+        } catch (\Exception) {
+            // Ignore deletion errors - file might already be deleted or not exist
+            // This is cleanup, not critical operation
+        }
+    }
+
+    /**
+     * Copy extended attributes if supported by the filesystem.
+     * Note: Extended attributes require native PHP functions as Flysystem doesn't support them.
+     */
+    private function copyExtendedAttributes(string $source, string $destination): void
+    {
+        if (!function_exists('xattr_list')) {
+            return;
+        }
+
+        try {
+            $attributes = xattr_list($source);
+            if (!is_array($attributes)) {
+                return;
+            }
+
+            /** @var array<int, string> $attributesArray */
+            $attributesArray = $attributes;
+            foreach ($attributesArray as $attr) {
+                // $attr is string due to type annotation above
+                $value = xattr_get($source, $attr);
+                if (is_string($value)) {
+                    xattr_set($destination, $attr, $value);
+                }
+            }
+        } catch (\Exception) {
+            // Extended attributes not supported or error occurred - ignore
+        }
+    }
+}

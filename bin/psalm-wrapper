@@ -1,0 +1,27 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Suppress deprecated warnings for PHP 8.4 compatibility
+// This must be set before any autoloader is loaded
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+
+// Set error handler that doesn't throw exceptions for deprecated warnings
+set_error_handler(function ($errno, $errstr, $errfile, $errline) {
+    // Don't throw exceptions for deprecated warnings
+    if ($errno === E_DEPRECATED || $errno === E_STRICT) {
+        return true; // Suppress the error
+    }
+    return false; // Let other errors be handled normally
+}, E_ALL & ~E_DEPRECATED & ~E_STRICT);
+
+// Include the original Psalm script
+$psalmPath = __DIR__ . '/../vendor/vimeo/psalm/psalm';
+if (!file_exists($psalmPath)) {
+    // Fallback to vendor/bin/psalm
+    $psalmPath = __DIR__ . '/../vendor/bin/psalm';
+}
+
+require $psalmPath;
+

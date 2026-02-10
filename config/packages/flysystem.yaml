@@ -1,0 +1,87 @@
+# Flysystem and vendor library configuration
+# All vendor dependencies are abstracted through interfaces
+
+services:
+    # ============================================
+    # Vendor Library Adapters (Infrastructure Layer)
+    # ============================================
+    
+    # MIME Type Detector - wraps League MIME Type Detection
+    SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorAdapter:
+        arguments:
+            $detector: null  # Will use FinfoMimeTypeDetector by default
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+    
+    # Bind interface to implementation
+    SortingPhotosByDate\Ports\MimeTypeDetectorInterface:
+        alias: SortingPhotosByDate\Infrastructure\Filesystem\MimeTypeDetectorAdapter
+    
+    # Audio/Video Metadata Analyzer - wraps getID3
+    # Note: This is configured in services.yaml with explicit GetID3 dependency
+    # SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter:
+    #     arguments:
+    #         $getId3: null  # Will use JamesHeinrich\GetID3\GetID3() by default
+    
+    # Bind interface to implementation (configured in services.yaml)
+    # SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface:
+    #     alias: SortingPhotosByDate\Infrastructure\Metadata\GetId3Adapter
+    
+    # ============================================
+    # Filesystem Configuration
+    # ============================================
+    
+    # Flysystem Local Adapter (vendor class)
+    # Constructor signature: __construct(string $location, int $writeFlags = LOCK_EX, int $linkHandling = self::DISALLOW_LINKS, ?MimeTypeDetector $mimeTypeDetector = null)
+    League\Flysystem\Local\LocalFilesystemAdapter:
+        arguments:
+            $location: '%kernel.project_dir%'
+            $writeFlags: 0
+            $linkHandling: 0
+            $mimeTypeDetector: null
+    
+    # Flysystem Filesystem (vendor class)
+    League\Flysystem\Filesystem:
+        arguments:
+            $adapter: '@League\Flysystem\Local\LocalFilesystemAdapter'
+            $config: []
+    
+    # MetadataPreservingCopier - uses FilesystemOperator directly to avoid circular dependency
+    SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier:
+        arguments:
+            $filesystem: '@League\Flysystem\Filesystem'
+    
+    # LocalFilesystemAdapter - implements FilesystemPort using Flysystem
+    SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter:
+        arguments:
+            $copier: '@SortingPhotosByDate\Infrastructure\Filesystem\MetadataPreservingCopier'
+            $filesystem: '@League\Flysystem\Filesystem'
+            $defaultDirectoryPermissions: '%app.filesystem.default_dir_permissions%'
+    
+    # Bind FilesystemPort interface to implementation
+    SortingPhotosByDate\Ports\FilesystemPort:
+        alias: SortingPhotosByDate\Adapters\Filesystem\LocalFilesystemAdapter
+        public: true
+    
+    # ============================================
+    # Metadata Extractors
+    # ============================================
+    
+    SortingPhotosByDate\Adapters\Metadata\GenericAdapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+    
+    SortingPhotosByDate\Adapters\Metadata\ExifAdapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+    
+    SortingPhotosByDate\Adapters\Metadata\GetId3Adapter:
+        arguments:
+            $mimeTypeDetector: '@SortingPhotosByDate\Ports\MimeTypeDetectorInterface'
+            $metadataAnalyzer: '@SortingPhotosByDate\Ports\AudioVideoMetadataAnalyzerInterface'
+            $filesystem: '@SortingPhotosByDate\Ports\FilesystemPort'
+            $filenameDateExtractor: '@SortingPhotosByDate\Infrastructure\Metadata\FilenameDateExtractor'
+            $logger: '@SortingPhotosByDate\Ports\LoggerPort'

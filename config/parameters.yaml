@@ -1,0 +1,203 @@
+parameters:
+    # Application parameters (from environment variables)
+    # Using Symfony %env()% syntax to read from .env file
+    app.source_directory: '%env(string:SOURCE_DIRECTORY)%'
+    app.destination_directory: '%env(string:DESTINATION_DIRECTORY)%'
+    app.source_directory_host: '%env(string:SOURCE_DIRECTORY_HOST)%'
+    app.destination_directory_host: '%env(string:DESTINATION_DIRECTORY_HOST)%'
+    app.organizer_policy: 'date-type'
+    app.dry_run: false
+    
+    # Filesystem parameters
+    app.filesystem.default_dir_permissions: 493  # 0755 in decimal
+    
+    # Google Photos API parameters
+    app.google_photos.access_token: ''
+    app.google_photos.album_id: null
+    app.google_photos.credentials_path: ''
+    app.google_photos.full_access: false
+    
+    # Compression parameters
+    # Default values - can be overridden by environment variables via ParameterResolver
+    app.compression.enabled: false
+    app.compression.jpeg_max_pixels: 75000000  # 75 MP (Google Photos limit)
+    app.compression.png_max_pixels: 200000000  # 200 MP (Google Photos limit)
+    app.compression.video_max_size_bytes: 10737418240  # 10 GB (Google Photos limit)
+    app.compression.min_file_size_bytes: 2097152  # 2 MB - don't compress files smaller than this
+
+    # Google Photos compression parameters
+    google_photos.compression.enabled: false
+    google_photos.compression.quality: 95
+    google_photos.compression.max_width: 4096
+    google_photos.compression.max_height: 4096
+    google_photos.compression.format: 'auto'
+    google_photos.compression.conditions.min_file_size: '1MB'
+    google_photos.compression.conditions.max_compression_ratio: 0.8
+
+    # Google Photos upload parameters
+    google_photos.upload.chunk_size: 262144
+    google_photos.upload.max_retries: 3
+    google_photos.upload.retry_delay: 1000
+
+    # Google Photos batch parameters
+    google_photos.batch.size: 50
+    google_photos.batch.timeout: 30
+
+    # Google Photos quota parameters
+    google_photos.quota.daily_upload: '2000GB'
+    google_photos.quota.hourly_upload: '2000GB'
+    google_photos.quota.requests_per_minute: 60
+    google_photos.quota.burst_limit: 100
+
+    # Google Photos metrics and monitoring
+    google_photos.metrics.enabled: false
+    google_photos.monitoring.health_check_interval: '60s'
+    google_photos.monitoring.alert_on_quota_exceeded: false
+    google_photos.monitoring.alert_on_upload_failed: false
+
+    # Logging parameters
+    # These are default values - can be overridden by environment variables via ParameterResolver:
+    #   LOG_FILE_ENABLED, LOG_FILE_LEVEL, LOG_CONSOLE_LEVEL
+    # LOG_CONSOLE_LEVEL can be:
+    #   - Single level string: 'ERROR' (shows ERROR and above: ERROR, CRITICAL, ALERT, EMERGENCY)
+    #   - Comma-separated string in .env: "ERROR,WARNING" (will be parsed as array: ['ERROR', 'WARNING'])
+    #   - Array in YAML: ['ERROR', 'WARNING'] (shows only ERROR and WARNING)
+    app.logging.file_enabled: true  # Override with LOG_FILE_ENABLED env var
+    app.logging.file_level: 'DEBUG'  # Override with LOG_FILE_LEVEL env var (DEBUG, INFO, WARNING, ERROR, or OFF)
+    app.logging.console_level: 'INFO'  # Override with LOG_CONSOLE_LEVEL env var
+
+    # File filters
+    app.filters.enabled: true
+    app.filters.context: both  # local_organizing | google_photos | both
+    
+    # Filter by file type
+    app.filters.file_type.enabled: true
+    app.filters.file_type.allowed: ['image']
+    app.filters.file_type.denied: ['video']
+    
+    # Filter by MIME type
+    app.filters.mime_type.enabled: false
+    app.filters.mime_type.allowed: null      # ['image/jpeg', 'image/png'] or null
+    app.filters.mime_type.denied: null       # ['image/gif'] or null
+    app.filters.mime_type.allowed_patterns: null  # ['image/*'] or null
+    app.filters.mime_type.denied_patterns: null   # ['image/gif'] or null
+    
+    # Filter by file size
+    app.filters.file_size.enabled: false
+    app.filters.file_size.min_bytes: null    # Minimum size (null = no limit)
+    app.filters.file_size.max_bytes: null    # Maximum size (null = no limit)
+    
+    # Filter by filename regex (for screenshots, etc.)
+    app.filters.filename_regex.enabled: true
+    app.filters.filename_regex.patterns: ['/screenshot/i', '/screen.?shot/i', '/Screenshot/i', '/Снимок экрана/i']
+    
+    # Filter by date
+    app.filters.date.enabled: false
+    app.filters.date.from_date: null  # Start date (null = no limit) - начало 2024 года
+    app.filters.date.to_date: null    # End date (null = no limit) - конец 2024 года
+    app.filters.date.check_filename: true    # Check date in filename
+    app.filters.date.check_metadata: true     # Check date in metadata
+
+    # File search configuration (for fast file discovery before metadata extraction)
+    app.search.enabled: true
+    app.search.strategy: hybrid  # hybrid | locate | find | disabled
+    
+    # File extensions to search for
+    app.search.extensions:
+        - jpg
+        - jpeg
+        - png
+#        - gif
+#        - webp
+#        - bmp
+#        - tiff
+#        - tif
+#        - heic
+#        - heif
+#        - mp4
+#        - mov
+#        - avi
+#        - mkv
+#        - wmv
+#        - flv
+#        - webm
+#        - m4v
+#        - 3gp
+    
+    app.search.min_size_bytes: null  # Minimum file size in bytes
+    app.search.max_size_bytes: null  # Maximum file size in bytes
+    
+    # Regex patterns for filename matching
+    app.search.filename_patterns: []  # ['/IMG_\d{8}/', '/VID_\d{8}/']
+    
+    # Glob patterns for directory exclusion
+    app.search.exclude_directories:
+        - '**/.git'
+        - '**/node_modules'
+        - '**/.DS_Store'
+        - '**/Thumbs.db'
+        - '**/.*'  # Hidden directories
+    
+    # Glob patterns for file exclusion
+    app.search.exclude_patterns:
+        - '**/*.tmp'
+        - '**/*~'
+    
+    # Glob patterns for file inclusion (null = all)
+    app.search.include_patterns: []
+    
+    # Parallel search configuration
+    app.search.parallel.enabled: false
+    app.search.parallel.max_depth: 3  # Maximum depth for parallel search
+    
+    # File search configuration for command (google-photos:search-files)
+    app.search.command.enabled: true
+    app.search.command.strategy: find  # hybrid | locate | find | disabled
+    # Use find for external drives - it's more reliable than locate which may not index removable media
+    
+    # Search for images only (photos)
+    app.search.command.extensions:
+        - jpg
+        - jpeg
+        - png
+        # Exclude videos for photo search
+        # - gif
+        # - webp
+        # - bmp
+        # - tiff
+        # - tif
+        # - heic
+        # - heif
+        # - mp4
+        # - mov
+        # - avi
+        # - mkv
+        # - wmv
+        # - flv
+        # - webm
+        # - m4v
+        # - 3gp
+    
+    app.search.command.min_size_bytes: 1
+    app.search.command.max_size_bytes: 5000000
+    
+    # Filename patterns to find files with specific patterns in name (OPTIONAL - leave empty to find all files)
+    # If specified, ONLY files matching these patterns will be included
+    # Examples: IMG_20240101_120000.jpg, 2024-01-15_photo.jpg, etc.
+    # NOTE: Use date filter (app.filters.date) to filter by creation date from metadata instead!
+    app.search.command.filename_patterns: []
+    #   - '/2025/'  # Files containing "2024" in filename
+    #    - '/IMG_2024\d{4}/'  # IMG_20240101 format
+    #    - '/2024-\d{2}-\d{2}/'  # 2024-01-01 format
+    
+    app.search.command.exclude_directories:
+        - '**/.git'
+        - '**/node_modules'
+        - '**/.DS_Store'
+        - '**/Thumbs.db'
+        - '**/.*'
+    app.search.command.exclude_patterns:
+        - '**/*.tmp'
+        - '**/*~'
+    app.search.command.include_patterns: []
+

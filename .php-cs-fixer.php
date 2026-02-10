@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 $finder = PhpCsFixer\Finder::create()
     ->in(__DIR__)
-    ->exclude('vendor');
+    ->exclude('vendor')
+    ->exclude('var')
+    ->exclude('bin')
+    ->exclude('config')
+    ->exclude('tests')
+    ->name('*.php');
 
 $config = new PhpCsFixer\Config();
 return $config->setRules(
@@ -24,4 +29,4 @@ return $config->setRules(
         'phpdoc_to_comment' => false,
         'array_syntax' => ['syntax' => 'short'],
     ]
-)->setFinder($finder);
+)->setFinder($finder)->setCacheFile(__DIR__.'/var/.php-cs-fixer.cache');

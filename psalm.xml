@@ -1,9 +1,29 @@
 <?xml version="1.0"?>
-<psalm>
+<psalm
+    errorLevel="1"
+    findUnusedBaselineEntry="false"
+    findUnusedCode="false"
+    findUnusedVariablesAndParams="false"
+    useDocblockTypes="true"
+    useDocblockPropertyTypes="true"
+    strictBinaryOperands="false"
+>
     <projectFiles>
         <directory name="src" />
         <ignoreFiles>
             <directory name="vendor" />
+            <directory name="tests" />
+            <directory name="bin" />
+            <directory name="config" />
+            <directory name="var" />
         </ignoreFiles>
     </projectFiles>
+    <issueHandlers>
+        <UndefinedClass>
+            <errorLevel type="suppress">
+                <file name="src/Adapters/Metadata/GetId3Adapter.php" />
+                <file name="src/Infrastructure/Metadata/GetId3Adapter.php" />
+            </errorLevel>
+        </UndefinedClass>
+    </issueHandlers>
 </psalm>
